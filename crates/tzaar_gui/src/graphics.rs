@@ -5,6 +5,7 @@ use bevy::{
 use tzaar::Coord;
 
 use crate::grid::draw_grid;
+use crate::hex_layout;
 
 pub const FOREGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(2);
 pub const BACKGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(1);
@@ -15,11 +16,10 @@ pub const COLOR_BACKGROUND: Color = Color::srgb(0.82, 0.76, 0.66);
 
 pub const ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(500);
 
-/// Intersection-to-intersection distance at `factor == 1`.
+/// Intersection-to-intersection distance in world units (`factor == 1`).
 pub const BASE_SPACING: f32 = 58.0;
 
-/// Outer piece radius as a fraction of intersection spacing (all types share this).
-pub const PIECE_RADIUS_FRAC: f32 = 0.40;
+pub const PIECE_RADIUS_FRAC: f32 = hex_layout::PIECE_RADIUS_FRAC;
 
 #[derive(Component)]
 pub struct MainCamera;
@@ -31,16 +31,9 @@ pub struct ScaleFactor {
     origin: Vec2,
 }
 
-/// Flat-top axial layout: vertical columns (`coord.x`), 60° diagonals.
-/// Adjacent playable neighbors are exactly `spacing` apart.
 pub fn hex_to_pixel(coord: Coord, spacing: f32) -> Vec2 {
-    let q = coord.x as f32;
-    let r = coord.y as f32;
-    let sqrt3 = 3.0_f32.sqrt();
-    let size = spacing / sqrt3;
-    let px = size * 1.5 * q;
-    let py = size * (sqrt3 * 0.5 * q + sqrt3 * r);
-    Vec2::new(px, -py)
+    let p = hex_layout::hex_to_pixel(coord, spacing);
+    Vec2::new(p.x, p.y)
 }
 
 impl ScaleFactor {
@@ -61,22 +54,11 @@ impl ScaleFactor {
 impl Default for ScaleFactor {
     fn default() -> Self {
         let spacing = BASE_SPACING;
-        let mut min_x = f32::MAX;
-        let mut max_x = f32::MIN;
-        let mut min_y = f32::MAX;
-        let mut max_y = f32::MIN;
-        for coord in tzaar::all_playable_coords() {
-            let p = hex_to_pixel(coord, spacing);
-            min_x = min_x.min(p.x);
-            max_x = max_x.max(p.x);
-            min_y = min_y.min(p.y);
-            max_y = max_y.max(p.y);
-        }
-        let origin = Vec2::new(-(min_x + max_x) / 2.0, -(min_y + max_y) / 2.0);
+        let origin = hex_layout::origin_to_center(spacing);
         Self {
             spacing,
             factor: 1.0,
-            origin,
+            origin: Vec2::new(origin.x, origin.y),
         }
     }
 }
@@ -114,17 +96,24 @@ fn setup_graphics(mut commands: Commands, mut config_store: ResMut<GizmoConfigSt
     config.render_layers = BACKGROUND_RENDER_LAYER;
 }
 
-fn resize_scale_factor(
+fn fit_camera_to_board(
     mut scale_factor: ResMut<ScaleFactor>,
     q_window: Query<&Window, With<PrimaryWindow>>,
+    mut q_proj: Query<&mut Projection>,
 ) {
     let Ok(window) = q_window.single() else {
         return;
     };
     let width = window.resolution.width();
     let height = window.resolution.height();
-    let target = (width.min(height) * 0.85) / 520.0;
-    scale_factor.factor = target.clamp(0.65, 1.35);
+    // World layout stays at BASE_SPACING; the camera zooms so the hull + margin fits.
+    scale_factor.factor = 1.0;
+    let scale = hex_layout::ortho_scale_to_fit(width, height, scale_factor.spacing);
+    for mut projection in &mut q_proj {
+        if let Projection::Orthographic(ortho) = &mut *projection {
+            ortho.scale = scale;
+        }
+    }
 }
 
 pub fn plugin(app: &mut App) {
@@ -132,14 +121,15 @@ pub fn plugin(app: &mut App) {
         .add_systems(PreStartup, setup_graphics)
         .add_systems(
             Update,
-            (resize_scale_factor.in_set(ScaleFactorSet), draw_grid),
+            (fit_camera_to_board.in_set(ScaleFactorSet), draw_grid),
         );
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tzaar::{DIRECTIONS, step};
+    use crate::hex_layout::{BOARD_CORNERS, LATTICE_STEPS};
+    use tzaar::step;
 
     fn approx(a: f32, b: f32) -> bool {
         (a - b).abs() < 1e-4
@@ -150,7 +140,7 @@ mod tests {
         let spacing = 10.0;
         let origin = Coord::new(4, 3);
         let mut vecs = Vec::new();
-        for dir in DIRECTIONS {
+        for dir in LATTICE_STEPS {
             let delta = hex_to_pixel(step(origin, dir), spacing) - hex_to_pixel(origin, spacing);
             assert!(
                 approx(delta.length(), spacing),
@@ -159,7 +149,6 @@ mod tests {
             );
             vecs.push(delta);
         }
-        // Adjacent hex directions differ by 60°.
         for v in &vecs {
             let angles: Vec<f32> = vecs
                 .iter()
@@ -176,11 +165,16 @@ mod tests {
     }
 
     #[test]
-    fn columns_are_vertical() {
+    fn board_corners_are_equidistant_from_centre() {
         let spacing = 10.0;
-        let a = hex_to_pixel(Coord::new(2, 1), spacing);
-        let b = hex_to_pixel(Coord::new(2, 3), spacing);
-        assert!(approx(a.x, b.x), "same x-column must share pixel x");
-        assert!(b.y < a.y, "increasing y walks down the column");
+        let centre = hex_to_pixel(Coord::new(4, 4), spacing);
+        let radii: Vec<f32> = BOARD_CORNERS
+            .iter()
+            .map(|c| (hex_to_pixel(*c, spacing) - centre).length())
+            .collect();
+        let r0 = radii[0];
+        for r in &radii {
+            assert!(approx(*r, r0), "radii {radii:?}");
+        }
     }
 }

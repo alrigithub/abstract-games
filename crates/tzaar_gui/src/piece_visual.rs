@@ -6,17 +6,19 @@ use bevy::{
 use tzaar::{Piece, PieceKind, Player};
 
 use crate::board_entity::{BoardElement, CursorElement};
-use crate::graphics::{BASE_SPACING, FOREGROUND_RENDER_LAYER, PIECE_RADIUS_FRAC};
+use crate::graphics::{BASE_SPACING, FOREGROUND_RENDER_LAYER};
+use crate::hex_layout::RING_WIDTH_FRAC;
 
 /// Shared outer radius in mesh space (`transform.scale` applies `ScaleFactor::factor`).
-pub const PIECE_RADIUS: f32 = BASE_SPACING * PIECE_RADIUS_FRAC;
+pub const PIECE_RADIUS: f32 = crate::hex_layout::piece_radius(BASE_SPACING);
 
 pub const INK: Color = Color::srgb(0.06, 0.06, 0.07);
 pub const PAPER: Color = Color::srgb(0.96, 0.94, 0.88);
 pub const MARK_ON_DARK: Color = Color::srgb(0.92, 0.90, 0.84);
 
-const RING_SEGMENTS: u32 = 40;
-const STROKE: f32 = 2.4;
+const RING_SEGMENTS: u32 = 48;
+const OUTLINE_WIDTH: f32 = BASE_SPACING * 0.035;
+const RING_WIDTH: f32 = BASE_SPACING * RING_WIDTH_FRAC;
 
 #[derive(Resource)]
 pub struct PieceDrawMaterials {
@@ -70,10 +72,14 @@ pub fn setup_piece_assets(
         mark_light: materials.add(ColorMaterial::from(MARK_ON_DARK)),
     });
 
+    let ring_mid = PIECE_RADIUS * 0.62;
     commands.insert_resource(PieceMeshes {
         fill: meshes.add(Circle::new(PIECE_RADIUS)),
-        outline: meshes.add(ring_mesh(PIECE_RADIUS - STROKE, PIECE_RADIUS)),
-        inner_ring: meshes.add(ring_mesh(PIECE_RADIUS * 0.48, PIECE_RADIUS * 0.58)),
+        outline: meshes.add(ring_mesh(PIECE_RADIUS - OUTLINE_WIDTH, PIECE_RADIUS)),
+        inner_ring: meshes.add(ring_mesh(
+            ring_mid - RING_WIDTH * 0.5,
+            ring_mid + RING_WIDTH * 0.5,
+        )),
         center_dot: meshes.add(Circle::new(PIECE_RADIUS * 0.16)),
     });
 }

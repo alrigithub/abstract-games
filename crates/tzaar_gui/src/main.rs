@@ -2,6 +2,7 @@ mod ai;
 mod board_entity;
 mod graphics;
 mod grid;
+mod hex_layout;
 mod information_display;
 mod interaction;
 mod keyboard_control;

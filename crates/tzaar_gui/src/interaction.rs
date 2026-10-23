@@ -7,7 +7,9 @@ use crate::{
     PLAYER_HUMAN,
     ai::AiSet,
     board_entity::{BoardElement, CursorElement, StackHeightLabel},
-    graphics::{FOREGROUND_RENDER_LAYER, MainCamera, ScaleFactor, ScaleFactorSet},
+    graphics::{
+        FOREGROUND_RENDER_LAYER, MainCamera, PIECE_RADIUS_FRAC, ScaleFactor, ScaleFactorSet,
+    },
     pass_ui::{human_may_pass, submit_pass},
     piece_visual::{
         INK, MARK_ON_DARK, PIECE_RADIUS, PieceDrawMaterials, PieceMeshes, spawn_stack_piece_at,
@@ -34,7 +36,7 @@ fn viewport_to_coord(
         .map(|ray| ray.origin.truncate())
         .ok()?;
 
-    let max_dist_sq = (scale_factor.spacing * 0.42 * scale_factor.factor).powi(2);
+    let max_dist_sq = (scale_factor.world_spacing() * (PIECE_RADIUS_FRAC + 0.02)).powi(2);
 
     all_playable_coords()
         .into_iter()

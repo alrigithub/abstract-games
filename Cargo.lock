@@ -5052,7 +5052,6 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_async_task",
- "bevy_tweening",
  "tzaar",
  "tzaar_ai",
 ]
