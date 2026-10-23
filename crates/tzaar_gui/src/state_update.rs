@@ -7,7 +7,7 @@ use tzaar::{Move, Player};
 use crate::{
     PLAYER_AI, PLAYER_HUMAN,
     ai::AiPending,
-    interaction::{BoardElement, CursorElement},
+    board_entity::{BoardElement, CursorElement},
 };
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]

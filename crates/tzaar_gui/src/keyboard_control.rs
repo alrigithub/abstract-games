@@ -3,8 +3,8 @@ use bevy::prelude::*;
 
 use crate::{
     ai::{AiComputationEvent, AiPending, AiPlayerStrength, AiSet},
+    board_entity::{BoardElement, CursorElement},
     graphics::ScaleFactorSet,
-    interaction::{BoardElement, CursorElement},
     state_update::{
         BoardResyncEvent, GameState, InteractionState, StateUpdateSet, UndoHistory,
         restore_board_from_game_state,

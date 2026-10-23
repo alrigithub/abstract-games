@@ -5,6 +5,7 @@ use bevy::{
 };
 use tzaar::{Piece, PieceKind, Player};
 
+use crate::board_entity::{BoardElement, CursorElement};
 use crate::graphics::FOREGROUND_RENDER_LAYER;
 
 pub const R_TZAAR: f32 = 20.0;
@@ -14,6 +15,9 @@ pub const R_TOTT: f32 = 11.0;
 pub const INK: Color = Color::srgb(0.06, 0.06, 0.07);
 pub const PAPER: Color = Color::srgb(0.96, 0.94, 0.88);
 pub const MARK_ON_DARK: Color = Color::srgb(0.92, 0.90, 0.84);
+
+const RING_SEGMENTS: u32 = 40;
+
 #[derive(Resource)]
 pub struct PieceDrawMaterials {
     pub fill_dark: Handle<ColorMaterial>,
@@ -24,19 +28,21 @@ pub struct PieceDrawMaterials {
     pub stack_light: Handle<ColorMaterial>,
 }
 
-#[derive(Component, Clone, Copy)]
-#[expect(dead_code)]
-pub struct StackPieceVisual {
-    pub player: Player,
-    pub kind: PieceKind,
-    pub is_top: bool,
+/// Shared mesh handles — created once at startup (avoids thousands of unique GPU assets).
+#[derive(Resource)]
+pub struct PieceMeshes {
+    pub fill: [Handle<Mesh>; 3],
+    pub stack_disc: [Handle<Mesh>; 3],
+    pub stack_rim: [Handle<Mesh>; 3],
+    pub center_dot: [Handle<Mesh>; 3],
+    pub white_outer_ring: [Handle<Mesh>; 3],
+    pub white_inner_tzarra: Handle<Mesh>,
+    pub white_inner_tzaar: Handle<Mesh>,
+    pub white_mid_tzaar: Handle<Mesh>,
+    pub black_ring_tzarra: Handle<Mesh>,
+    pub black_ring_tzaar_outer: Handle<Mesh>,
+    pub black_ring_tzaar_inner: Handle<Mesh>,
 }
-
-#[derive(Component)]
-struct PieceFill;
-
-#[derive(Component)]
-struct PieceRing;
 
 pub fn radius_for(kind: PieceKind) -> f32 {
     match kind {
@@ -46,47 +52,20 @@ pub fn radius_for(kind: PieceKind) -> f32 {
     }
 }
 
-pub fn setup_piece_materials(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
-    commands.insert_resource(PieceDrawMaterials {
-        fill_dark: materials.add(ColorMaterial::from(INK)),
-        fill_light: materials.add(ColorMaterial::from(PAPER)),
-        mark_dark: materials.add(ColorMaterial::from(INK)),
-        mark_light: materials.add(ColorMaterial::from(MARK_ON_DARK)),
-        stack_dark: materials.add(ColorMaterial::from(INK.with_alpha(0.88))),
-        stack_light: materials.add(ColorMaterial::from(PAPER.with_alpha(0.92))),
-    });
-}
-
-fn fill_material(
-    materials: &PieceDrawMaterials,
-    player: Player,
-    is_top: bool,
-) -> Handle<ColorMaterial> {
-    if !is_top {
-        return match player {
-            Player::First => materials.stack_light.clone(),
-            Player::Second => materials.stack_dark.clone(),
-        };
-    }
-    match player {
-        Player::First => materials.fill_light.clone(),
-        Player::Second => materials.fill_dark.clone(),
+fn kind_index(kind: PieceKind) -> usize {
+    match kind {
+        PieceKind::Tzaar => 0,
+        PieceKind::Tzarra => 1,
+        PieceKind::Tott => 2,
     }
 }
 
-fn mark_material(materials: &PieceDrawMaterials, player: Player) -> Handle<ColorMaterial> {
-    match player {
-        Player::First => materials.mark_dark.clone(),
-        Player::Second => materials.mark_light.clone(),
-    }
-}
-
-fn ring_mesh(inner_radius: f32, outer_radius: f32, segments: u32) -> Mesh {
-    let mut positions = Vec::with_capacity(segments as usize * 4);
-    let mut indices = Vec::with_capacity(segments as usize * 6);
-    for i in 0..segments {
-        let a0 = i as f32 / segments as f32 * TAU;
-        let a1 = (i + 1) as f32 / segments as f32 * TAU;
+fn ring_mesh(inner_radius: f32, outer_radius: f32) -> Mesh {
+    let mut positions = Vec::with_capacity(RING_SEGMENTS as usize * 4);
+    let mut indices = Vec::with_capacity(RING_SEGMENTS as usize * 6);
+    for i in 0..RING_SEGMENTS {
+        let a0 = i as f32 / RING_SEGMENTS as f32 * TAU;
+        let a1 = (i + 1) as f32 / RING_SEGMENTS as f32 * TAU;
         let (s0, c0) = a0.sin_cos();
         let (s1, c1) = a1.sin_cos();
         let base = positions.len() as u32;
@@ -105,186 +84,251 @@ fn ring_mesh(inner_radius: f32, outer_radius: f32, segments: u32) -> Mesh {
     mesh
 }
 
-fn thin_ring_mesh(radius: f32, thickness: f32) -> Mesh {
-    ring_mesh((radius - thickness).max(0.0), radius + thickness, 64)
+fn add_ring(meshes: &mut Assets<Mesh>, inner: f32, outer: f32) -> Handle<Mesh> {
+    meshes.add(ring_mesh(inner, outer))
 }
 
-fn spawn_ring(
-    parent: &mut ChildSpawnerCommands,
-    meshes: &mut Assets<Mesh>,
-    material: Handle<ColorMaterial>,
-    inner: f32,
-    outer: f32,
-    z: f32,
+pub fn setup_piece_assets(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    parent.spawn((
-        Mesh2d(meshes.add(ring_mesh(inner, outer, 64))),
-        MeshMaterial2d(material),
-        PieceRing,
-        Transform::from_xyz(0., 0., z),
-        FOREGROUND_RENDER_LAYER,
-    ));
+    commands.insert_resource(PieceDrawMaterials {
+        fill_dark: materials.add(ColorMaterial::from(INK)),
+        fill_light: materials.add(ColorMaterial::from(PAPER)),
+        mark_dark: materials.add(ColorMaterial::from(INK)),
+        mark_light: materials.add(ColorMaterial::from(MARK_ON_DARK)),
+        stack_dark: materials.add(ColorMaterial::from(INK.with_alpha(0.88))),
+        stack_light: materials.add(ColorMaterial::from(PAPER.with_alpha(0.92))),
+    });
+
+    let fill = [
+        meshes.add(Circle::new(R_TZAAR)),
+        meshes.add(Circle::new(R_TZARRA)),
+        meshes.add(Circle::new(R_TOTT)),
+    ];
+    let stack_disc = [
+        meshes.add(Circle::new(R_TZAAR * 0.92)),
+        meshes.add(Circle::new(R_TZARRA * 0.92)),
+        meshes.add(Circle::new(R_TOTT * 0.92)),
+    ];
+    let stack_rim = [
+        add_ring(&mut meshes, R_TZAAR * 0.85, R_TZAAR * 0.97),
+        add_ring(&mut meshes, R_TZARRA * 0.85, R_TZARRA * 0.97),
+        add_ring(&mut meshes, R_TOTT * 0.85, R_TOTT * 0.97),
+    ];
+    let center_dot = [
+        meshes.add(Circle::new(R_TZAAR * 0.11)),
+        meshes.add(Circle::new(R_TZARRA * 0.11)),
+        meshes.add(Circle::new(R_TOTT * 0.11)),
+    ];
+    let white_stroke = 3.0;
+    let white_outer_ring = [
+        add_ring(&mut meshes, R_TZAAR - white_stroke, R_TZAAR),
+        add_ring(&mut meshes, R_TZARRA - white_stroke, R_TZARRA),
+        add_ring(&mut meshes, R_TOTT - white_stroke, R_TOTT),
+    ];
+
+    commands.insert_resource(PieceMeshes {
+        fill,
+        stack_disc,
+        stack_rim,
+        center_dot,
+        white_outer_ring,
+        white_inner_tzarra: add_ring(&mut meshes, R_TZARRA * 0.46, R_TZARRA * 0.54),
+        white_inner_tzaar: add_ring(&mut meshes, R_TZAAR * 0.32, R_TZAAR * 0.40),
+        white_mid_tzaar: add_ring(&mut meshes, R_TZAAR * 0.54, R_TZAAR * 0.62),
+        black_ring_tzarra: add_ring(&mut meshes, R_TZARRA * 0.48, R_TZARRA * 0.56),
+        black_ring_tzaar_outer: add_ring(&mut meshes, R_TZAAR * 0.58, R_TZAAR * 0.66),
+        black_ring_tzaar_inner: add_ring(&mut meshes, R_TZAAR * 0.34, R_TZAAR * 0.42),
+    });
 }
 
-fn spawn_glyph_rings(
-    parent: &mut ChildSpawnerCommands,
-    meshes: &mut Assets<Mesh>,
+fn spawn_part(
+    commands: &mut Commands,
+    mesh: Handle<Mesh>,
     material: Handle<ColorMaterial>,
-    player: Player,
-    kind: PieceKind,
-    radius: f32,
+    transform: Transform,
+    visibility: Visibility,
+    board: BoardElement,
+    cursor: bool,
 ) {
-    match player {
-        Player::Second => match kind {
-            PieceKind::Tzaar => {
-                spawn_ring(
-                    parent,
-                    meshes,
-                    material.clone(),
-                    radius * 0.58,
-                    radius * 0.66,
-                    0.03,
+    if cursor {
+        commands.spawn((
+            Mesh2d(mesh),
+            MeshMaterial2d(material),
+            transform,
+            visibility,
+            FOREGROUND_RENDER_LAYER,
+            board,
+            CursorElement,
+        ));
+    } else {
+        commands.spawn((
+            Mesh2d(mesh),
+            MeshMaterial2d(material),
+            transform,
+            visibility,
+            FOREGROUND_RENDER_LAYER,
+            board,
+        ));
+    }
+}
+
+/// Spawns all mesh layers for one stack disc (flat entities, shared meshes, no child hierarchy).
+pub fn spawn_stack_piece_at(
+    commands: &mut Commands,
+    piece_meshes: &PieceMeshes,
+    materials: &PieceDrawMaterials,
+    piece: Piece,
+    is_top: bool,
+    ghost: bool,
+    transform: Transform,
+    board: BoardElement,
+    cursor: bool,
+) {
+    let ki = kind_index(piece.kind);
+    let z = transform.translation.z;
+    let visibility = if cursor {
+        Visibility::Hidden
+    } else {
+        Visibility::Visible
+    };
+
+    let spawn_layer =
+        |commands: &mut Commands, mesh: Handle<Mesh>, mat: Handle<ColorMaterial>, dz: f32| {
+            let mut t = transform;
+            t.translation.z = z + dz;
+            spawn_part(commands, mesh, mat, t, visibility, board, cursor);
+        };
+
+    match piece.player {
+        Player::Second => {
+            let fill_mat = if is_top {
+                materials.fill_dark.clone()
+            } else {
+                materials.stack_dark.clone()
+            };
+            spawn_layer(commands, piece_meshes.fill[ki].clone(), fill_mat, 0.01);
+            if is_top {
+                match piece.kind {
+                    PieceKind::Tzaar => {
+                        spawn_layer(
+                            commands,
+                            piece_meshes.black_ring_tzaar_outer.clone(),
+                            materials.mark_light.clone(),
+                            0.03,
+                        );
+                        spawn_layer(
+                            commands,
+                            piece_meshes.black_ring_tzaar_inner.clone(),
+                            materials.mark_light.clone(),
+                            0.04,
+                        );
+                        spawn_layer(
+                            commands,
+                            piece_meshes.center_dot[ki].clone(),
+                            materials.mark_light.clone(),
+                            0.05,
+                        );
+                    }
+                    PieceKind::Tzarra => {
+                        spawn_layer(
+                            commands,
+                            piece_meshes.black_ring_tzarra.clone(),
+                            materials.mark_light.clone(),
+                            0.03,
+                        );
+                        spawn_layer(
+                            commands,
+                            piece_meshes.center_dot[ki].clone(),
+                            materials.mark_light.clone(),
+                            0.05,
+                        );
+                    }
+                    PieceKind::Tott => {}
+                }
+            } else {
+                spawn_layer(
+                    commands,
+                    piece_meshes.stack_rim[ki].clone(),
+                    materials.mark_light.clone(),
+                    0.02,
                 );
-                spawn_ring(parent, meshes, material, radius * 0.34, radius * 0.42, 0.04);
             }
-            PieceKind::Tzarra => {
-                spawn_ring(parent, meshes, material, radius * 0.48, radius * 0.56, 0.03);
-            }
-            PieceKind::Tott => {}
-        },
+        }
         Player::First => {
-            let stroke = 3.0;
-            match kind {
-                PieceKind::Tzaar => {
-                    spawn_ring(
-                        parent,
-                        meshes,
-                        material.clone(),
-                        radius - stroke,
-                        radius,
-                        0.02,
-                    );
-                    spawn_ring(
-                        parent,
-                        meshes,
-                        material.clone(),
-                        radius * 0.54,
-                        radius * 0.62,
-                        0.03,
-                    );
-                    spawn_ring(parent, meshes, material, radius * 0.32, radius * 0.40, 0.04);
-                }
-                PieceKind::Tzarra => {
-                    spawn_ring(
-                        parent,
-                        meshes,
-                        material.clone(),
-                        radius - stroke,
-                        radius,
-                        0.02,
-                    );
-                    spawn_ring(parent, meshes, material, radius * 0.46, radius * 0.54, 0.03);
-                }
-                PieceKind::Tott => {
-                    spawn_ring(parent, meshes, material, radius - stroke, radius, 0.02);
+            if is_top && !ghost {
+                spawn_layer(
+                    commands,
+                    piece_meshes.fill[ki].clone(),
+                    materials.fill_light.clone(),
+                    0.01,
+                );
+            } else if !is_top {
+                spawn_layer(
+                    commands,
+                    piece_meshes.stack_disc[ki].clone(),
+                    materials.stack_light.clone(),
+                    0.01,
+                );
+                spawn_layer(
+                    commands,
+                    piece_meshes.stack_rim[ki].clone(),
+                    materials.mark_dark.clone(),
+                    0.02,
+                );
+            }
+
+            if is_top {
+                spawn_layer(
+                    commands,
+                    piece_meshes.white_outer_ring[ki].clone(),
+                    materials.mark_dark.clone(),
+                    0.02,
+                );
+                match piece.kind {
+                    PieceKind::Tzaar => {
+                        spawn_layer(
+                            commands,
+                            piece_meshes.white_mid_tzaar.clone(),
+                            materials.mark_dark.clone(),
+                            0.03,
+                        );
+                        spawn_layer(
+                            commands,
+                            piece_meshes.white_inner_tzaar.clone(),
+                            materials.mark_dark.clone(),
+                            0.04,
+                        );
+                        spawn_layer(
+                            commands,
+                            piece_meshes.center_dot[ki].clone(),
+                            materials.mark_dark.clone(),
+                            0.05,
+                        );
+                    }
+                    PieceKind::Tzarra => {
+                        spawn_layer(
+                            commands,
+                            piece_meshes.white_inner_tzarra.clone(),
+                            materials.mark_dark.clone(),
+                            0.03,
+                        );
+                        spawn_layer(
+                            commands,
+                            piece_meshes.center_dot[ki].clone(),
+                            materials.mark_dark.clone(),
+                            0.05,
+                        );
+                    }
+                    PieceKind::Tott => {}
                 }
             }
         }
     }
 }
 
-/// Spawns one stack layer (meshes for fill, rings, and center mark).
-pub fn spawn_stack_piece(
-    commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &PieceDrawMaterials,
-    piece: Piece,
-    is_top: bool,
-    ghost: bool,
-) -> Entity {
-    let radius = radius_for(piece.kind);
-    let ring_mat = mark_material(materials, piece.player);
-    let mut entity = commands.spawn((
-        StackPieceVisual {
-            player: piece.player,
-            kind: piece.kind,
-            is_top,
-        },
-        Transform::default(),
-        Visibility::Visible,
-        FOREGROUND_RENDER_LAYER,
-    ));
-
-    let show_fill = match piece.player {
-        Player::Second => true,
-        Player::First => is_top && !ghost,
-    };
-
-    entity.with_children(|parent| {
-        if show_fill {
-            let mat = fill_material(materials, piece.player, is_top);
-            parent.spawn((
-                Mesh2d(meshes.add(Circle::new(radius))),
-                MeshMaterial2d(mat),
-                PieceFill,
-                Transform::from_xyz(0., 0., 0.01),
-                FOREGROUND_RENDER_LAYER,
-            ));
-        } else if !is_top {
-            parent.spawn((
-                Mesh2d(meshes.add(Circle::new(radius * 0.92))),
-                MeshMaterial2d(materials.stack_light.clone()),
-                PieceFill,
-                Transform::from_xyz(0., 0., 0.01),
-                FOREGROUND_RENDER_LAYER,
-            ));
-        }
-
-        if !is_top {
-            let rim = thin_ring_mesh(radius * 0.94, 0.9);
-            let rim_color = match piece.player {
-                Player::First => materials.mark_dark.clone(),
-                Player::Second => materials.mark_light.clone(),
-            };
-            parent.spawn((
-                Mesh2d(meshes.add(rim)),
-                MeshMaterial2d(rim_color),
-                PieceRing,
-                Transform::from_xyz(0., 0., 0.02),
-                FOREGROUND_RENDER_LAYER,
-            ));
-        }
-
-        if is_top {
-            spawn_glyph_rings(
-                parent,
-                meshes,
-                ring_mat.clone(),
-                piece.player,
-                piece.kind,
-                radius,
-            );
-
-            let needs_dot = matches!(
-                (piece.player, piece.kind),
-                (Player::Second, PieceKind::Tzaar | PieceKind::Tzarra)
-                    | (Player::First, PieceKind::Tzaar | PieceKind::Tzarra)
-            );
-            if needs_dot {
-                let dot_r = radius * 0.11;
-                parent.spawn((
-                    Mesh2d(meshes.add(Circle::new(dot_r))),
-                    MeshMaterial2d(ring_mat),
-                    Transform::from_xyz(0., 0., 0.05),
-                    FOREGROUND_RENDER_LAYER,
-                ));
-            }
-        }
-    });
-
-    entity.id()
-}
-
 pub fn plugin(app: &mut App) {
-    app.add_systems(PreStartup, setup_piece_materials);
+    app.add_systems(PreStartup, setup_piece_assets);
 }
