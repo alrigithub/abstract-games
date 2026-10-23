@@ -5035,6 +5035,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8c1ae7cc0fdb8b842d65d127cb981574b0d2b249b74d1c7a2986863dc134f71"
 
 [[package]]
+name = "tzaar"
+version = "0.1.0"
+
+[[package]]
+name = "tzaar_ai"
+version = "0.1.0"
+dependencies = [
+ "minimax",
+ "tzaar",
+]
+
+[[package]]
+name = "tzaar_gui"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_async_task",
+ "bevy_tweening",
+ "gloo-timers 0.3.0",
+ "tzaar",
+ "tzaar_ai",
+]
+
+[[package]]
 name = "unicode-bidi"
 version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"

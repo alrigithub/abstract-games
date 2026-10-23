@@ -171,7 +171,7 @@ fn resize_scale_factor(
 
 pub fn plugin(app: &mut App) {
     app.init_resource::<ScaleFactor>()
-        .add_systems(Startup, setup_graphics)
+        .add_systems(PreStartup, setup_graphics)
         .add_systems(
             Update,
             (resize_scale_factor.in_set(ScaleFactorSet), draw_grid),
