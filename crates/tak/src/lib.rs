@@ -6,7 +6,7 @@ mod player;
 
 pub use board::Board;
 pub use coord::{Coord, Direction};
-pub use game_state::{GameState, IllegalMove, Reserve, check_road_win};
+pub use game_state::{GameState, IllegalMove, Reserve, check_flat_win, check_road_win};
 pub use piece::{Stone, StoneKind};
 pub use player::Player;
 

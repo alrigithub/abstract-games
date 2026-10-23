@@ -76,19 +76,27 @@ pub fn material_for(
     }
 }
 
+fn piece_dimensions(kind: StoneKind) -> (f32, f32) {
+    match kind {
+        StoneKind::Flat => (26.0, 10.0),
+        StoneKind::Wall => (18.0, 28.0),
+        StoneKind::Cap => (28.0, 12.0),
+    }
+}
+
+pub fn piece_mesh2d(meshes: &mut Assets<Mesh>, kind: StoneKind) -> Mesh2d {
+    let (w, h) = piece_dimensions(kind);
+    Mesh2d(meshes.add(Rectangle::new(w, h)))
+}
+
 pub fn piece_mesh(
     meshes: &mut Assets<Mesh>,
     material: Handle<ColorMaterial>,
     kind: StoneKind,
     visibility: Visibility,
 ) -> impl Bundle {
-    let (w, h) = match kind {
-        StoneKind::Flat => (26.0, 10.0),
-        StoneKind::Wall => (18.0, 28.0),
-        StoneKind::Cap => (28.0, 12.0),
-    };
     (
-        Mesh2d(meshes.add(Rectangle::new(w, h))),
+        piece_mesh2d(meshes, kind),
         MeshMaterial2d(material),
         visibility,
     )

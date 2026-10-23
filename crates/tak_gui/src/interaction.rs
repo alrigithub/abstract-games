@@ -2,14 +2,14 @@ use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 use bevy::window::{CursorIcon, PrimaryWindow, SystemCursorIcon};
 use bevy_tweening::{TweenAnim, TweenState, TweeningPlugin};
-use tak::{BOARD_SIZE, Coord, Move, StoneKind};
+use tak::{BOARD_SIZE, Coord, Move, Player, StoneKind};
 
 use crate::{
     PLAYER_HUMAN,
     ai::AiSet,
-    graphics::{
+        graphics::{
         FOREGROUND_RENDER_LAYER, MainCamera, PieceMaterials, ScaleFactor, ScaleFactorSet,
-        material_for, piece_mesh,
+        material_for, piece_mesh, piece_mesh2d,
     },
     state_update::{
         BoardResyncEvent, GameState, InteractionState, PlayerMoveEvent, StateUpdateSet,
@@ -23,6 +23,9 @@ pub struct BoardElement {
 
 #[derive(Component)]
 pub struct CursorElement;
+
+#[derive(Component)]
+struct CursorGhostKind(StoneKind);
 
 #[derive(Resource, Default)]
 pub struct CursorCoord(pub Option<Coord>);
@@ -81,6 +84,7 @@ fn setup_cursor(
             coord: Coord::new(0, 0),
         },
         CursorElement,
+        CursorGhostKind(StoneKind::Flat),
         FOREGROUND_RENDER_LAYER,
     ));
 }
@@ -203,12 +207,15 @@ fn update_cursor(
     place_kind: Res<PlaceKind>,
     mut cursor_coord: ResMut<CursorCoord>,
     materials: Res<PieceMaterials>,
+    mut meshes: ResMut<Assets<Mesh>>,
     mut cursor: Query<
         (
             &mut BoardElement,
             &mut Visibility,
             &mut Transform,
             &mut MeshMaterial2d<ColorMaterial>,
+            &mut Mesh2d,
+            &mut CursorGhostKind,
         ),
         With<CursorElement>,
     >,
@@ -224,7 +231,9 @@ fn update_cursor(
         .cursor_position()
         .and_then(|pos| viewport_to_coord(pos, camera, camera_transform, &scale_factor));
 
-    let Ok((mut element, mut visibility, mut transform, mut material)) = cursor.single_mut() else {
+    let Ok((mut element, mut visibility, mut transform, mut material, mut mesh, mut ghost_kind)) =
+        cursor.single_mut()
+    else {
         return;
     };
 
@@ -234,6 +243,10 @@ fn update_cursor(
     }
 
     let kind = effective_place_kind(&game_state, place_kind.0);
+    if ghost_kind.0 != kind {
+        ghost_kind.0 = kind;
+        *mesh = piece_mesh2d(&mut meshes, kind);
+    }
     if let Some(coord) = cursor_coord.0
         && game_state.board().is_empty(coord)
         && can_place(&game_state, kind)
@@ -242,11 +255,20 @@ fn update_cursor(
         element.coord = coord;
         transform.translation = scale_factor.screen_point(coord);
         transform.scale = Vec3::splat(scale_factor.factor);
-        material.0 = material_for(&materials, PLAYER_HUMAN, kind);
+        let ghost_owner = place_stone_owner(&game_state);
+        material.0 = material_for(&materials, ghost_owner, kind);
         return;
     }
 
     *visibility = Visibility::Hidden;
+}
+
+fn place_stone_owner(game_state: &GameState) -> Player {
+    if game_state.placement_phase() {
+        game_state.to_move().opponent()
+    } else {
+        PLAYER_HUMAN
+    }
 }
 
 fn effective_place_kind(game_state: &GameState, kind: StoneKind) -> StoneKind {
@@ -257,10 +279,14 @@ fn effective_place_kind(game_state: &GameState, kind: StoneKind) -> StoneKind {
 }
 
 fn can_place(game_state: &GameState, kind: StoneKind) -> bool {
+    if game_state.placement_phase() {
+        return matches!(kind, StoneKind::Flat)
+            && game_state.reserve(game_state.to_move().opponent()).flats > 0;
+    }
     let reserve = game_state.reserve(PLAYER_HUMAN);
     match kind {
         StoneKind::Flat | StoneKind::Wall => reserve.flats > 0,
-        StoneKind::Cap => reserve.cap > 0 && !game_state.placement_phase(),
+        StoneKind::Cap => reserve.cap > 0,
     }
 }
 

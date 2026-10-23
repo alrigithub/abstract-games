@@ -44,12 +44,15 @@ impl Reserve {
     }
 }
 
+const OPENING_PLACEMENTS: u8 = 2;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameState {
     board: Board,
     reserves: [Reserve; 2],
     to_move: Player,
     placement_phase: bool,
+    opening_placements: u8,
     winner: Option<Player>,
 }
 
@@ -60,6 +63,7 @@ impl GameState {
             reserves: [Reserve::new(), Reserve::new()],
             to_move: Player::First,
             placement_phase: true,
+            opening_placements: 0,
             winner: None,
         }
     }
@@ -78,6 +82,10 @@ impl GameState {
 
     pub fn placement_phase(&self) -> bool {
         self.placement_phase
+    }
+
+    pub fn opening_placements(&self) -> u8 {
+        self.opening_placements
     }
 
     pub fn winner(&self) -> Option<Player> {
@@ -128,15 +136,15 @@ impl GameState {
         }
         let mut moves = Vec::new();
         if self.placement_phase {
-            for coord in self.board.empty_coords() {
-                if self.reserves[pool_index(self.to_move)].flats > 0 {
+            let opponent = self.to_move.opponent();
+            if self.reserves[pool_index(opponent)].flats > 0 {
+                for coord in self.board.empty_coords() {
                     moves.push(Move::Place {
                         coord,
                         kind: StoneKind::Flat,
                     });
                 }
             }
-            moves.extend(self.legal_slides());
         } else {
             moves.extend(self.legal_placements());
             moves.extend(self.legal_slides());
@@ -201,6 +209,8 @@ impl GameState {
             return Err(IllegalMove);
         }
 
+        let mover = self.to_move;
+
         match player_move {
             Move::Place { coord, kind } => self.apply_place(coord, kind)?,
             Move::Slide {
@@ -211,10 +221,14 @@ impl GameState {
             } => self.apply_slide(from, direction, pickup, player_move.slide_drops())?,
         }
 
-        if self.winner.is_none()
-            && let Some(winner) = check_road_win(&self.board)
-        {
-            self.winner = Some(winner);
+        if self.winner.is_none() {
+            if let Some(winner) = check_road_win(&self.board, mover) {
+                self.winner = Some(winner);
+            } else if self.placement_phase == false
+                && let Some(winner) = check_flat_win(&self.board, &self.reserves)
+            {
+                self.winner = Some(winner);
+            }
         }
 
         if self.winner.is_none() {
@@ -235,21 +249,29 @@ impl GameState {
             // allowed in move phase only
         }
 
-        let player = self.to_move;
-        if !self.reserves[pool_index(player)].take(kind) {
+        let (reserve_owner, stone_owner) = if self.placement_phase {
+            (self.to_move.opponent(), self.to_move.opponent())
+        } else {
+            (self.to_move, self.to_move)
+        };
+
+        if !self.reserves[pool_index(reserve_owner)].take(kind) {
             return Err(IllegalMove);
         }
 
         let stone = Stone {
-            owner: player,
+            owner: stone_owner,
             kind,
         };
         if !self.board.place_on_empty(coord, stone) {
             return Err(IllegalMove);
         }
 
-        if self.placement_phase && all_flats_placed(&self.reserves) {
-            self.placement_phase = false;
+        if self.placement_phase {
+            self.opening_placements += 1;
+            if self.opening_placements >= OPENING_PLACEMENTS {
+                self.placement_phase = false;
+            }
         }
         Ok(())
     }
@@ -354,10 +376,6 @@ fn pool_index(player: Player) -> usize {
     }
 }
 
-fn all_flats_placed(reserves: &[Reserve; 2]) -> bool {
-    reserves.iter().all(|r| r.flats == 0)
-}
-
 fn slide_variants(state: &GameState, from: Coord, direction: Direction, pickup: u8) -> Vec<Move> {
     let (dx, dy) = direction.delta();
     let mut moves = Vec::new();
@@ -434,10 +452,48 @@ fn drop_partitions(total: u8, cells: usize) -> Vec<Vec<u8>> {
     out
 }
 
-pub fn check_road_win(board: &Board) -> Option<Player> {
-    [Player::First, Player::Second]
-        .into_iter()
-        .find(|&player| road_connects(board, player, true) || road_connects(board, player, false))
+pub fn check_road_win(board: &Board, active_player: Player) -> Option<Player> {
+    let opponent = active_player.opponent();
+    if road_connects(board, active_player, true) || road_connects(board, active_player, false) {
+        return Some(active_player);
+    }
+    if road_connects(board, opponent, true) || road_connects(board, opponent, false) {
+        return Some(opponent);
+    }
+    None
+}
+
+pub fn check_flat_win(board: &Board, reserves: &[Reserve; 2]) -> Option<Player> {
+    if !flat_scoring_triggered(board, reserves) {
+        return None;
+    }
+    let first = count_top_flats(board, Player::First);
+    let second = count_top_flats(board, Player::Second);
+    match first.cmp(&second) {
+        std::cmp::Ordering::Greater => Some(Player::First),
+        std::cmp::Ordering::Less => Some(Player::Second),
+        std::cmp::Ordering::Equal => None,
+    }
+}
+
+fn flat_scoring_triggered(board: &Board, reserves: &[Reserve; 2]) -> bool {
+    board.empty_coords().is_empty() || reserves.iter().all(|r| r.flats == 0)
+}
+
+fn count_top_flats(board: &Board, player: Player) -> u32 {
+    let mut count = 0u32;
+    for y in 0..crate::BOARD_SIZE as u8 {
+        for x in 0..crate::BOARD_SIZE as u8 {
+            let coord = Coord { x, y };
+            if board
+                .top(coord)
+                .is_some_and(|s| s.owner == player && s.counts_for_road())
+            {
+                count += 1;
+            }
+        }
+    }
+    count
 }
 
 fn road_connects(board: &Board, player: Player, horizontal: bool) -> bool {
