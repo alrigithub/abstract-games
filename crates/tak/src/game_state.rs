@@ -54,6 +54,7 @@ pub struct GameState {
     placement_phase: bool,
     opening_placements: u8,
     winner: Option<Player>,
+    draw: bool,
 }
 
 impl GameState {
@@ -65,6 +66,7 @@ impl GameState {
             placement_phase: true,
             opening_placements: 0,
             winner: None,
+            draw: false,
         }
     }
 
@@ -90,6 +92,14 @@ impl GameState {
 
     pub fn winner(&self) -> Option<Player> {
         self.winner
+    }
+
+    pub fn is_draw(&self) -> bool {
+        self.draw
+    }
+
+    pub fn is_finished(&self) -> bool {
+        self.winner.is_some() || self.draw
     }
 
     #[doc(hidden)]
@@ -134,7 +144,7 @@ impl GameState {
     }
 
     pub fn legal_moves(&self) -> Vec<Move> {
-        if self.winner.is_some() {
+        if self.is_finished() {
             return Vec::new();
         }
         let mut moves = Vec::new();
@@ -205,7 +215,7 @@ impl GameState {
     }
 
     pub fn apply(&mut self, player_move: Move) -> Result<(), IllegalMove> {
-        if self.winner.is_some() {
+        if self.is_finished() {
             return Err(IllegalMove);
         }
         if !self.legal_moves().contains(&player_move) {
@@ -224,20 +234,29 @@ impl GameState {
             } => self.apply_slide(from, direction, pickup, player_move.slide_drops())?,
         }
 
-        if self.winner.is_none() {
-            if let Some(winner) = check_road_win(&self.board, mover) {
-                self.winner = Some(winner);
-            } else if self.placement_phase == false
-                && let Some(winner) = check_flat_win(&self.board, &self.reserves)
-            {
-                self.winner = Some(winner);
-            }
-        }
+        self.resolve_endgame(mover);
 
-        if self.winner.is_none() {
+        if !self.is_finished() {
             self.to_move = self.to_move.opponent();
         }
         Ok(())
+    }
+
+    fn resolve_endgame(&mut self, mover: Player) {
+        if self.is_finished() {
+            return;
+        }
+        if let Some(winner) = check_road_win(&self.board, mover) {
+            self.winner = Some(winner);
+            return;
+        }
+        if self.placement_phase || !flat_scoring_triggered(&self.board, &self.reserves) {
+            return;
+        }
+        match check_flat_win(&self.board, &self.reserves) {
+            Some(winner) => self.winner = Some(winner),
+            None => self.draw = true,
+        }
     }
 
     fn apply_place(&mut self, coord: Coord, kind: StoneKind) -> Result<(), IllegalMove> {
@@ -502,8 +521,8 @@ pub fn check_flat_win(board: &Board, reserves: &[Reserve; 2]) -> Option<Player> 
     if !flat_scoring_triggered(board, reserves) {
         return None;
     }
-    let first = count_top_flats(board, Player::First);
-    let second = count_top_flats(board, Player::Second);
+    let first = count_visible_flats(board, Player::First);
+    let second = count_visible_flats(board, Player::Second);
     match first.cmp(&second) {
         std::cmp::Ordering::Greater => Some(Player::First),
         std::cmp::Ordering::Less => Some(Player::Second),
@@ -511,18 +530,18 @@ pub fn check_flat_win(board: &Board, reserves: &[Reserve; 2]) -> Option<Player> 
     }
 }
 
-fn flat_scoring_triggered(board: &Board, reserves: &[Reserve; 2]) -> bool {
-    board.empty_coords().is_empty() || reserves.iter().all(|r| r.flats == 0)
+pub fn flat_scoring_triggered(board: &Board, reserves: &[Reserve; 2]) -> bool {
+    board.empty_coords().is_empty() || reserves.iter().any(|r| r.flats == 0)
 }
 
-fn count_top_flats(board: &Board, player: Player) -> u32 {
+fn count_visible_flats(board: &Board, player: Player) -> u32 {
     let mut count = 0u32;
     for y in 0..crate::BOARD_SIZE as u8 {
         for x in 0..crate::BOARD_SIZE as u8 {
             let coord = Coord { x, y };
             if board
                 .top(coord)
-                .is_some_and(|s| s.owner == player && s.counts_for_road())
+                .is_some_and(|s| s.owner == player && s.counts_for_flat_scoring())
             {
                 count += 1;
             }

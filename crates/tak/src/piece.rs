@@ -18,6 +18,11 @@ impl Stone {
         matches!(self.kind, StoneKind::Flat | StoneKind::Cap)
     }
 
+    /// Visible flatstones for endgame scoring (walls and capstones do not count).
+    pub fn counts_for_flat_scoring(self) -> bool {
+        matches!(self.kind, StoneKind::Flat)
+    }
+
     pub fn blocks_stack_on_top(self) -> bool {
         matches!(self.kind, StoneKind::Wall | StoneKind::Cap)
     }
