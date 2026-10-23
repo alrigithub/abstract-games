@@ -1,6 +1,4 @@
 use bevy::{camera::visibility::RenderLayers, prelude::*, window::PrimaryWindow};
-#[cfg(not(target_arch = "wasm32"))]
-use bevy::{post_process::bloom::Bloom, render::view::Hdr};
 
 use crate::grid::draw_grid;
 
@@ -63,8 +61,9 @@ pub struct ScaleFactorSet;
 fn setup_graphics(mut commands: Commands, mut config_store: ResMut<GizmoConfigStore>) {
     commands.insert_resource(ClearColor(COLOR_BACKGROUND));
 
-    #[cfg_attr(target_arch = "wasm32", allow(unused_mut, unused_variables))]
-    let mut bg_camera = commands.spawn((
+    // Plain Camera2d on native: HDR + Bloom + MSAA8 has caused hard exits / hangs on
+    // Intel Iris Xe (Windows). Grid gizmos must target the background render layer.
+    commands.spawn((
         Camera2d,
         Camera {
             order: 1,
@@ -72,24 +71,21 @@ fn setup_graphics(mut commands: Commands, mut config_store: ResMut<GizmoConfigSt
         },
         BACKGROUND_RENDER_LAYER,
     ));
-    #[cfg(not(target_arch = "wasm32"))]
-    bg_camera.insert((Hdr, Bloom::default(), Msaa::Sample8));
 
-    #[cfg_attr(target_arch = "wasm32", allow(unused_mut, unused_variables))]
-    let mut fg_camera = commands.spawn((
+    commands.spawn((
         Camera2d,
         Camera {
             order: 2,
+            clear_color: ClearColorConfig::None,
             ..default()
         },
         MainCamera,
         FOREGROUND_RENDER_LAYER,
     ));
-    #[cfg(not(target_arch = "wasm32"))]
-    fg_camera.insert((Hdr, Bloom::default(), Msaa::Sample8));
 
     let (config, _) = config_store.config_mut::<DefaultGizmoConfigGroup>();
     config.line.width = 2.25;
+    config.render_layers = BACKGROUND_RENDER_LAYER;
 }
 
 fn resize_scale_factor(

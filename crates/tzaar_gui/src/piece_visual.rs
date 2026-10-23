@@ -5,6 +5,8 @@ use bevy::{
 };
 use tzaar::{Piece, PieceKind, Player};
 
+use crate::graphics::FOREGROUND_RENDER_LAYER;
+
 pub const R_TZAAR: f32 = 20.0;
 pub const R_TZARRA: f32 = 15.5;
 pub const R_TOTT: f32 = 11.0;
@@ -120,6 +122,7 @@ fn spawn_ring(
         MeshMaterial2d(material),
         PieceRing,
         Transform::from_xyz(0., 0., z),
+        FOREGROUND_RENDER_LAYER,
     ));
 }
 
@@ -191,7 +194,6 @@ fn spawn_glyph_rings(
 }
 
 /// Spawns one stack layer (meshes for fill, rings, and center mark).
-#[expect(clippy::too_many_arguments)]
 pub fn spawn_stack_piece(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
@@ -208,7 +210,9 @@ pub fn spawn_stack_piece(
             kind: piece.kind,
             is_top,
         },
+        Transform::default(),
         Visibility::Visible,
+        FOREGROUND_RENDER_LAYER,
     ));
 
     let show_fill = match piece.player {
@@ -224,6 +228,7 @@ pub fn spawn_stack_piece(
                 MeshMaterial2d(mat),
                 PieceFill,
                 Transform::from_xyz(0., 0., 0.01),
+                FOREGROUND_RENDER_LAYER,
             ));
         } else if !is_top {
             parent.spawn((
@@ -231,6 +236,7 @@ pub fn spawn_stack_piece(
                 MeshMaterial2d(materials.stack_light.clone()),
                 PieceFill,
                 Transform::from_xyz(0., 0., 0.01),
+                FOREGROUND_RENDER_LAYER,
             ));
         }
 
@@ -245,6 +251,7 @@ pub fn spawn_stack_piece(
                 MeshMaterial2d(rim_color),
                 PieceRing,
                 Transform::from_xyz(0., 0., 0.02),
+                FOREGROUND_RENDER_LAYER,
             ));
         }
 
@@ -269,6 +276,7 @@ pub fn spawn_stack_piece(
                     Mesh2d(meshes.add(Circle::new(dot_r))),
                     MeshMaterial2d(ring_mat),
                     Transform::from_xyz(0., 0., 0.05),
+                    FOREGROUND_RENDER_LAYER,
                 ));
             }
         }
