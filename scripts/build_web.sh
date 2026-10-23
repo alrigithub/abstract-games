@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build WASM web bundles for Yinsh, Gomoku, Boop, and Tak into web/{game}/
+# Build WASM web bundles for Yinsh, Gomoku, Boop, Tak, and Tzaar into web/{game}/
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -45,5 +45,6 @@ build_game yinsh_gui yinsh
 build_game gomoku_gui gomoku
 build_game boop_gui boop
 build_game tak_gui tak
+build_game tzaar_gui tzaar
 
 echo "Done. Open web/index.html via a static server (e.g. python3 -m http.server --directory web)."

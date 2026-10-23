@@ -48,7 +48,7 @@ jobs:
           RUSTFLAGS: '--cfg getrandom_backend="wasm_js"'
         run: |
           cargo build --profile wasm-release --target wasm32-unknown-unknown \
-            -p yinsh_gui -p gomoku_gui -p boop_gui -p tak_gui
+            -p yinsh_gui -p gomoku_gui -p boop_gui -p tak_gui -p tzaar_gui
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
