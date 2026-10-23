@@ -7,7 +7,8 @@ pub enum BoardUpdateEvent {
     AddRing(Coord, Player),
     AddMarker(Coord, Player),
     MoveRing(Coord, Coord),
-    RemoveRing(Coord),
+    /// Scoring ring removal: tween to the side rack instead of despawning.
+    RemoveRingToRack(Coord, Player, usize),
     RemoveRun(Vec<Coord>),
     FlipMarkers(Coord, Coord, Vec<Coord>),
 }

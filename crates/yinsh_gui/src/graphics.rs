@@ -17,49 +17,24 @@ use crate::{
 pub const FOREGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(2);
 pub const BACKGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(1);
 
-pub const COLOR_GRID: Color = Color::hsl(0.0, 0.0, 0.2);
+/// Hub visual tokens (flat geometric; no mauve shell theme).
+pub const COLOR_STAGE_BG: Color = Color::srgb(0x0d as f32 / 255., 0x0d as f32 / 255., 0x0d as f32 / 255.);
+pub const COLOR_BOARD_FILL: Color = Color::srgb(0xe8 as f32 / 255., 0xe4 as f32 / 255., 0xdc as f32 / 255.);
+pub const COLOR_GRID: Color = Color::srgb(0x5c as f32 / 255., 0x56 as f32 / 255., 0x4c as f32 / 255.);
+pub const COLOR_BACKGROUND: Color = COLOR_STAGE_BG;
 
-pub const COLOR_BACKGROUND: Color = Color::hsl(0.0, 0.0, 0.05);
+pub const COLOR_RING_MOVEMENT_INDICATOR: Color = Color::srgba(0.23, 0.51, 0.96, 0.25);
 
-pub const COLOR_RING_MOVEMENT_INDICATOR: Color = Color::hsla(0.0, 0.0, 1.5, 0.1);
+pub const COLOR_WIN_GLOW: Color = Color::srgb(0x3b as f32 / 255., 0x82 as f32 / 255., 0xf6 as f32 / 255.);
 
-pub const COLOR_HUMAN_R: f32 = 255.;
-pub const COLOR_HUMAN_G: f32 = 226.;
-pub const COLOR_HUMAN_B: f32 = 55.;
+/// Player A (human)
+pub const COLOR_HUMAN: Color = Color::srgb(0x11 as f32 / 255., 0x11 as f32 / 255., 0x11 as f32 / 255.);
+pub const COLOR_HUMAN_HIGHLIGHTED: Color = Color::srgb(0.35, 0.35, 0.35);
+pub const COLOR_HUMAN_TRANSPARENT: Color = Color::srgba(0x11 as f32 / 255., 0x11 as f32 / 255., 0x11 as f32 / 255., 0.25);
 
-pub const COLOR_HUMAN_BLOOM: f32 = 1.5;
-
-pub const COLOR_HUMAN: Color = Color::srgba(
-    COLOR_HUMAN_BLOOM * COLOR_HUMAN_R / 255.,
-    COLOR_HUMAN_BLOOM * COLOR_HUMAN_G / 255.,
-    COLOR_HUMAN_BLOOM * COLOR_HUMAN_B / 255.,
-    1.0,
-);
-pub const COLOR_HUMAN_HIGHLIGHTED: Color = Color::srgba(
-    4.0 * COLOR_HUMAN_R / 255.,
-    4.0 * COLOR_HUMAN_G / 255.,
-    4.0 * COLOR_HUMAN_B / 255.,
-    1.0,
-);
-pub const COLOR_HUMAN_TRANSPARENT: Color = Color::srgba(
-    COLOR_HUMAN_BLOOM * COLOR_HUMAN_R / 255.,
-    COLOR_HUMAN_BLOOM * COLOR_HUMAN_G / 255.,
-    COLOR_HUMAN_BLOOM * COLOR_HUMAN_B / 255.,
-    0.2,
-);
-
-pub const COLOR_AI_R: f32 = 81.;
-pub const COLOR_AI_G: f32 = 151.;
-pub const COLOR_AI_B: f32 = 242.;
-
-pub const COLOR_AI_BLOOM: f32 = 1.3;
-
-pub const COLOR_AI: Color = Color::srgba(
-    COLOR_AI_BLOOM * COLOR_AI_R / 255.,
-    COLOR_AI_BLOOM * COLOR_AI_G / 255.,
-    COLOR_AI_BLOOM * COLOR_AI_B / 255.,
-    1.0,
-);
+/// Player B (AI) — light fill with dark stroke on ring mesh
+pub const COLOR_AI: Color = Color::srgb(0xf5 as f32 / 255., 0xf5 as f32 / 255., 0xf5 as f32 / 255.);
+pub const COLOR_AI_STROKE: Color = Color::srgb(0x22 as f32 / 255., 0x22 as f32 / 255., 0x22 as f32 / 255.);
 
 pub fn color_for_player(player: Player) -> Color {
     if player == PLAYER_HUMAN {
@@ -108,6 +83,7 @@ pub struct PlayerColors {
     pub human_highlighted: Handle<ColorMaterial>,
     pub human_transparent: Handle<ColorMaterial>,
     pub ai: Handle<ColorMaterial>,
+    pub ai_stroke: Handle<ColorMaterial>,
     pub animated_markers: [Handle<ColorMaterial>; 8],
 }
 
@@ -142,18 +118,32 @@ pub fn spawn_ring(
     coord: Coord,
     player: Player,
 ) {
-    let color = if player == PLAYER_HUMAN {
-        player_colors.human.clone()
-    } else {
-        player_colors.ai.clone()
-    };
-
-    commands.spawn((
-        ring_mesh(meshes, color, Visibility::Visible),
+    let mut ring = commands.spawn((
         BoardElement(coord, player),
         Ring,
+        Visibility::Visible,
         FOREGROUND_RENDER_LAYER,
     ));
+    if player == PLAYER_HUMAN {
+        ring.insert(ring_mesh(
+            meshes,
+            player_colors.human.clone(),
+            Visibility::Visible,
+        ));
+    } else {
+        ring.with_children(|parent| {
+            parent.spawn((
+                Mesh2d(meshes.add(Annulus::new(25., 27.))),
+                MeshMaterial2d(player_colors.ai_stroke.clone()),
+                Visibility::Visible,
+            ));
+            parent.spawn((
+                Mesh2d(meshes.add(Annulus::new(20., 25.))),
+                MeshMaterial2d(player_colors.ai.clone()),
+                Visibility::Visible,
+            ));
+        });
+    }
 }
 
 pub fn spawn_marker(
@@ -216,15 +206,16 @@ fn setup_graphics(
         human_highlighted: materials.add(COLOR_HUMAN_HIGHLIGHTED),
         human_transparent: materials.add(COLOR_HUMAN_TRANSPARENT),
         ai: materials.add(COLOR_AI),
+        ai_stroke: materials.add(COLOR_AI_STROKE),
         animated_markers: [
-            materials.add(COLOR_AI),
-            materials.add(COLOR_AI),
-            materials.add(COLOR_AI),
-            materials.add(COLOR_AI),
-            materials.add(COLOR_AI),
-            materials.add(COLOR_AI),
-            materials.add(COLOR_AI),
-            materials.add(COLOR_AI),
+            materials.add(COLOR_HUMAN),
+            materials.add(COLOR_HUMAN),
+            materials.add(COLOR_HUMAN),
+            materials.add(COLOR_HUMAN),
+            materials.add(COLOR_HUMAN),
+            materials.add(COLOR_HUMAN),
+            materials.add(COLOR_HUMAN),
+            materials.add(COLOR_HUMAN),
         ],
     });
 

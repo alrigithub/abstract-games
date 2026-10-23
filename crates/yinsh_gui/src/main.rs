@@ -8,6 +8,7 @@ mod history;
 mod information_display;
 mod interaction;
 mod keyboard_control;
+mod scoring;
 mod state_update;
 
 use yinsh::Player;
@@ -38,6 +39,7 @@ fn main() {
             ai::plugin,
             graphics::plugin,
             interaction::plugin,
+            scoring::plugin,
             information_display::plugin,
             keyboard_control::plugin,
             #[cfg(not(target_arch = "wasm32"))]

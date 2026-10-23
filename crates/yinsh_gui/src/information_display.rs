@@ -52,6 +52,7 @@ fn update_information_display(
             InteractionState::RunRemoval { .. } => "Select a run of five markers to remove",
             InteractionState::RingRemoval(_) => "Select one of your rings to remove it",
             InteractionState::AutoMove | InteractionState::WaitForAI => "Floyd is thinking...",
+            InteractionState::ScoringPause => "Score!",
             InteractionState::Winner(Player::A) => "Game over. You win!",
             InteractionState::Winner(Player::B) => "Game over. Floyd wins!",
         },
