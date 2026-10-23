@@ -13,8 +13,9 @@ Not the BimSavage Next/Pixi shell. Not the abandoned Vite+Canvas2D hub.
 1. Yinsh — `crates/yinsh*`
 2. Gomoku — `crates/gomoku*`
 3. Boop — `crates/boop*`
+4. Tak — `crates/tak*` (5×5 v1)
 
-Later: Tak, Tzaar (out of scope until asked)
+Later: Tzaar (out of scope until asked)
 
 ## Workspace layout
 
@@ -36,12 +37,13 @@ cargo fmt --check
 cargo run -p yinsh_gui          # desktop binary: yinsh
 cargo run -p gomoku_gui         # desktop binary: gomoku
 cargo run -p boop_gui           # desktop binary: boop
+cargo run -p tak_gui            # desktop binary: tak
 cargo run -p yinsh_ai_eval --release
 ```
 
 ## Web / WASM
 
-Hub: `web/index.html` → `web/yinsh/`, `web/gomoku/`, `web/boop/`.
+Hub: `web/index.html` → `web/yinsh/`, `web/gomoku/`, `web/boop/`, `web/tak/`.
 
 **Prerequisites:** `rustup target add wasm32-unknown-unknown`, and `wasm-bindgen-cli` **0.2.106** (must match `Cargo.lock`).
 
@@ -54,13 +56,15 @@ Hub: `web/index.html` → `web/yinsh/`, `web/gomoku/`, `web/boop/`.
 # Manual equivalent
 export RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
 cargo build --profile wasm-release --target wasm32-unknown-unknown \
-  -p yinsh_gui -p gomoku_gui -p boop_gui
+  -p yinsh_gui -p gomoku_gui -p boop_gui -p tak_gui
 wasm-bindgen --out-dir web/yinsh --target web --no-typescript \
   target/wasm32-unknown-unknown/wasm-release/yinsh.wasm
 wasm-bindgen --out-dir web/gomoku --target web --no-typescript \
   target/wasm32-unknown-unknown/wasm-release/gomoku.wasm
 wasm-bindgen --out-dir web/boop --target web --no-typescript \
   target/wasm32-unknown-unknown/wasm-release/boop.wasm
+wasm-bindgen --out-dir web/tak --target web --no-typescript \
+  target/wasm32-unknown-unknown/wasm-release/tak.wasm
 # Optional: wasm-opt -Os web/{game}/{game}_bg.wasm -o web/{game}/{game}_bg.wasm
 ```
 

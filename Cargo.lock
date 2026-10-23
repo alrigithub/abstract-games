@@ -4735,6 +4735,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "tak"
+version = "0.1.0"
+
+[[package]]
+name = "tak_ai"
+version = "0.1.0"
+dependencies = [
+ "minimax",
+ "tak",
+]
+
+[[package]]
+name = "tak_gui"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_async_task",
+ "bevy_tweening",
+ "gloo-timers 0.3.0",
+ "tak",
+ "tak_ai",
+]
+
+[[package]]
 name = "termcolor"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
