@@ -1,19 +1,13 @@
+use abstract_gui_theme::{DARK, apply_dark_stage_clear_color, configure_grid_gizmos};
 use bevy::{camera::visibility::RenderLayers, prelude::*, window::PrimaryWindow};
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::{post_process::bloom::Bloom, render::view::Hdr};
-use gomoku::{Coord, BOARD_SIZE};
+use gomoku::{BOARD_SIZE, Coord};
 
 use crate::grid::draw_grid;
 
 pub const FOREGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(2);
 pub const BACKGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(1);
-
-pub const COLOR_GRID: Color = Color::hsl(0.0, 0.0, 0.25);
-pub const COLOR_BACKGROUND: Color = Color::hsl(0.0, 0.0, 0.05);
-
-pub const COLOR_HUMAN: Color = Color::srgb(0.15, 0.15, 0.18);
-pub const COLOR_HUMAN_TRANSPARENT: Color = Color::srgba(0.15, 0.15, 0.18, 0.35);
-pub const COLOR_AI: Color = Color::srgb(0.92, 0.92, 0.95);
 
 pub const ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(500);
 
@@ -73,7 +67,7 @@ fn setup_graphics(
     mut config_store: ResMut<GizmoConfigStore>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.insert_resource(ClearColor(COLOR_BACKGROUND));
+    apply_dark_stage_clear_color(&mut commands);
 
     #[cfg_attr(target_arch = "wasm32", allow(unused_mut, unused_variables))]
     let mut bg_camera = commands.spawn((
@@ -101,13 +95,12 @@ fn setup_graphics(
     fg_camera.insert((Hdr, Bloom::default(), Msaa::Sample8));
 
     commands.insert_resource(PlayerColors {
-        human: materials.add(COLOR_HUMAN),
-        human_transparent: materials.add(COLOR_HUMAN_TRANSPARENT),
-        ai: materials.add(COLOR_AI),
+        human: materials.add(DARK.player_a),
+        human_transparent: materials.add(DARK.player_a_ghost()),
+        ai: materials.add(DARK.player_b),
     });
 
-    let (config, _) = config_store.config_mut::<DefaultGizmoConfigGroup>();
-    config.render_layers = BACKGROUND_RENDER_LAYER;
+    configure_grid_gizmos(&mut config_store, Some(BACKGROUND_RENDER_LAYER));
 }
 
 pub fn set_scale_factor(

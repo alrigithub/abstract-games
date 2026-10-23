@@ -1,10 +1,12 @@
 use bevy::prelude::*;
 use gomoku::BOARD_SIZE;
 
-use crate::graphics::{COLOR_GRID, ScaleFactor};
+use abstract_gui_theme::DARK;
+
+use crate::graphics::ScaleFactor;
 
 pub fn draw_grid(mut gizmos: Gizmos, scale_factor: Res<ScaleFactor>) {
-    let grid_line_color = COLOR_GRID;
+    let grid_line_color = DARK.grid_line;
     let last = (BOARD_SIZE - 1) as u8;
 
     for x in 0..=last {

@@ -1,21 +1,11 @@
-use bevy::{
-    camera::visibility::RenderLayers,
-    prelude::*,
-    window::PrimaryWindow,
-};
-use boop::{Coord, Piece, PieceKind, Player, BOARD_SIZE};
+use abstract_gui_theme::{DARK, apply_dark_stage_clear_color, configure_grid_gizmos};
+use bevy::{camera::visibility::RenderLayers, prelude::*, window::PrimaryWindow};
+use boop::{BOARD_SIZE, Coord, Piece, PieceKind, Player};
 
 use crate::grid::draw_grid;
 
 pub const FOREGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(2);
 pub const BACKGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(1);
-
-pub const COLOR_GRID: Color = Color::hsl(0.0, 0.0, 0.28);
-pub const COLOR_BACKGROUND: Color = Color::hsl(0.35, 0.25, 0.12);
-
-pub const COLOR_FIRST: Color = Color::srgb(0.95, 0.55, 0.15);
-pub const COLOR_FIRST_TRANSPARENT: Color = Color::srgba(0.95, 0.55, 0.15, 0.35);
-pub const COLOR_SECOND: Color = Color::srgb(0.75, 0.78, 0.82);
 
 /// Human placement “settle” scale-in.
 pub const PLACE_ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(480);
@@ -29,8 +19,7 @@ pub const GRADUATION_SHRINK_ANIMATION_DURATION: std::time::Duration =
     std::time::Duration::from_millis(540);
 
 /// Piece pushed off the bed.
-pub const OFF_BOARD_ANIMATION_DURATION: std::time::Duration =
-    std::time::Duration::from_millis(680);
+pub const OFF_BOARD_ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(680);
 
 /// Pause after human move before AI search / AI piece animation.
 pub const AI_TURN_DELAY: std::time::Duration = std::time::Duration::from_millis(600);
@@ -155,11 +144,7 @@ pub fn piece_mesh(
         PieceKind::Cat => materials.cat_mesh.clone(),
         PieceKind::Kitten => materials.kitten_mesh.clone(),
     };
-    (
-        Mesh2d(mesh),
-        MeshMaterial2d(material),
-        visibility,
-    )
+    (Mesh2d(mesh), MeshMaterial2d(material), visibility)
 }
 
 fn setup_graphics(
@@ -168,7 +153,7 @@ fn setup_graphics(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.insert_resource(ClearColor(COLOR_BACKGROUND));
+    apply_dark_stage_clear_color(&mut commands);
 
     commands.spawn((
         Camera2d,
@@ -195,18 +180,20 @@ fn setup_graphics(
     commands.insert_resource(PieceMaterials {
         cat_mesh: meshes.add(Circle::new(22.0)),
         kitten_mesh: meshes.add(Rectangle::new(18.0, 22.0)),
-        first_kitten: materials.add(COLOR_FIRST),
-        first_cat: materials.add(Color::srgb(0.85, 0.42, 0.08)),
-        first_ghost: materials.add(COLOR_FIRST_TRANSPARENT),
-        second_kitten: materials.add(COLOR_SECOND),
-        second_cat: materials.add(Color::srgb(0.55, 0.58, 0.62)),
+        first_kitten: materials.add(DARK.player_a),
+        first_cat: materials.add(DARK.player_a_cat()),
+        first_ghost: materials.add(DARK.player_a_ghost()),
+        second_kitten: materials.add(DARK.player_b),
+        second_cat: materials.add(DARK.player_b_cat()),
     });
 
-    let (config, _) = config_store.config_mut::<DefaultGizmoConfigGroup>();
-    config.render_layers = BACKGROUND_RENDER_LAYER;
+    configure_grid_gizmos(&mut config_store, Some(BACKGROUND_RENDER_LAYER));
 }
 
-fn init_scale_factor(mut scale_factor: ResMut<ScaleFactor>, window: Query<&Window, With<PrimaryWindow>>) {
+fn init_scale_factor(
+    mut scale_factor: ResMut<ScaleFactor>,
+    window: Query<&Window, With<PrimaryWindow>>,
+) {
     set_scale_factor_inner(&mut scale_factor, &window);
 }
 

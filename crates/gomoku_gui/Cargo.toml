@@ -7,6 +7,7 @@ description = "Bevy GUI for Gomoku (human vs AI)."
 repository = "https://github.com/alrigithub/abstract-games"
 
 [dependencies]
+abstract_gui_theme = { path = "../abstract_gui_theme" }
 gomoku = { path = "../gomoku" }
 gomoku_ai = { path = "../gomoku_ai" }
 
