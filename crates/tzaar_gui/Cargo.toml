@@ -14,9 +14,6 @@ bevy = { version = "0.17" }
 bevy_tweening = "0.14"
 bevy_async_task = "0.11"
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-gloo-timers = { version = "0.3", features = ["futures"] }
-
 [[bin]]
 name = "tzaar"
 path = "src/main.rs"

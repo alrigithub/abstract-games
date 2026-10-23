@@ -2,7 +2,7 @@ use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 
 use crate::{
-    ai::{AiComputationEvent, AiPlayerStrength, AiSet},
+    ai::{AiComputationEvent, AiPending, AiPlayerStrength, AiSet},
     graphics::ScaleFactorSet,
     interaction::{BoardElement, CursorElement},
     state_update::{
@@ -18,6 +18,7 @@ fn keyboard_control(
     mut exit: MessageWriter<AppExit>,
     mut ai_player_strength: ResMut<AiPlayerStrength>,
     mut ai_computation_events: MessageWriter<AiComputationEvent>,
+    mut ai_pending: ResMut<AiPending>,
     mut board_resync_events: MessageWriter<BoardResyncEvent>,
     mut game_state: ResMut<GameState>,
     mut interaction_state: ResMut<InteractionState>,
@@ -38,6 +39,7 @@ fn keyboard_control(
     {
         if let Some(previous_state) = undo_history.0.pop() {
             ai_computation_events.write(AiComputationEvent::Cancel);
+            ai_pending.0 = false;
             game_state.replace(previous_state);
             restore_board_from_game_state(
                 &mut commands,
@@ -48,6 +50,7 @@ fn keyboard_control(
         }
     } else if ctrl_pressed && keyboard.just_pressed(KeyCode::KeyR) {
         ai_computation_events.write(AiComputationEvent::Cancel);
+        ai_pending.0 = false;
         game_state.replace(tzaar::GameState::new());
         undo_history.0.clear();
         restore_board_from_game_state(&mut commands, &q_board_elements, &mut board_resync_events);

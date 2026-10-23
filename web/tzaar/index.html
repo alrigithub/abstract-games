@@ -37,8 +37,12 @@
   </div>
   <script type="module">
     import init from './tzaar.js'
+    const canvas = document.getElementById('tzaar-canvas');
+    const focusCanvas = () => { try { canvas.focus({ preventScroll: true }); } catch (_) { canvas.focus(); } };
+    canvas.addEventListener('pointerdown', focusCanvas);
     init().then(() => {
       document.getElementById('loading').style.display = 'none';
+      focusCanvas();
     }).catch((error) => {
       if (!error.message.startsWith("Using exceptions for control flow, don't mind me. This isn't actually an error!")) {
         throw error;

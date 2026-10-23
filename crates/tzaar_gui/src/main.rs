@@ -1,8 +1,10 @@
 mod ai;
 mod graphics;
 mod grid;
+mod information_display;
 mod interaction;
 mod keyboard_control;
+mod pass_ui;
 mod state_update;
 
 use bevy::{
@@ -28,10 +30,12 @@ fn main() {
                 }),
                 ..default()
             }),
-            state_update::plugin,
             ai::plugin,
+            state_update::plugin,
             graphics::plugin,
+            information_display::plugin,
             interaction::plugin,
+            pass_ui::plugin,
             keyboard_control::plugin,
         ))
         .run();
