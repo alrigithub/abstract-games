@@ -24,7 +24,8 @@ pub const COLOR_BACKGROUND: Color = Color::hsl(0.0, 0.0, 0.05);
 pub const COLOR_RING_MOVEMENT_INDICATOR: Color = Color::hsla(0.0, 0.0, 1.5, 0.1);
 
 /// Score-line glow overlay (meshes; bloom picks this up on desktop).
-pub const COLOR_WIN_GLOW: Color = Color::srgb(0x3b as f32 / 255., 0x82 as f32 / 255., 0xf6 as f32 / 255.);
+pub const COLOR_WIN_GLOW: Color =
+    Color::srgb(0x3b as f32 / 255., 0x82 as f32 / 255., 0xf6 as f32 / 255.);
 
 pub const COLOR_HUMAN_R: f32 = 255.;
 pub const COLOR_HUMAN_G: f32 = 226.;
@@ -81,6 +82,8 @@ pub struct MainCamera;
 pub struct ScaleFactor {
     pub spacing: f32,
     pub factor: f32,
+    /// Half of the logical window width (camera half-extent in world units).
+    pub half_width: f32,
 }
 
 impl ScaleFactor {
@@ -98,6 +101,7 @@ impl Default for ScaleFactor {
         Self {
             spacing: 80.0,
             factor: 1.0,
+            half_width: 430.0,
         }
     }
 }
@@ -244,9 +248,12 @@ pub fn set_scale_factor(
     let Ok(window) = window.single() else { return };
     let height = (window.physical_height() as f32) / window.scale_factor();
     let width = (window.physical_width() as f32) / window.scale_factor();
-    let factor = ((height.min(width)) / 800.0).min(1.5);
+    // Horizontally, budget a bit more than the bare board (872 > 800) so the
+    // scored-ring racks fit between the board edge and the window edge.
+    let factor = (height / 800.0).min(width / 872.0).min(1.5);
     scale_factor.factor = factor;
     scale_factor.spacing = BASE_SPACING_AT_800_PIXELS * factor;
+    scale_factor.half_width = width / 2.0;
 }
 
 pub fn plugin(app: &mut App) {

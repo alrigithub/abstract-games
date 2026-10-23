@@ -22,7 +22,7 @@ use crate::graphics::{
     ANIMATION_DURATION, FOREGROUND_RENDER_LAYER, MainCamera, PlayerColors, ScaleFactor,
     ScaleFactorSet, color_for_player, marker_mesh, ring_mesh, spawn_marker, spawn_ring,
 };
-use crate::scoring::{move_ring_to_rack, rack_slot_position, RackedRing};
+use crate::scoring::{RackedRing, move_ring_to_rack, rack_slot_position};
 use crate::state_update::{GameState, PlayerMoveEvent, StateUpdateSet};
 use crate::{graphics::COLOR_RING_MOVEMENT_INDICATOR, state_update::InteractionState};
 
