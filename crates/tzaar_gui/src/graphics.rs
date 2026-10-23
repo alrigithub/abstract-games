@@ -1,4 +1,9 @@
-use bevy::{camera::visibility::RenderLayers, prelude::*, window::PrimaryWindow};
+use bevy::{
+    camera::visibility::RenderLayers,
+    prelude::*,
+    render::view::NoIndirectDrawing,
+    window::PrimaryWindow,
+};
 
 use crate::grid::draw_grid;
 
@@ -70,6 +75,7 @@ fn setup_graphics(mut commands: Commands, mut config_store: ResMut<GizmoConfigSt
             ..default()
         },
         BACKGROUND_RENDER_LAYER,
+        NoIndirectDrawing,
     ));
 
     commands.spawn((
@@ -81,6 +87,7 @@ fn setup_graphics(mut commands: Commands, mut config_store: ResMut<GizmoConfigSt
         },
         MainCamera,
         FOREGROUND_RENDER_LAYER,
+        NoIndirectDrawing,
     ));
 
     let (config, _) = config_store.config_mut::<DefaultGizmoConfigGroup>();
