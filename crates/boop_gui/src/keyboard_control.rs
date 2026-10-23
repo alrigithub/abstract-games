@@ -5,6 +5,7 @@ use crate::{
     ai::{AiComputationEvent, AiPlayerStrength, AiSet},
     graphics::ScaleFactorSet,
     interaction::{BoardElement, CursorElement},
+    line_feedback::ActiveLineFeedback,
     state_update::{
         BoardResyncEvent, GameState, HumanPieceChoice, InteractionState, StateUpdateSet,
         UndoHistory, restore_board_from_game_state,
@@ -46,6 +47,7 @@ fn keyboard_control(
     {
         if let Some(previous_state) = undo_history.0.pop() {
             ai_computation_events.write(AiComputationEvent::Cancel);
+            commands.remove_resource::<ActiveLineFeedback>();
             game_state.replace(previous_state);
             restore_board_from_game_state(
                 &game_state,
@@ -57,6 +59,7 @@ fn keyboard_control(
         }
     } else if ctrl_pressed && keyboard.just_pressed(KeyCode::KeyR) {
         ai_computation_events.write(AiComputationEvent::Cancel);
+        commands.remove_resource::<ActiveLineFeedback>();
         game_state.replace(boop::GameState::new());
         undo_history.0.clear();
         restore_board_from_game_state(

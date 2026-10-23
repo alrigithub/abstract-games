@@ -5,7 +5,7 @@ use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 use boop::{Board, Coord, Move, MoveEffects, Piece, PieceKind, Player};
 
-use crate::line_feedback::LineCompletedEvent;
+use crate::line_feedback::{ActiveLineFeedback, LineCompletedEvent};
 
 use crate::{
     PLAYER_AI, PLAYER_HUMAN,
@@ -329,6 +329,7 @@ fn state_update(
     mut ai_computation_events: MessageWriter<AiComputationEvent>,
     mut board_update_events: MessageWriter<BoardUpdateEvent>,
     mut line_completed_events: MessageWriter<LineCompletedEvent>,
+    mut commands: Commands,
 ) {
     for PlayerMoveEvent(player, player_move) in player_move_events.read() {
         let player = *player;
@@ -360,6 +361,8 @@ fn state_update(
 
         if let Some(highlight) = effects.line_highlight {
             line_completed_events.write(LineCompletedEvent(highlight));
+        } else {
+            commands.remove_resource::<ActiveLineFeedback>();
         }
 
         if game_state.winner().is_none()
