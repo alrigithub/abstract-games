@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use bevy::math::{Isometry2d, Rot2};
+use bevy::math::Isometry3d;
 use bevy::prelude::*;
 use boop::{Coord, LineHighlight, BOARD_SIZE};
 
@@ -29,12 +29,9 @@ fn on_line_completed(mut events: MessageReader<LineCompletedEvent>, mut commands
 
 fn tick_line_feedback(
     time: Res<Time>,
-    mut feedback: Option<ResMut<ActiveLineFeedback>>,
+    mut feedback: ResMut<ActiveLineFeedback>,
     mut commands: Commands,
 ) {
-    let Some(ref mut feedback) = feedback else {
-        return;
-    };
     feedback.timer.tick(time.delta());
     if feedback.timer.is_finished() {
         commands.remove_resource::<ActiveLineFeedback>();
@@ -105,24 +102,24 @@ fn draw_cell_glow(
     fill: Color,
     border: Color,
 ) {
-    let center = scale_factor.screen_point(coord).truncate();
+    let center = scale_factor.screen_point(coord);
     let half = scale_factor.spacing * 0.46;
     let size = Vec2::splat(half * 2.0);
-    let iso = Isometry2d::new(center, Rot2::IDENTITY);
+    let iso = Isometry3d::new(center, Quat::IDENTITY);
 
     let inner = half * 0.9;
     for i in -5..=5 {
         let y = center.y + (i as f32 / 5.0) * inner;
-        gizmos.line_2d(
-            Vec2::new(center.x - inner, y),
-            Vec2::new(center.x + inner, y),
+        gizmos.line(
+            Vec3::new(center.x - inner, y, center.z),
+            Vec3::new(center.x + inner, y, center.z),
             fill,
         );
     }
 
-    gizmos.rect_2d(iso, size, border);
-    gizmos.rect_2d(
-        Isometry2d::new(center, Rot2::IDENTITY),
+    gizmos.rect(iso, size, border);
+    gizmos.rect(
+        Isometry3d::new(center, Quat::IDENTITY),
         size * 0.88,
         border.with_alpha(border.alpha() * 0.55),
     );
@@ -134,24 +131,31 @@ fn draw_win_connector(
     cells: [Coord; 3],
     color: Color,
 ) {
-    let a = scale_factor.screen_point(cells[0]).truncate();
-    let c = scale_factor.screen_point(cells[2]).truncate();
-    let dir = (c - a).normalize_or_zero();
+    let a = scale_factor.screen_point(cells[0]);
+    let c = scale_factor.screen_point(cells[2]);
+    let dir = (c - a).truncate().normalize_or_zero();
     let perp = Vec2::new(-dir.y, dir.x);
     for offset in [-2.8, 0.0, 2.8] {
         let shift = perp * offset;
-        gizmos.line_2d(a + shift, c + shift, color);
+        gizmos.line(
+            a + Vec3::new(shift.x, shift.y, 0.0),
+            c + Vec3::new(shift.x, shift.y, 0.0),
+            color,
+        );
     }
 }
 
 pub fn plugin(app: &mut App) {
     app.add_message::<LineCompletedEvent>()
-        .add_systems(Update, on_line_completed)
+        .add_systems(Update, on_line_completed.after(crate::state_update::StateUpdateSet))
         .add_systems(
             Update,
             (
-                tick_line_feedback,
-                draw_line_feedback.after(ScaleFactorSet),
-            ),
+                tick_line_feedback.run_if(resource_exists::<ActiveLineFeedback>),
+                draw_line_feedback
+                    .after(ScaleFactorSet)
+                    .after(tick_line_feedback),
+            )
+                .chain(),
         );
 }
