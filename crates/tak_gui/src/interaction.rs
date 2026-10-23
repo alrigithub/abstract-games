@@ -7,7 +7,7 @@ use tak::{BOARD_SIZE, Coord, Move, Player, StoneKind};
 use crate::{
     PLAYER_HUMAN,
     ai::AiSet,
-        graphics::{
+    graphics::{
         FOREGROUND_RENDER_LAYER, MainCamera, PieceMaterials, ScaleFactor, ScaleFactorSet,
         material_for, piece_mesh, piece_mesh2d,
     },
@@ -53,19 +53,7 @@ fn viewport_to_coord(
         .map(|ray| ray.origin.truncate())
         .ok()?;
 
-    let max_dist_sq = (scale_factor.spacing * 0.45).powi(2);
-
-    (0..BOARD_SIZE as u8)
-        .flat_map(|y| (0..BOARD_SIZE as u8).map(move |x| Coord { x, y }))
-        .filter(|coord| {
-            let screen_pos = scale_factor.screen_point(*coord).truncate();
-            (screen_pos - world_pos).length_squared() <= max_dist_sq
-        })
-        .min_by(|a, b| {
-            let da = (scale_factor.screen_point(*a).truncate() - world_pos).length_squared();
-            let db = (scale_factor.screen_point(*b).truncate() - world_pos).length_squared();
-            da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
-        })
+    scale_factor.coord_at_world(world_pos)
 }
 
 fn setup_cursor(
@@ -255,20 +243,15 @@ fn update_cursor(
         element.coord = coord;
         transform.translation = scale_factor.screen_point(coord);
         transform.scale = Vec3::splat(scale_factor.factor);
-        let ghost_owner = place_stone_owner(&game_state);
-        material.0 = material_for(&materials, ghost_owner, kind);
+        material.0 = if game_state.placement_phase() {
+            materials.human_ghost.clone()
+        } else {
+            material_for(&materials, PLAYER_HUMAN, kind)
+        };
         return;
     }
 
     *visibility = Visibility::Hidden;
-}
-
-fn place_stone_owner(game_state: &GameState) -> Player {
-    if game_state.placement_phase() {
-        game_state.to_move().opponent()
-    } else {
-        PLAYER_HUMAN
-    }
 }
 
 fn effective_place_kind(game_state: &GameState, kind: StoneKind) -> StoneKind {
@@ -290,8 +273,41 @@ fn can_place(game_state: &GameState, kind: StoneKind) -> bool {
     }
 }
 
+fn click_coord(
+    mouse: &ButtonInput<MouseButton>,
+    touches: &Touches,
+    q_window: &Query<&Window, With<PrimaryWindow>>,
+    q_camera: &Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+    scale_factor: &ScaleFactor,
+    cursor_coord: &CursorCoord,
+) -> Option<Coord> {
+    if let Some(touch) = touches.iter_just_pressed().next() {
+        let Ok((camera, camera_transform)) = q_camera.single() else {
+            return None;
+        };
+        return viewport_to_coord(touch.position(), camera, camera_transform, scale_factor);
+    }
+    if !mouse.just_pressed(MouseButton::Left) {
+        return None;
+    }
+    let Ok(window) = q_window.single() else {
+        return None;
+    };
+    let Ok((camera, camera_transform)) = q_camera.single() else {
+        return None;
+    };
+    window
+        .cursor_position()
+        .and_then(|pos| viewport_to_coord(pos, camera, camera_transform, scale_factor))
+        .or(cursor_coord.0)
+}
+
 fn handle_clicks(
     mouse: Res<ButtonInput<MouseButton>>,
+    touches: Res<Touches>,
+    q_window: Query<&Window, With<PrimaryWindow>>,
+    q_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+    scale_factor: Res<ScaleFactor>,
     interaction_state: Res<InteractionState>,
     cursor_coord: Res<CursorCoord>,
     game_state: Res<GameState>,
@@ -299,13 +315,17 @@ fn handle_clicks(
     mut selected: ResMut<SelectedStack>,
     mut player_move_events: MessageWriter<PlayerMoveEvent>,
 ) {
-    if !mouse.just_pressed(MouseButton::Left) {
-        return;
-    }
     if !matches!(*interaction_state, InteractionState::HumanTurn) {
         return;
     }
-    let Some(coord) = cursor_coord.0 else {
+    let Some(coord) = click_coord(
+        &mouse,
+        &touches,
+        &q_window,
+        &q_camera,
+        &scale_factor,
+        &cursor_coord,
+    ) else {
         return;
     };
 
@@ -366,7 +386,10 @@ pub fn plugin(app: &mut App) {
                 move_board_elements.after(ScaleFactorSet),
                 scale_board_elements.after(ScaleFactorSet),
                 update_cursor.after(ScaleFactorSet),
-                handle_clicks.before(StateUpdateSet).ambiguous_with(AiSet),
+                handle_clicks
+                    .after(update_cursor)
+                    .before(StateUpdateSet)
+                    .ambiguous_with(AiSet),
                 set_cursor_icon,
             ),
         );
