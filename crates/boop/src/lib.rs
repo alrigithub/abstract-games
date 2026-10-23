@@ -13,7 +13,28 @@ pub use player::Player;
 pub const BOARD_SIZE: usize = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Move {
-    pub coord: Coord,
-    pub piece: PieceKind,
+pub enum Move {
+    Place {
+        coord: Coord,
+        piece: PieceKind,
+    },
+    /// When all eight of your pieces are on the bed: remove one kitten (it leaves the
+    /// game) and promote one cat from reserve to your pool.
+    GraduateSingleKitten {
+        coord: Coord,
+    },
+    /// When the bed is full: return one of your cats from the board to your pool.
+    ReturnCatToPool {
+        coord: Coord,
+    },
+}
+
+impl Move {
+    pub fn coord(&self) -> Coord {
+        match *self {
+            Move::Place { coord, .. }
+            | Move::GraduateSingleKitten { coord }
+            | Move::ReturnCatToPool { coord } => coord,
+        }
+    }
 }

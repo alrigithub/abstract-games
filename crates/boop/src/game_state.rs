@@ -44,12 +44,12 @@ impl Pool {
         }
     }
 
-    fn graduate_kittens(&mut self, count: u8) -> bool {
-        if self.cats_in_reserve < count {
+    fn graduate_kitten(&mut self) -> bool {
+        if self.cats_in_reserve == 0 {
             return false;
         }
-        self.cats_in_hand += count;
-        self.cats_in_reserve -= count;
+        self.cats_in_hand += 1;
+        self.cats_in_reserve -= 1;
         true
     }
 }
@@ -113,20 +113,21 @@ impl GameState {
         let player = self.to_move;
         let pool = self.pool(player);
         let on_board = self.board.count_pieces(player);
+
         if on_board >= 8 {
-            return Vec::new();
+            return alternate_graduation_moves(self, player, pool);
         }
 
         let mut moves = Vec::new();
         for coord in self.board.empty_coords() {
             if pool.kittens_in_hand > 0 {
-                moves.push(Move {
+                moves.push(Move::Place {
                     coord,
                     piece: PieceKind::Kitten,
                 });
             }
             if pool.cats_in_hand > 0 {
-                moves.push(Move {
+                moves.push(Move::Place {
                     coord,
                     piece: PieceKind::Cat,
                 });
@@ -140,7 +141,14 @@ impl GameState {
             return Err(IllegalMove);
         }
 
-        let Move { coord, piece: kind } = player_move;
+        match player_move {
+            Move::Place { coord, piece: kind } => self.apply_place(coord, kind),
+            Move::GraduateSingleKitten { coord } => self.apply_graduate_single_kitten(coord),
+            Move::ReturnCatToPool { coord } => self.apply_return_cat_to_pool(coord),
+        }
+    }
+
+    fn apply_place(&mut self, coord: Coord, kind: PieceKind) -> Result<(), IllegalMove> {
         if Coord::try_new(coord.x, coord.y).is_none() || !self.board.is_empty(coord) {
             return Err(IllegalMove);
         }
@@ -158,14 +166,87 @@ impl GameState {
         self.board.set(coord, placed);
         resolve_boops(&mut self.board, coord, placed, &mut self.pools);
         resolve_graduation(self, player);
-        if self.winner.is_none() && check_win(&self.board, player) {
-            self.winner = Some(player);
-        }
-
-        if self.winner.is_none() {
-            self.to_move = player.opponent();
-        }
+        finish_turn_after_placement(self, player);
         Ok(())
+    }
+
+    fn apply_graduate_single_kitten(&mut self, coord: Coord) -> Result<(), IllegalMove> {
+        let player = self.to_move;
+        if self.board.count_pieces(player) < 8 {
+            return Err(IllegalMove);
+        }
+        let Some(piece) = self.board.get(coord) else {
+            return Err(IllegalMove);
+        };
+        if piece.player != player || piece.kind != PieceKind::Kitten {
+            return Err(IllegalMove);
+        }
+        if !self.pools[pool_index(player)].graduate_kitten() {
+            return Err(IllegalMove);
+        }
+        self.board.clear(coord);
+        finish_turn_after_alternate(self, player);
+        Ok(())
+    }
+
+    fn apply_return_cat_to_pool(&mut self, coord: Coord) -> Result<(), IllegalMove> {
+        let player = self.to_move;
+        if self.board.count_pieces(player) < 8 {
+            return Err(IllegalMove);
+        }
+        let Some(piece) = self.board.get(coord) else {
+            return Err(IllegalMove);
+        };
+        if piece.player != player || piece.kind != PieceKind::Cat {
+            return Err(IllegalMove);
+        }
+        self.board.clear(coord);
+        self.pools[pool_index(player)].cats_in_hand += 1;
+        finish_turn_after_alternate(self, player);
+        Ok(())
+    }
+}
+
+fn alternate_graduation_moves(state: &GameState, player: Player, pool: Pool) -> Vec<Move> {
+    let mut moves = Vec::new();
+    for y in 0..crate::BOARD_SIZE as u8 {
+        for x in 0..crate::BOARD_SIZE as u8 {
+            let coord = Coord { x, y };
+            let Some(piece) = state.board.get(coord) else {
+                continue;
+            };
+            if piece.player != player {
+                continue;
+            }
+            match piece.kind {
+                PieceKind::Kitten if pool.cats_in_reserve > 0 => {
+                    moves.push(Move::GraduateSingleKitten { coord });
+                }
+                PieceKind::Cat => {
+                    moves.push(Move::ReturnCatToPool { coord });
+                }
+                _ => {}
+            }
+        }
+    }
+    moves
+}
+
+fn finish_turn_after_placement(state: &mut GameState, player: Player) {
+    if state.winner.is_none() && check_win(&state.board, player) {
+        state.winner = Some(player);
+    }
+    if state.winner.is_none() {
+        state.to_move = player.opponent();
+    }
+}
+
+fn finish_turn_after_alternate(state: &mut GameState, player: Player) {
+    if state.winner.is_none() && check_win(&state.board, player) {
+        state.winner = Some(player);
+    }
+    if state.winner.is_none() {
+        state.to_move = player.opponent();
     }
 }
 
@@ -195,14 +276,15 @@ fn resolve_boops(board: &mut Board, placed_at: Coord, placed: Piece, pools: &mut
         let Some(piece) = board.get(adj) else {
             continue;
         };
-        if adj == placed_at {
-            continue;
-        }
         if placed.kind == PieceKind::Kitten && piece.kind == PieceKind::Cat {
             continue;
         }
 
         let push_dir = (dx, dy);
+        if is_braced(board, placed_at, adj, push_dir) {
+            continue;
+        }
+
         let Some(target) = adj.step(push_dir.0, push_dir.1) else {
             board.clear(adj);
             pools[pool_index(piece.player)].return_piece(piece);
@@ -218,34 +300,107 @@ fn resolve_boops(board: &mut Board, placed_at: Coord, placed: Piece, pools: &mut
     }
 }
 
-fn resolve_graduation(state: &mut GameState, player: Player) {
-    if let Some(line) = find_kitten_line_of_three(&state.board, player) {
-        for coord in line {
-            state.board.clear(coord);
+/// Pieces in a contiguous straight line of two or more brace against pushes along that line.
+fn is_braced(board: &Board, placed_at: Coord, adj: Coord, push_dir: (i8, i8)) -> bool {
+    contiguous_line_count(board, placed_at, adj, push_dir) >= 2
+}
+
+fn contiguous_line_count(
+    board: &Board,
+    exclude: Coord,
+    seed: Coord,
+    direction: (i8, i8),
+) -> u32 {
+    if board.get(seed).is_none() {
+        return 0;
+    }
+
+    let (dx, dy) = direction;
+    let mut count = if seed == exclude { 0 } else { 1 };
+
+    let mut c = seed;
+    while let Some(next) = c.step(dx, dy) {
+        if next == exclude {
+            c = next;
+            continue;
         }
-        let _ = state.pools[pool_index(player)].graduate_kittens(3);
+        if board.get(next).is_some() {
+            count += 1;
+            c = next;
+        } else {
+            break;
+        }
+    }
+
+    c = seed;
+    while let Some(next) = c.step(-dx, -dy) {
+        if next == exclude {
+            c = next;
+            continue;
+        }
+        if board.get(next).is_some() {
+            count += 1;
+            c = next;
+        } else {
+            break;
+        }
+    }
+
+    count
+}
+
+fn resolve_graduation(state: &mut GameState, player: Player) {
+    // First qualifying line of three (scan order); three cats in a row is a win, not graduation.
+    let Some(line) = find_graduation_triple(&state.board, player) else {
+        return;
+    };
+    let pool = &mut state.pools[pool_index(player)];
+    for coord in line {
+        let Some(piece) = state.board.get(coord) else {
+            continue;
+        };
+        state.board.clear(coord);
+        match piece.kind {
+            PieceKind::Kitten => {
+                let _ = pool.graduate_kitten();
+            }
+            PieceKind::Cat => {
+                pool.cats_in_hand += 1;
+            }
+        }
     }
 }
 
-fn find_kitten_line_of_three(board: &Board, player: Player) -> Option<[Coord; 3]> {
+fn find_graduation_triple(board: &Board, player: Player) -> Option<[Coord; 3]> {
     let line_dirs = [(1, 0), (0, 1), (1, 1), (1, -1)];
 
     for y in 0..crate::BOARD_SIZE as u8 {
         for x in 0..crate::BOARD_SIZE as u8 {
             let start = Coord { x, y };
             for (dx, dy) in line_dirs {
-                let cells = [
-                    start,
-                    start.step(dx, dy)?,
-                    start.step(dx * 2, dy * 2)?,
-                ];
-                if cells.iter().all(|coord| {
+                let Some(a) = start.step(dx, dy) else {
+                    continue;
+                };
+                let Some(b) = start.step(dx * 2, dy * 2) else {
+                    continue;
+                };
+                let cells = [start, a, b];
+                if !cells.iter().all(|coord| {
                     board
                         .get(*coord)
-                        .is_some_and(|p| p.player == player && p.kind == PieceKind::Kitten)
+                        .is_some_and(|p| p.player == player)
                 }) {
-                    return Some(cells);
+                    continue;
                 }
+                let all_cats = cells.iter().all(|coord| {
+                    board
+                        .get(*coord)
+                        .is_some_and(|p| p.kind == PieceKind::Cat)
+                });
+                if all_cats {
+                    continue;
+                }
+                return Some(cells);
             }
         }
     }

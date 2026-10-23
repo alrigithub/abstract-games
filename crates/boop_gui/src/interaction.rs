@@ -324,7 +324,7 @@ fn handle_clicks(
 
     player_move_events.write(PlayerMoveEvent(
         PLAYER_HUMAN,
-        Move {
+        Move::Place {
             coord,
             piece: piece_kind,
         },
