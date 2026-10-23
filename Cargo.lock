@@ -1650,6 +1650,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "boop"
+version = "0.1.0"
+
+[[package]]
+name = "boop_ai"
+version = "0.1.0"
+dependencies = [
+ "boop",
+ "minimax",
+]
+
+[[package]]
+name = "boop_gui"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_async_task",
+ "bevy_tweening",
+ "boop",
+ "boop_ai",
+ "gloo-timers 0.3.0",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
