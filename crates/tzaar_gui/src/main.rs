@@ -19,7 +19,7 @@ pub const PLAYER_AI: Player = Player::Second;
 fn main() {
     App::new()
         .add_plugins((
-            render_config::default_plugins().set(render_config::window_plugins()),
+            render_config::plugin_group(),
             ai::plugin,
             state_update::plugin,
             graphics::plugin,

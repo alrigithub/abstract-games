@@ -1,3 +1,4 @@
+use bevy::app::PluginGroupBuilder;
 use bevy::prelude::*;
 
 /// Window + rendering defaults shared by native and WASM entrypoints.
@@ -15,27 +16,27 @@ pub fn window_plugins() -> WindowPlugin {
     }
 }
 
-/// Prefer DX12 + compatibility limits on Windows native. Intel Iris Xe Vulkan has hung
-/// after first present in the field; boop_gui avoids HDR/MSAA for the same GPU class.
-#[cfg(all(not(target_arch = "wasm32"), target_os = "windows"))]
-pub fn default_plugins() -> DefaultPlugins {
-    use bevy::render::settings::Backends;
-    use bevy::render::{
-        RenderPlugin,
-        settings::{RenderCreation, WgpuSettings, WgpuSettingsPriority},
-    };
+/// `DefaultPlugins` plus window (and on Windows native, DX12 + compatibility limits for Iris Xe).
+pub fn plugin_group() -> PluginGroupBuilder {
+    #[cfg(all(not(target_arch = "wasm32"), target_os = "windows"))]
+    {
+        use bevy::render::settings::Backends;
+        use bevy::render::{
+            RenderPlugin,
+            settings::{RenderCreation, WgpuSettings, WgpuSettingsPriority},
+        };
 
-    DefaultPlugins.set(RenderPlugin {
-        render_creation: RenderCreation::Automatic(WgpuSettings {
-            backends: Some(Backends::DX12),
-            priority: WgpuSettingsPriority::Compatibility,
-            ..default()
-        }),
-        ..default()
-    })
-}
+        return DefaultPlugins
+            .set(RenderPlugin {
+                render_creation: RenderCreation::Automatic(WgpuSettings {
+                    backends: Some(Backends::DX12),
+                    priority: WgpuSettingsPriority::Compatibility,
+                    ..default()
+                }),
+                ..default()
+            })
+            .set(window_plugins());
+    }
 
-#[cfg(not(all(not(target_arch = "wasm32"), target_os = "windows")))]
-pub fn default_plugins() -> DefaultPlugins {
-    DefaultPlugins
+    DefaultPlugins.set(window_plugins())
 }
