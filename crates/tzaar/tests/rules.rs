@@ -44,7 +44,7 @@ fn forced_capture_then_optional_second() {
     g.apply(capture).unwrap();
     assert_eq!(g.to_move(), Player::Second);
     assert_eq!(g.phase(), TurnPhase::OptionalSecond);
-    assert!(g.legal_moves().iter().any(|m| *m == Move::PassSecond));
+    assert!(g.legal_moves().contains(&Move::PassSecond));
 }
 
 #[test]

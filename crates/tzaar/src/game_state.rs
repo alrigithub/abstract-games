@@ -191,17 +191,11 @@ impl GameState {
     }
 
     fn is_legal_capture(&self, from: Coord, to: Coord, player: Player) -> bool {
-        self.board
-            .capture_targets(from, player)
-            .iter()
-            .any(|c| *c == to)
+        self.board.capture_targets(from, player).contains(&to)
     }
 
     fn is_legal_stack(&self, from: Coord, to: Coord, player: Player) -> bool {
-        self.board
-            .stack_targets(from, player)
-            .iter()
-            .any(|c| *c == to)
+        self.board.stack_targets(from, player).contains(&to)
     }
 
     fn apply_capture(&mut self, from: Coord, to: Coord, player: Player) -> Result<(), IllegalMove> {
