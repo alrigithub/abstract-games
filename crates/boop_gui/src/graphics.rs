@@ -1,8 +1,6 @@
 use bevy::{
     camera::visibility::RenderLayers,
-    post_process::bloom::Bloom,
     prelude::*,
-    render::view::Hdr,
     window::PrimaryWindow,
 };
 use boop::{Coord, Piece, PieceKind, Player, BOARD_SIZE};
@@ -110,6 +108,8 @@ pub struct ScaleFactorSet;
 
 #[derive(Resource)]
 pub struct PieceMaterials {
+    pub cat_mesh: Handle<Mesh>,
+    pub kitten_mesh: Handle<Mesh>,
     pub first_kitten: Handle<ColorMaterial>,
     pub first_cat: Handle<ColorMaterial>,
     pub first_ghost: Handle<ColorMaterial>,
@@ -127,14 +127,14 @@ pub fn material_for(materials: &PieceMaterials, piece: Piece) -> Handle<ColorMat
 }
 
 pub fn piece_mesh(
-    meshes: &mut Assets<Mesh>,
+    materials: &PieceMaterials,
     material: Handle<ColorMaterial>,
     kind: PieceKind,
     visibility: Visibility,
 ) -> impl Bundle {
     let mesh = match kind {
-        PieceKind::Cat => meshes.add(Circle::new(22.0)),
-        PieceKind::Kitten => meshes.add(Rectangle::new(18.0, 22.0)),
+        PieceKind::Cat => materials.cat_mesh.clone(),
+        PieceKind::Kitten => materials.kitten_mesh.clone(),
     };
     (
         Mesh2d(mesh),
@@ -146,12 +146,12 @@ pub fn piece_mesh(
 fn setup_graphics(
     mut commands: Commands,
     mut config_store: ResMut<GizmoConfigStore>,
+    mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     commands.insert_resource(ClearColor(COLOR_BACKGROUND));
 
-    #[cfg_attr(target_arch = "wasm32", allow(unused_mut, unused_variables))]
-    let mut bg_camera = commands.spawn((
+    commands.spawn((
         Camera2d,
         Camera {
             order: 1,
@@ -159,23 +159,23 @@ fn setup_graphics(
         },
         BACKGROUND_RENDER_LAYER,
     ));
-    #[cfg(not(target_arch = "wasm32"))]
-    bg_camera.insert((Hdr, Bloom::default(), Msaa::Sample8));
+    // Plain Camera2d on native: HDR + Bloom + MSAA8 has caused hard exits on Intel Iris Xe (Windows).
 
-    #[cfg_attr(target_arch = "wasm32", allow(unused_mut, unused_variables))]
-    let mut fg_camera = commands.spawn((
+    let fg_camera = commands.spawn((
         Camera2d,
         Camera {
             order: 2,
+            clear_color: ClearColorConfig::None,
             ..default()
         },
         FOREGROUND_RENDER_LAYER,
         MainCamera,
     ));
-    #[cfg(not(target_arch = "wasm32"))]
-    fg_camera.insert((Hdr, Bloom::default(), Msaa::Sample8));
+    let _ = fg_camera;
 
     commands.insert_resource(PieceMaterials {
+        cat_mesh: meshes.add(Circle::new(22.0)),
+        kitten_mesh: meshes.add(Rectangle::new(18.0, 22.0)),
         first_kitten: materials.add(COLOR_FIRST),
         first_cat: materials.add(Color::srgb(0.85, 0.42, 0.08)),
         first_ghost: materials.add(COLOR_FIRST_TRANSPARENT),
@@ -187,9 +187,20 @@ fn setup_graphics(
     config.render_layers = BACKGROUND_RENDER_LAYER;
 }
 
-pub fn set_scale_factor(
+fn init_scale_factor(mut scale_factor: ResMut<ScaleFactor>, window: Query<&Window, With<PrimaryWindow>>) {
+    set_scale_factor_inner(&mut scale_factor, &window);
+}
+
+fn set_scale_factor(
     mut scale_factor: ResMut<ScaleFactor>,
     window: Query<&Window, With<PrimaryWindow>>,
+) {
+    set_scale_factor_inner(&mut scale_factor, &window);
+}
+
+fn set_scale_factor_inner(
+    scale_factor: &mut ScaleFactor,
+    window: &Query<&Window, With<PrimaryWindow>>,
 ) {
     const BASE_SPACING_AT_800_PIXELS: f32 = 52.0;
 
@@ -206,6 +217,7 @@ pub fn set_scale_factor(
 pub fn plugin(app: &mut App) {
     app.insert_resource(ScaleFactor::default())
         .add_systems(PreStartup, setup_graphics)
+        .add_systems(PostStartup, init_scale_factor)
         .add_systems(
             Update,
             (

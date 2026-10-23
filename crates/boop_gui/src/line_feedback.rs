@@ -25,27 +25,28 @@ fn on_line_completed(mut events: MessageReader<LineCompletedEvent>, mut commands
     }
 }
 
-fn tick_line_feedback(time: Res<Time>, mut feedback: Option<ResMut<ActiveLineFeedback>>) {
+fn tick_line_feedback(
+    time: Res<Time>,
+    mut feedback: Option<ResMut<ActiveLineFeedback>>,
+    mut commands: Commands,
+) {
     let Some(ref mut feedback) = feedback else {
         return;
     };
     feedback.timer.tick(time.delta());
+    if feedback.timer.is_finished() {
+        commands.remove_resource::<ActiveLineFeedback>();
+    }
 }
 
 fn draw_line_feedback(
     mut gizmos: Gizmos,
     scale_factor: Res<ScaleFactor>,
     feedback: Option<Res<ActiveLineFeedback>>,
-    mut commands: Commands,
 ) {
     let Some(feedback) = feedback else {
         return;
     };
-
-    if feedback.timer.is_finished() {
-        commands.remove_resource::<ActiveLineFeedback>();
-        return;
-    }
 
     let pulse = (feedback.timer.elapsed_secs() * 6.0).sin() * 0.5 + 0.5;
     let color = match feedback.highlight {
@@ -57,7 +58,7 @@ fn draw_line_feedback(
     match feedback.highlight {
         LineHighlight::Graduation(cells) | LineHighlight::Win(cells) => {
             for coord in cells {
-                draw_cell_ring(&mut gizmos, &scale_factor, coord, color);
+                draw_cell_highlight(&mut gizmos, &scale_factor, coord, color);
             }
             let a = scale_factor.screen_point(cells[0]);
             let c = scale_factor.screen_point(cells[2]);
@@ -65,29 +66,36 @@ fn draw_line_feedback(
         }
         LineHighlight::EightCatsOnBed => {
             let last = (BOARD_SIZE - 1) as u8;
-            let corners = [
+            for coord in [
                 Coord::new(0, 0),
                 Coord::new(last, 0),
                 Coord::new(last, last),
                 Coord::new(0, last),
-            ];
-            for coord in corners {
-                draw_cell_ring(&mut gizmos, &scale_factor, coord, color);
+            ] {
+                draw_cell_highlight(&mut gizmos, &scale_factor, coord, color);
             }
         }
     }
 }
 
-fn draw_cell_ring(gizmos: &mut Gizmos, scale_factor: &ScaleFactor, coord: Coord, color: Color) {
-    let center = scale_factor.screen_point(coord);
-    let r = scale_factor.spacing * 0.42;
-    let segments = 24;
-    for i in 0..segments {
-        let t0 = i as f32 / segments as f32 * std::f32::consts::TAU;
-        let t1 = (i + 1) as f32 / segments as f32 * std::f32::consts::TAU;
-        let p0 = center + Vec3::new(t0.cos() * r, t0.sin() * r, 0.0);
-        let p1 = center + Vec3::new(t1.cos() * r, t1.sin() * r, 0.0);
-        gizmos.line(p0, p1, color);
+fn draw_cell_highlight(
+    gizmos: &mut Gizmos,
+    scale_factor: &ScaleFactor,
+    coord: Coord,
+    color: Color,
+) {
+    let center = scale_factor.screen_point(coord).truncate();
+    let half = scale_factor.spacing * 0.44;
+    let corners = [
+        center + Vec2::new(-half, -half),
+        center + Vec2::new(half, -half),
+        center + Vec2::new(half, half),
+        center + Vec2::new(-half, half),
+    ];
+    for i in 0..4 {
+        let a = corners[i].extend(0.0);
+        let b = corners[(i + 1) % 4].extend(0.0);
+        gizmos.line(a, b, color);
     }
 }
 

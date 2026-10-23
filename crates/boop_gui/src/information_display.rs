@@ -4,7 +4,6 @@ use boop::Player;
 
 use crate::{
     ai::AiPlayerStrength,
-    graphics::BACKGROUND_RENDER_LAYER,
     interaction::CursorCoord,
     state_update::{GameState, HumanPieceChoice, InteractionState},
     PLAYER_HUMAN,
@@ -28,7 +27,6 @@ fn setup_information_display(mut commands: Commands) {
             ..default()
         },
         GameStateInformation,
-        BACKGROUND_RENDER_LAYER,
     ));
 }
 

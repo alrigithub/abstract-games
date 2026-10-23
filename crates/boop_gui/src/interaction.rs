@@ -51,7 +51,6 @@ fn viewport_to_coord(
 
 fn setup_cursor(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
     materials: Res<PieceMaterials>,
 ) {
     let ghost = Piece {
@@ -60,7 +59,7 @@ fn setup_cursor(
     };
     commands.spawn((
         piece_mesh(
-            &mut meshes,
+            &materials,
             materials.first_ghost.clone(),
             PieceKind::Kitten,
             Visibility::Hidden,
@@ -71,6 +70,7 @@ fn setup_cursor(
         },
         CursorElement,
         FOREGROUND_RENDER_LAYER,
+        Transform::default(),
     ));
 }
 
@@ -85,7 +85,6 @@ fn off_board_glide_target(scale_factor: &ScaleFactor, from: Coord, push: (i8, i8
 
 fn spawn_piece(
     commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
     materials: &PieceMaterials,
     scale_factor: &ScaleFactor,
     coord: Coord,
@@ -95,7 +94,7 @@ fn spawn_piece(
     let material = material_for(materials, piece);
     let mut entity = commands.spawn((
         piece_mesh(
-            meshes,
+            materials,
             material,
             piece.kind,
             Visibility::Visible,
@@ -126,7 +125,6 @@ fn handle_board_updates(
     mut board_update_events: MessageReader<BoardUpdateEvent>,
     mut commands: Commands,
     scale_factor: Res<ScaleFactor>,
-    mut meshes: ResMut<Assets<Mesh>>,
     materials: Res<PieceMaterials>,
     mut q_pieces: Query<(Entity, &mut BoardElement, &mut Transform), Without<CursorElement>>,
 ) {
@@ -135,7 +133,6 @@ fn handle_board_updates(
             BoardUpdateEvent::Spawn { coord, piece } => {
                 spawn_piece(
                     &mut commands,
-                    &mut meshes,
                     &materials,
                     &scale_factor,
                     coord,
@@ -163,7 +160,6 @@ fn handle_board_updates(
                 } else {
                     spawn_piece(
                         &mut commands,
-                        &mut meshes,
                         &materials,
                         &scale_factor,
                         to,
@@ -244,6 +240,7 @@ fn clear_animators(
     for (entity, animator, despawn) in q.iter() {
         if matches!(animator.tween_state(), TweenState::Completed) {
             if despawn.is_some() {
+                commands.entity(entity).remove::<TweenAnim>();
                 commands.entity(entity).despawn();
             } else {
                 commands.entity(entity).remove::<TweenAnim>();

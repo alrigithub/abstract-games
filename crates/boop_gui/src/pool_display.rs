@@ -1,162 +1,151 @@
 use bevy::prelude::*;
-use boop::{Piece, PieceKind, Player};
+use boop::{PieceKind, Player, Pool};
 
 use crate::{
     PLAYER_AI, PLAYER_HUMAN,
-    graphics::{
-        FOREGROUND_RENDER_LAYER, PieceMaterials, ScaleFactor, ScaleFactorSet, material_for,
-        piece_mesh,
-    },
+    graphics::{ScaleFactor, ScaleFactorSet},
     state_update::GameState,
 };
 
 #[derive(Component)]
-struct PoolColumn {
+struct PoolPanelRoot {
     player: Player,
 }
 
 #[derive(Component)]
-struct PoolCountLabel;
+struct PoolLineText;
 
-fn pool_anchor_x(scale_factor: &ScaleFactor, side: f32) -> f32 {
-    let board_half = scale_factor.board_half_extent();
-    side * (board_half + scale_factor.spacing * 1.45)
+/// Avoid rebuilding side panels every frame (was leaking meshes and crashing after ~1 min).
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
+struct PoolDisplayFingerprint {
+    human: Pool,
+    ai: Pool,
+    spacing_bits: u32,
 }
 
-fn sync_pool_columns(
-    mut commands: Commands,
+impl PoolDisplayFingerprint {
+    fn from_state(game_state: &GameState, scale_factor: &ScaleFactor) -> Self {
+        Self {
+            human: game_state.pool(PLAYER_HUMAN),
+            ai: game_state.pool(PLAYER_AI),
+            spacing_bits: scale_factor.spacing.to_bits(),
+        }
+    }
+}
+
+fn setup_pool_panels(mut commands: Commands) {
+    for player in [PLAYER_HUMAN, PLAYER_AI] {
+        let align = if player == PLAYER_HUMAN {
+            (Val::Px(8.0), Val::Auto)
+        } else {
+            (Val::Auto, Val::Px(8.0))
+        };
+        commands.spawn((
+            PoolPanelRoot { player },
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Px(110.0),
+                left: align.0,
+                right: align.1,
+                width: Val::Px(118.0),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(10.0),
+                ..default()
+            },
+        ));
+    }
+}
+
+fn sync_pool_panels(
     game_state: Res<GameState>,
     scale_factor: Res<ScaleFactor>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    materials: Res<PieceMaterials>,
-    columns: Query<(Entity, &PoolColumn)>,
-    existing: Query<Entity, With<PoolCountLabel>>,
+    mut fingerprint: Local<Option<PoolDisplayFingerprint>>,
+    roots: Query<(Entity, &PoolPanelRoot)>,
+    lines: Query<Entity, With<PoolLineText>>,
+    mut commands: Commands,
 ) {
-    for entity in existing.iter() {
+    let next = PoolDisplayFingerprint::from_state(&game_state, &scale_factor);
+    if fingerprint.as_ref() == Some(&next) {
+        return;
+    }
+    *fingerprint = Some(next);
+
+    for entity in lines.iter() {
         commands.entity(entity).despawn();
     }
 
-    let column_entities: Vec<(Entity, Player)> = if columns.is_empty() {
-        [(PLAYER_HUMAN, -1.0), (PLAYER_AI, 1.0)]
-            .into_iter()
-            .map(|(player, side)| {
-                let entity = commands
-                    .spawn((
-                        PoolColumn { player },
-                        Transform::from_xyz(pool_anchor_x(&scale_factor, side), 0.0, 0.0),
-                        Visibility::Visible,
-                        FOREGROUND_RENDER_LAYER,
-                    ))
-                    .id();
-                (entity, player)
-            })
-            .collect()
-    } else {
-        columns
-            .iter()
-            .map(|(entity, column)| (entity, column.player))
-            .collect()
-    };
-
-    for (column_entity, player) in column_entities {
-        let side = if player == PLAYER_HUMAN { -1.0 } else { 1.0 };
-        let column = PoolColumn { player };
-        commands.entity(column_entity).insert(Transform::from_xyz(
-            pool_anchor_x(&scale_factor, side),
-            0.0,
-            0.0,
-        ));
-
-        let pool = game_state.pool(column.player);
-        spawn_pool_stack(
-            &mut commands,
-            &mut meshes,
-            &materials,
-            &scale_factor,
-            column_entity,
-            column.player,
-            side,
-            "Kittens",
-            pool.kittens_in_hand,
-            PieceKind::Kitten,
-            0,
-        );
-        spawn_pool_stack(
-            &mut commands,
-            &mut meshes,
-            &materials,
-            &scale_factor,
-            column_entity,
-            column.player,
-            side,
-            "Cats",
-            pool.cats_in_hand,
-            PieceKind::Cat,
-            1,
-        );
-        spawn_pool_stack(
-            &mut commands,
-            &mut meshes,
-            &materials,
-            &scale_factor,
-            column_entity,
-            column.player,
-            side,
-            "Reserve",
-            pool.cats_in_reserve,
-            PieceKind::Cat,
-            2,
-        );
+    for (root, panel) in roots.iter() {
+        let pool = game_state.pool(panel.player);
+        let title = if panel.player == PLAYER_HUMAN {
+            "You"
+        } else {
+            "AI"
+        };
+        spawn_pool_lines(&mut commands, root, title, &pool);
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn spawn_pool_stack(
-    commands: &mut Commands,
-    meshes: &mut Assets<Mesh>,
-    materials: &PieceMaterials,
-    scale_factor: &ScaleFactor,
-    _column: Entity,
-    player: Player,
-    side: f32,
-    title: &str,
-    count: u8,
-    kind: PieceKind,
-    row: i32,
-) {
-    let y = scale_factor.spacing * (1.8 - row as f32 * 1.35);
-    let label_x = side * scale_factor.spacing * 0.55;
-
-    commands.spawn((
-        Text2d::new(format!("{title}: {count}")),
-        TextFont {
-            font_size: 14.0 * scale_factor.factor,
-            ..default()
-        },
-        TextColor(Color::srgba(0.92, 0.92, 0.92, 0.95)),
-        Transform::from_xyz(label_x, y + scale_factor.spacing * 0.35, 1.0),
-        PoolCountLabel,
-        FOREGROUND_RENDER_LAYER,
-    ));
-
-    let shown = count.min(5);
-    for i in 0..shown {
-        let piece = Piece { player, kind };
-        let offset = (i as f32 - (shown as f32 - 1.0) * 0.5) * scale_factor.spacing * 0.22;
-        commands.spawn((
-            piece_mesh(
-                meshes,
-                material_for(materials, piece),
-                kind,
-                Visibility::Visible,
-            ),
-            Transform::from_xyz(offset, y, 0.0).with_scale(Vec3::splat(0.42 * scale_factor.factor)),
-            PoolCountLabel,
-            FOREGROUND_RENDER_LAYER,
+fn spawn_pool_lines(commands: &mut Commands, root: Entity, title: &str, pool: &Pool) {
+    commands.entity(root).with_children(|parent| {
+        parent.spawn((
+            Text::new(title),
+            TextFont {
+                font_size: 16.0,
+                ..default()
+            },
+            TextColor(Color::srgb(0.95, 0.92, 0.85)),
+            PoolLineText,
         ));
+        for (label, count, glyph) in [
+            ("Kittens", pool.kittens_in_hand, "▪"),
+            ("Cats", pool.cats_in_hand, "●"),
+            ("Reserve", pool.cats_in_reserve, "◆"),
+        ] {
+            let stack = stack_glyph_line(glyph, count);
+            parent.spawn((
+                Text::new(format!("{label}: {count}\n{stack}")),
+                TextFont {
+                    font_size: 14.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.82, 0.84, 0.88)),
+                PoolLineText,
+            ));
+        }
+    });
+}
+
+fn stack_glyph_line(glyph: &str, count: u8) -> String {
+    let shown = count.min(8) as usize;
+    glyph.repeat(shown)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fingerprint_skips_identical_state() {
+        let a = PoolDisplayFingerprint {
+            human: Pool {
+                kittens_in_hand: 5,
+                cats_in_hand: 1,
+                cats_in_reserve: 8,
+            },
+            ai: Pool::new(),
+            spacing_bits: 1.0f32.to_bits(),
+        };
+        let b = a;
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn stack_glyph_caps_at_eight() {
+        assert_eq!(stack_glyph_line("●", 12).chars().count(), 8);
     }
 }
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(Update, sync_pool_columns.after(ScaleFactorSet));
+    app.add_systems(Startup, setup_pool_panels)
+        .add_systems(Update, sync_pool_panels.after(ScaleFactorSet));
 }

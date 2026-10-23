@@ -8,7 +8,7 @@ use crate::Move;
 pub const KITTENS_PER_PLAYER: u8 = 8;
 pub const CATS_PER_PLAYER: u8 = 8;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Pool {
     pub kittens_in_hand: u8,
     pub cats_in_hand: u8,
