@@ -1,10 +1,5 @@
 use abstract_gui_theme::configure_grid_gizmos;
-use bevy::{
-    camera::visibility::RenderLayers,
-    ecs::{query::QueryFilter, system::EntityCommands},
-    prelude::*,
-    window::PrimaryWindow,
-};
+use bevy::{camera::visibility::RenderLayers, prelude::*, window::PrimaryWindow};
 use boop::{BOARD_SIZE, Coord, Piece, PieceKind, Player};
 
 use crate::grid::draw_grid;
@@ -149,16 +144,11 @@ pub struct PieceMaterials {
     pub first_ghost: Handle<ColorMaterial>,
     pub second_kitten: Handle<ColorMaterial>,
     pub second_cat: Handle<ColorMaterial>,
-    pub dark_rim: Handle<ColorMaterial>,
-    pub dark_glow: Handle<ColorMaterial>,
-    pub light_rim: Handle<ColorMaterial>,
 }
 
-#[derive(Component, Clone, Copy, PartialEq, Eq)]
-pub enum PieceHalo {
-    Rim,
-    Glow,
-}
+/// Foreground outlines so charcoal pieces read on the quilt (and ivory ones stay edged).
+#[derive(Default, Reflect, GizmoConfigGroup)]
+pub(crate) struct PieceRimGizmos;
 
 #[derive(Component)]
 struct QuiltSquare {
@@ -189,74 +179,6 @@ pub fn piece_mesh(
         PieceKind::Kitten => materials.kitten_mesh.clone(),
     };
     (Mesh2d(mesh), MeshMaterial2d(material), visibility)
-}
-
-fn shape_mesh(materials: &PieceMaterials, kind: PieceKind) -> Handle<Mesh> {
-    match kind {
-        PieceKind::Cat => materials.cat_mesh.clone(),
-        PieceKind::Kitten => materials.kitten_mesh.clone(),
-    }
-}
-
-fn halo_materials(
-    materials: &PieceMaterials,
-    piece: Piece,
-) -> (Handle<ColorMaterial>, Option<Handle<ColorMaterial>>) {
-    match piece.player {
-        Player::First => (
-            materials.dark_rim.clone(),
-            Some(materials.dark_glow.clone()),
-        ),
-        Player::Second => (materials.light_rim.clone(), None),
-    }
-}
-
-/// Cream / espresso outline (and a warm glow for charcoal pieces) as children so
-/// tweens on the piece transform keep the rim locked to the body.
-pub fn attach_piece_halos(entity: &mut EntityCommands, materials: &PieceMaterials, piece: Piece) {
-    let mesh = shape_mesh(materials, piece.kind);
-    let (rim, glow) = halo_materials(materials, piece);
-    entity.with_children(|children| {
-        if let Some(glow) = glow {
-            children.spawn((
-                Mesh2d(mesh.clone()),
-                MeshMaterial2d(glow),
-                Transform::from_xyz(0.0, 0.0, -0.2).with_scale(Vec3::splat(1.42)),
-                FOREGROUND_RENDER_LAYER,
-                PieceHalo::Glow,
-            ));
-        }
-        children.spawn((
-            Mesh2d(mesh),
-            MeshMaterial2d(rim),
-            Transform::from_xyz(0.0, 0.0, -0.1).with_scale(Vec3::splat(1.20)),
-            FOREGROUND_RENDER_LAYER,
-            PieceHalo::Rim,
-        ));
-    });
-}
-
-pub fn retarget_piece_halos<F: QueryFilter>(
-    children: Option<&Children>,
-    halo_q: &mut Query<(&PieceHalo, &mut Mesh2d, &mut MeshMaterial2d<ColorMaterial>), F>,
-    materials: &PieceMaterials,
-    piece: Piece,
-) {
-    let Some(children) = children else {
-        return;
-    };
-    let mesh = shape_mesh(materials, piece.kind);
-    let (rim, glow) = halo_materials(materials, piece);
-    for child in children.iter() {
-        let Ok((halo, mut child_mesh, mut child_mat)) = halo_q.get_mut(child) else {
-            continue;
-        };
-        child_mesh.0 = mesh.clone();
-        child_mat.0 = match *halo {
-            PieceHalo::Rim => rim.clone(),
-            PieceHalo::Glow => glow.clone().unwrap_or_else(|| rim.clone()),
-        };
-    }
 }
 
 fn setup_graphics(
@@ -295,8 +217,8 @@ fn setup_graphics(
     commands.spawn((
         Mesh2d(cell_mesh.clone()),
         MeshMaterial2d(materials.add(BED_FRAME)),
-        Transform::from_xyz(0.0, 0.0, -0.2),
-        BACKGROUND_RENDER_LAYER,
+        Transform::from_xyz(0.0, 0.0, -10.0),
+        FOREGROUND_RENDER_LAYER,
         QuiltFrame,
     ));
     for y in 0..BOARD_SIZE as u8 {
@@ -309,8 +231,8 @@ fn setup_graphics(
             commands.spawn((
                 Mesh2d(cell_mesh.clone()),
                 MeshMaterial2d(fill),
-                Transform::from_xyz(0.0, 0.0, -0.1),
-                BACKGROUND_RENDER_LAYER,
+                Transform::from_xyz(0.0, 0.0, -9.0),
+                FOREGROUND_RENDER_LAYER,
                 QuiltSquare { x, y },
             ));
         }
@@ -324,12 +246,14 @@ fn setup_graphics(
         first_ghost: materials.add(FIRST_GHOST),
         second_kitten: materials.add(SECOND_KITTEN),
         second_cat: materials.add(SECOND_CAT),
-        dark_rim: materials.add(DARK_RIM),
-        dark_glow: materials.add(DARK_GLOW),
-        light_rim: materials.add(LIGHT_RIM),
     });
 
-    configure_grid_gizmos(&mut config_store, Some(BACKGROUND_RENDER_LAYER));
+    // Quilt, stitch, and piece rims all live on the piece camera so the bed is not
+    // hidden behind a layer the 2D mesh pass never draws.
+    configure_grid_gizmos(&mut config_store, Some(FOREGROUND_RENDER_LAYER));
+    let (rim_config, _) = config_store.config_mut::<PieceRimGizmos>();
+    rim_config.line.width = 4.5;
+    rim_config.render_layers = FOREGROUND_RENDER_LAYER;
 }
 
 fn sync_quilt(
@@ -340,14 +264,14 @@ fn sync_quilt(
     if let Ok(mut transform) = frame.single_mut() {
         let size = scale_factor.board_half_extent() * 2.0 + scale_factor.spacing * 0.28;
         transform.scale = Vec3::new(size, size, 1.0);
-        transform.translation.z = -0.2;
+        transform.translation.z = -10.0;
     }
     for (cell, mut transform) in squares.iter_mut() {
         transform.translation = scale_factor.screen_point(Coord {
             x: cell.x,
             y: cell.y,
         });
-        transform.translation.z = -0.1;
+        transform.translation.z = -9.0;
         let size = scale_factor.spacing * 0.98;
         transform.scale = Vec3::new(size, size, 1.0);
     }
@@ -384,7 +308,8 @@ fn set_scale_factor_inner(
 }
 
 pub fn plugin(app: &mut App) {
-    app.insert_resource(ScaleFactor::default())
+    app.init_gizmo_group::<PieceRimGizmos>()
+        .insert_resource(ScaleFactor::default())
         .add_systems(PreStartup, setup_graphics)
         .add_systems(PostStartup, init_scale_factor)
         .add_systems(
