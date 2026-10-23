@@ -491,6 +491,7 @@ fn resolve_graduation(state: &mut GameState, player: Player) {
         return;
     };
     state.last_effects.line_highlight = Some(LineHighlight::Graduation(line));
+    state.last_effects.graduated_cells = Some(line);
     let pool = &mut state.pools[pool_index(player)];
     for coord in line {
         let Some(piece) = state.board.get(coord) else {

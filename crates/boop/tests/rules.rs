@@ -132,6 +132,51 @@ fn graduation_emits_line_highlight() {
 }
 
 #[test]
+fn three_kitten_graduation_records_all_three_cells_and_clears_bed() {
+    let mut g = GameState::new();
+    for x in 0..2 {
+        g.set_piece(
+            Coord::new(x, 0),
+            Piece {
+                player: Player::First,
+                kind: PieceKind::Kitten,
+            },
+        );
+    }
+    g.set_to_move(Player::First);
+    g.set_pool(
+        Player::First,
+        boop::Pool {
+            kittens_in_hand: 6,
+            cats_in_hand: 0,
+            cats_in_reserve: 8,
+        },
+    );
+
+    g.apply(Move::Place {
+        coord: Coord::new(2, 0),
+        piece: PieceKind::Kitten,
+    })
+    .unwrap();
+
+    let effects = g.last_move_effects();
+    assert_eq!(
+        effects.graduated_cells,
+        Some([
+            Coord::new(0, 0),
+            Coord::new(1, 0),
+            Coord::new(2, 0),
+        ])
+    );
+    for x in 0..3 {
+        assert!(
+            g.board().get(Coord::new(x, 0)).is_none(),
+            "graduation must remove kitten at x={x}"
+        );
+    }
+}
+
+#[test]
 fn graduate_three_kittens() {
     let mut g = GameState::new();
     for x in 0..2 {

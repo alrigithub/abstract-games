@@ -29,4 +29,6 @@ pub struct MoveEffects {
     pub displacements: Vec<PieceDisplacement>,
     pub off_board: Vec<OffBoardExit>,
     pub line_highlight: Option<LineHighlight>,
+    /// Cells cleared by automatic graduation this turn (always three when present).
+    pub graduated_cells: Option<[Coord; 3]>,
 }

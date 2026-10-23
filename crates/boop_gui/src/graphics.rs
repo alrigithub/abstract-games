@@ -18,13 +18,22 @@ pub const COLOR_FIRST_TRANSPARENT: Color = Color::srgba(0.95, 0.55, 0.15, 0.35);
 pub const COLOR_SECOND: Color = Color::srgb(0.75, 0.78, 0.82);
 
 /// Human placement “settle” scale-in.
-pub const PLACE_ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(320);
+pub const PLACE_ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(480);
 
-/// Boops, graduation removes, off-board glide.
-pub const PIECE_MOVE_ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(400);
+/// Boop displacement glide (cell to cell).
+pub const BOOP_GLIDE_ANIMATION_DURATION: std::time::Duration =
+    std::time::Duration::from_millis(580);
+
+/// Graduation: kittens shrink off the three highlighted cells.
+pub const GRADUATION_SHRINK_ANIMATION_DURATION: std::time::Duration =
+    std::time::Duration::from_millis(540);
+
+/// Piece pushed off the bed.
+pub const OFF_BOARD_ANIMATION_DURATION: std::time::Duration =
+    std::time::Duration::from_millis(680);
 
 /// Pause after human move before AI search / AI piece animation.
-pub const AI_TURN_DELAY: std::time::Duration = std::time::Duration::from_millis(550);
+pub const AI_TURN_DELAY: std::time::Duration = std::time::Duration::from_millis(600);
 
 /// Fraction of cell width used for hover/pick (higher = easier cell-to-cell jumps).
 pub const CELL_PICK_RADIUS_FRAC: f32 = 0.62;

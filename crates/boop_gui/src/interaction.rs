@@ -11,9 +11,9 @@ use crate::{
     PLAYER_HUMAN,
     ai::AiSet,
     graphics::{
-        PLACE_ANIMATION_DURATION, PIECE_MOVE_ANIMATION_DURATION, FOREGROUND_RENDER_LAYER,
-        MainCamera, PieceMaterials, ScaleFactor,
-        ScaleFactorSet, material_for, piece_mesh,
+        BOOP_GLIDE_ANIMATION_DURATION, FOREGROUND_RENDER_LAYER, GRADUATION_SHRINK_ANIMATION_DURATION,
+        OFF_BOARD_ANIMATION_DURATION, PLACE_ANIMATION_DURATION, MainCamera, PieceMaterials,
+        ScaleFactor, ScaleFactorSet, material_for, piece_mesh,
     },
     state_update::{
         BoardResyncEvent, BoardUpdateEvent, GameState, InteractionState, PlayerMoveEvent,
@@ -32,6 +32,18 @@ pub struct CursorElement;
 
 #[derive(Component)]
 struct DespawnWhenTweenDone;
+
+fn ease_decelerate() -> EaseMethod {
+    EaseMethod::EaseFunction(EaseFunction::CubicOut)
+}
+
+fn ease_smooth() -> EaseMethod {
+    EaseMethod::EaseFunction(EaseFunction::CubicInOut)
+}
+
+fn ease_accelerate() -> EaseMethod {
+    EaseMethod::EaseFunction(EaseFunction::CubicIn)
+}
 
 #[derive(Resource, Default)]
 pub struct CursorCoord(pub Option<Coord>);
@@ -112,7 +124,7 @@ fn spawn_piece(
 
     if animate_scale {
         entity.insert(TweenAnim::new(Tween::new(
-            EaseMethod::default(),
+            ease_decelerate(),
             PLACE_ANIMATION_DURATION,
             TransformScaleLens {
                 start: Vec3::splat(0.01 * scale_factor.factor),
@@ -161,8 +173,8 @@ fn handle_board_updates(
                         element.coord = to;
                         element.piece = piece;
                         let tween = Tween::new(
-                            EaseMethod::default(),
-                            PIECE_MOVE_ANIMATION_DURATION,
+                            ease_smooth(),
+                            BOOP_GLIDE_ANIMATION_DURATION,
                             TransformPositionLens {
                                 start: scale_factor.screen_point(from),
                                 end: scale_factor.screen_point(to),
@@ -200,8 +212,8 @@ fn handle_board_updates(
                             let scale = scale_factor.factor;
                             commands.entity(entity).insert((
                                 TweenAnim::new(Tween::new(
-                                    EaseMethod::default(),
-                                    PIECE_MOVE_ANIMATION_DURATION,
+                                    ease_accelerate(),
+                                    GRADUATION_SHRINK_ANIMATION_DURATION,
                                     TransformScaleLens {
                                         start: Vec3::splat(scale),
                                         end: Vec3::splat(0.01 * scale),
@@ -233,8 +245,8 @@ fn handle_board_updates(
                         let end = off_board_glide_target(&scale_factor, from, push);
                         commands.entity(entity).insert((
                             TweenAnim::new(Tween::new(
-                                EaseMethod::default(),
-                                PIECE_MOVE_ANIMATION_DURATION,
+                                ease_smooth(),
+                                OFF_BOARD_ANIMATION_DURATION,
                                 TransformPositionLens { start, end },
                             )),
                             DespawnWhenTweenDone,
