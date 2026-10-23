@@ -8,9 +8,9 @@ use boop::{Board, Coord, Move, MoveEffects, Piece, PieceKind, Player, TurnMode};
 use crate::line_feedback::{ActiveLineFeedback, LineCompletedEvent};
 
 use crate::{
-    PLAYER_AI, PLAYER_HUMAN,
     ai::AiComputationEvent,
     interaction::{BoardElement, CursorElement},
+    PLAYER_AI, PLAYER_HUMAN,
 };
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -390,6 +390,40 @@ mod tests {
             },
         );
         g
+    }
+
+    #[test]
+    fn placing_eighth_piece_enters_full_bed_on_the_same_turn() {
+        let coords = [(0, 0), (2, 0), (4, 0), (0, 2), (2, 2), (4, 2), (0, 4)];
+        let mut g = GameState::new();
+        for (x, y) in coords {
+            g.set_piece(
+                Coord::new(x, y),
+                Piece {
+                    player: PLAYER_HUMAN,
+                    kind: PieceKind::Kitten,
+                },
+            );
+        }
+        g.set_to_move(PLAYER_HUMAN);
+        g.set_pool(
+            PLAYER_HUMAN,
+            boop::Pool {
+                kittens_in_hand: 1,
+                cats_in_hand: 0,
+                cats_in_reserve: 8,
+            },
+        );
+        g.apply(Move::Place {
+            coord: Coord::new(4, 4),
+            piece: PieceKind::Kitten,
+        })
+        .unwrap();
+
+        assert_eq!(g.to_move(), PLAYER_HUMAN);
+        let state = InteractionState::from_game_state(&g);
+        assert_eq!(state, InteractionState::HumanFullBed);
+        assert!(state.accepts_board_clicks());
     }
 
     #[test]

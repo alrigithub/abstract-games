@@ -8,7 +8,7 @@ mod player;
 pub use board::Board;
 pub use coord::Coord;
 pub use effects::{LineHighlight, MoveEffects, OffBoardExit, PieceDisplacement};
-pub use game_state::{CATS_PER_PLAYER, GameState, IllegalMove, KITTENS_PER_PLAYER, Pool, TurnMode};
+pub use game_state::{GameState, IllegalMove, Pool, TurnMode, CATS_PER_PLAYER, KITTENS_PER_PLAYER};
 pub use piece::{Piece, PieceKind};
 pub use player::Player;
 
@@ -25,12 +25,13 @@ pub enum Move {
     Graduate {
         line: [Coord; 3],
     },
-    /// When all eight of your pieces are on the bed: remove one kitten (it leaves the
-    /// game) and promote one cat from reserve to your pool.
+    /// After a placement that left all eight of your pieces on the bed: remove one
+    /// kitten (it leaves the game) and promote one cat from reserve to your pool.
     GraduateSingleKitten {
         coord: Coord,
     },
-    /// When the bed is full: return one of your cats from the board to your pool.
+    /// After a placement that left all eight of your pieces on the bed: return one
+    /// of your cats from the board to your pool.
     ReturnCatToPool {
         coord: Coord,
     },

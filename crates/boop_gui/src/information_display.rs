@@ -3,10 +3,10 @@ use bevy::prelude::*;
 use boop::Player;
 
 use crate::{
-    PLAYER_HUMAN,
     ai::AiPlayerStrength,
     interaction::CursorCoord,
     state_update::{GameState, HumanPieceChoice, InteractionState},
+    PLAYER_HUMAN,
 };
 
 #[derive(Component)]
@@ -52,10 +52,18 @@ fn update_information_display(
                 boop::PieceKind::Cat => "cat",
             }
         ),
-        InteractionState::HumanChooseGraduation => format!(
-            "{} lines of three! Click a piece in the line you want to graduate",
-            game_state.pending_graduation_lines().len()
-        ),
+        InteractionState::HumanChooseGraduation => {
+            let n = game_state.pending_graduation_lines().len();
+            let extra = if game_state.board().count_pieces(PLAYER_HUMAN) >= 8 {
+                " — or click another of your pieces to graduate/return one (all 8 on the bed)"
+            } else {
+                ""
+            };
+            format!(
+                "{n} line{} of three! Click a unique piece in the line you want to graduate{extra}",
+                if n == 1 { "" } else { "s" }
+            )
+        }
         InteractionState::HumanFullBed => {
             "Bed full: click your kitten to graduate, or your cat to return it to pool".into()
         }

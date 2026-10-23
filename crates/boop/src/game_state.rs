@@ -1,9 +1,9 @@
-use crate::Move;
 use crate::board::Board;
 use crate::coord::Coord;
 use crate::effects::{LineHighlight, MoveEffects, OffBoardExit, PieceDisplacement};
 use crate::piece::{Piece, PieceKind};
 use crate::player::Player;
+use crate::Move;
 
 pub const KITTENS_PER_PLAYER: u8 = 8;
 pub const CATS_PER_PLAYER: u8 = 8;
@@ -189,12 +189,15 @@ impl GameState {
         }
 
         if !self.pending_graduation.is_empty() {
-            let line = self.graduation_choice_at(coord)?;
-            let graduate = Move::Graduate { line };
-            return legal.contains(&graduate).then_some(graduate);
+            if let Some(line) = self.graduation_choice_at(coord) {
+                let graduate = Move::Graduate { line };
+                return legal.contains(&graduate).then_some(graduate);
+            }
+            // Shared or off-line cell: fall through so a full bed can still
+            // activate alternate graduation (rulebook: choose which to activate).
         }
 
-        if self.requires_alternate_graduation() {
+        if self.board.count_pieces(player) >= 8 {
             let piece = self.board.get(coord)?;
             if piece.player != player {
                 return None;
@@ -238,11 +241,19 @@ impl GameState {
             return Vec::new();
         }
         if !self.pending_graduation.is_empty() {
-            return self
+            let mut moves: Vec<Move> = self
                 .pending_graduation
                 .iter()
                 .map(|line| Move::Graduate { line: *line })
                 .collect();
+            if self.board.count_pieces(self.to_move) >= 8 {
+                moves.extend(alternate_graduation_moves(
+                    self,
+                    self.to_move,
+                    self.pool(self.to_move),
+                ));
+            }
+            return moves;
         }
         let player = self.to_move;
         let pool = self.pool(player);
@@ -288,7 +299,7 @@ impl GameState {
         }
     }
 
-    /// Place → boop → (three cats: win) → graduate → end-of-turn win check.
+    /// Place → boop → graduate (or choose) → end-of-turn win check.
     fn apply_place(&mut self, coord: Coord, kind: PieceKind) -> Result<(), IllegalMove> {
         if Coord::try_new(coord.x, coord.y).is_none() || !self.board.is_empty(coord) {
             return Err(IllegalMove);
@@ -313,23 +324,27 @@ impl GameState {
             &mut self.last_effects,
         );
 
-        // Three cats in a row wins outright, before any graduation could break the line.
-        if let Some(line) = find_winning_cat_line(&self.board, player) {
-            self.last_effects.line_highlight = Some(LineHighlight::Win(line));
-            self.winner = Some(player);
-            return Ok(());
-        }
-
         let candidates = graduation_candidates(&self.board, player);
+        let bed_full = full_bed_without_eight_cats(&self.board, player);
         match candidates.as_slice() {
             [] => {}
-            [line] => graduate_line(self, player, *line),
+            [line] if !bed_full => {
+                graduate_line(self, player, *line);
+                finish_turn(self, player);
+                return Ok(());
+            }
             _ => {
-                // Several lines formed at once: the mover keeps the turn and picks one.
+                // Several lines, or one line plus a full bed: the mover keeps the
+                // turn and chooses which graduation to activate.
                 self.pending_graduation = candidates;
                 return Ok(());
             }
         }
+
+        if bed_full {
+            return Ok(());
+        }
+
         finish_turn(self, player);
         Ok(())
     }
@@ -347,6 +362,7 @@ impl GameState {
 
     fn apply_graduate_single_kitten(&mut self, coord: Coord) -> Result<(), IllegalMove> {
         let player = self.to_move;
+        self.pending_graduation.clear();
         if self.board.count_pieces(player) < 8 {
             return Err(IllegalMove);
         }
@@ -366,6 +382,7 @@ impl GameState {
 
     fn apply_return_cat_to_pool(&mut self, coord: Coord) -> Result<(), IllegalMove> {
         let player = self.to_move;
+        self.pending_graduation.clear();
         if self.board.count_pieces(player) < 8 {
             return Err(IllegalMove);
         }
@@ -380,6 +397,10 @@ impl GameState {
         finish_turn(self, player);
         Ok(())
     }
+}
+
+fn full_bed_without_eight_cats(board: &Board, player: Player) -> bool {
+    board.count_pieces(player) >= 8 && board.count_cats(player) < CATS_PER_PLAYER as u32
 }
 
 fn alternate_graduation_moves(state: &GameState, player: Player, pool: Pool) -> Vec<Move> {
@@ -408,6 +429,8 @@ fn alternate_graduation_moves(state: &GameState, player: Player, pool: Pool) -> 
 }
 
 /// End-of-turn win check (three cats in a row, or all eight cats on the bed), then pass the turn.
+/// Called after graduation has been resolved — a mixed line that shared a cat with a
+/// three-cat line is allowed to destroy that win.
 fn finish_turn(state: &mut GameState, player: Player) {
     if state.winner.is_none() {
         if let Some(line) = find_winning_cat_line(&state.board, player) {
