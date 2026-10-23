@@ -7,5 +7,11 @@ fn chooses_legal_opening_move() {
     let m = choose_move(&g, 2).expect("move");
     let mut g2 = g.clone();
     assert!(g2.apply(m).is_ok());
-    assert!(matches!(m.piece, PieceKind::Kitten));
+    assert!(matches!(
+        m,
+        Move::Place {
+            piece: PieceKind::Kitten,
+            ..
+        }
+    ));
 }

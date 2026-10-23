@@ -1,8 +1,6 @@
 use bevy::{
     camera::visibility::RenderLayers,
-    post_process::bloom::Bloom,
     prelude::*,
-    render::view::Hdr,
     window::PrimaryWindow,
 };
 use boop::{Coord, Piece, PieceKind, Player, BOARD_SIZE};
@@ -19,7 +17,26 @@ pub const COLOR_FIRST: Color = Color::srgb(0.95, 0.55, 0.15);
 pub const COLOR_FIRST_TRANSPARENT: Color = Color::srgba(0.95, 0.55, 0.15, 0.35);
 pub const COLOR_SECOND: Color = Color::srgb(0.75, 0.78, 0.82);
 
-pub const ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(500);
+/// Human placement “settle” scale-in.
+pub const PLACE_ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(480);
+
+/// Boop displacement glide (cell to cell).
+pub const BOOP_GLIDE_ANIMATION_DURATION: std::time::Duration =
+    std::time::Duration::from_millis(580);
+
+/// Graduation: kittens shrink off the three highlighted cells.
+pub const GRADUATION_SHRINK_ANIMATION_DURATION: std::time::Duration =
+    std::time::Duration::from_millis(540);
+
+/// Piece pushed off the bed.
+pub const OFF_BOARD_ANIMATION_DURATION: std::time::Duration =
+    std::time::Duration::from_millis(680);
+
+/// Pause after human move before AI search / AI piece animation.
+pub const AI_TURN_DELAY: std::time::Duration = std::time::Duration::from_millis(600);
+
+/// Fraction of cell width used for hover/pick (higher = easier cell-to-cell jumps).
+pub const CELL_PICK_RADIUS_FRAC: f32 = 0.62;
 
 #[derive(Component)]
 pub struct MainCamera;
@@ -31,13 +48,68 @@ pub struct ScaleFactor {
 }
 
 impl ScaleFactor {
+    /// Center of the board cell `(x, y)` in world space (chess-style cells, not line intersections).
     pub fn screen_point(&self, coord: Coord) -> Vec3 {
-        let center = (BOARD_SIZE as f32 - 1.0) / 2.0;
+        let half = BOARD_SIZE as f32 / 2.0;
         Vec3::new(
-            (coord.x as f32 - center) * self.spacing,
-            (center - coord.y as f32) * self.spacing,
+            (coord.x as f32 + 0.5 - half) * self.spacing,
+            (half - coord.y as f32 - 0.5) * self.spacing,
             0.,
         )
+    }
+
+    /// Half-width/height of the square board in world units.
+    pub fn board_half_extent(&self) -> f32 {
+        BOARD_SIZE as f32 / 2.0 * self.spacing
+    }
+
+    /// Pick the cell whose interior contains `world`, if any.
+    pub fn coord_at_world(&self, world: Vec2) -> Option<Coord> {
+        let max_dist_sq = (self.spacing * CELL_PICK_RADIUS_FRAC).powi(2);
+
+        (0..BOARD_SIZE as u8)
+            .flat_map(|y| (0..BOARD_SIZE as u8).map(move |x| Coord { x, y }))
+            .filter(|coord| {
+                let center = self.screen_point(*coord).truncate();
+                (center - world).length_squared() <= max_dist_sq
+            })
+            .min_by(|a, b| {
+                let da = (self.screen_point(*a).truncate() - world).length_squared();
+                let db = (self.screen_point(*b).truncate() - world).length_squared();
+                da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+            })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cell_centers_sit_inside_squares_not_on_grid_crossings() {
+        let sf = ScaleFactor {
+            spacing: 10.0,
+            factor: 1.0,
+        };
+        let half = sf.board_half_extent();
+        let c00 = sf.screen_point(Coord::new(0, 0));
+        assert!((c00.x - (-half + 5.0)).abs() < 0.001);
+        assert!((c00.y - (half - 5.0)).abs() < 0.001);
+
+        let c55 = sf.screen_point(Coord::new(5, 5));
+        assert!((c55.x - (half - 5.0)).abs() < 0.001);
+        assert!((c55.y - (-half + 5.0)).abs() < 0.001);
+    }
+
+    #[test]
+    fn coord_at_world_inverts_cell_center() {
+        let sf = ScaleFactor {
+            spacing: 10.0,
+            factor: 1.0,
+        };
+        let coord = Coord::new(2, 3);
+        let world = sf.screen_point(coord).truncate();
+        assert_eq!(sf.coord_at_world(world), Some(coord));
     }
 }
 
@@ -55,6 +127,8 @@ pub struct ScaleFactorSet;
 
 #[derive(Resource)]
 pub struct PieceMaterials {
+    pub cat_mesh: Handle<Mesh>,
+    pub kitten_mesh: Handle<Mesh>,
     pub first_kitten: Handle<ColorMaterial>,
     pub first_cat: Handle<ColorMaterial>,
     pub first_ghost: Handle<ColorMaterial>,
@@ -72,17 +146,17 @@ pub fn material_for(materials: &PieceMaterials, piece: Piece) -> Handle<ColorMat
 }
 
 pub fn piece_mesh(
-    meshes: &mut Assets<Mesh>,
+    materials: &PieceMaterials,
     material: Handle<ColorMaterial>,
     kind: PieceKind,
     visibility: Visibility,
 ) -> impl Bundle {
-    let radius = match kind {
-        PieceKind::Kitten => 16.0,
-        PieceKind::Cat => 20.0,
+    let mesh = match kind {
+        PieceKind::Cat => materials.cat_mesh.clone(),
+        PieceKind::Kitten => materials.kitten_mesh.clone(),
     };
     (
-        Mesh2d(meshes.add(Circle::new(radius))),
+        Mesh2d(mesh),
         MeshMaterial2d(material),
         visibility,
     )
@@ -91,12 +165,12 @@ pub fn piece_mesh(
 fn setup_graphics(
     mut commands: Commands,
     mut config_store: ResMut<GizmoConfigStore>,
+    mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     commands.insert_resource(ClearColor(COLOR_BACKGROUND));
 
-    #[cfg_attr(target_arch = "wasm32", allow(unused_mut, unused_variables))]
-    let mut bg_camera = commands.spawn((
+    commands.spawn((
         Camera2d,
         Camera {
             order: 1,
@@ -104,23 +178,23 @@ fn setup_graphics(
         },
         BACKGROUND_RENDER_LAYER,
     ));
-    #[cfg(not(target_arch = "wasm32"))]
-    bg_camera.insert((Hdr, Bloom::default(), Msaa::Sample8));
+    // Plain Camera2d on native: HDR + Bloom + MSAA8 has caused hard exits on Intel Iris Xe (Windows).
 
-    #[cfg_attr(target_arch = "wasm32", allow(unused_mut, unused_variables))]
-    let mut fg_camera = commands.spawn((
+    let fg_camera = commands.spawn((
         Camera2d,
         Camera {
             order: 2,
+            clear_color: ClearColorConfig::None,
             ..default()
         },
         FOREGROUND_RENDER_LAYER,
         MainCamera,
     ));
-    #[cfg(not(target_arch = "wasm32"))]
-    fg_camera.insert((Hdr, Bloom::default(), Msaa::Sample8));
+    let _ = fg_camera;
 
     commands.insert_resource(PieceMaterials {
+        cat_mesh: meshes.add(Circle::new(22.0)),
+        kitten_mesh: meshes.add(Rectangle::new(18.0, 22.0)),
         first_kitten: materials.add(COLOR_FIRST),
         first_cat: materials.add(Color::srgb(0.85, 0.42, 0.08)),
         first_ghost: materials.add(COLOR_FIRST_TRANSPARENT),
@@ -132,9 +206,20 @@ fn setup_graphics(
     config.render_layers = BACKGROUND_RENDER_LAYER;
 }
 
-pub fn set_scale_factor(
+fn init_scale_factor(mut scale_factor: ResMut<ScaleFactor>, window: Query<&Window, With<PrimaryWindow>>) {
+    set_scale_factor_inner(&mut scale_factor, &window);
+}
+
+fn set_scale_factor(
     mut scale_factor: ResMut<ScaleFactor>,
     window: Query<&Window, With<PrimaryWindow>>,
+) {
+    set_scale_factor_inner(&mut scale_factor, &window);
+}
+
+fn set_scale_factor_inner(
+    scale_factor: &mut ScaleFactor,
+    window: &Query<&Window, With<PrimaryWindow>>,
 ) {
     const BASE_SPACING_AT_800_PIXELS: f32 = 52.0;
 
@@ -151,6 +236,7 @@ pub fn set_scale_factor(
 pub fn plugin(app: &mut App) {
     app.insert_resource(ScaleFactor::default())
         .add_systems(PreStartup, setup_graphics)
+        .add_systems(PostStartup, init_scale_factor)
         .add_systems(
             Update,
             (

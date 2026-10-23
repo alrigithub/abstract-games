@@ -1,8 +1,11 @@
+use std::collections::HashSet;
 use std::ops::{Deref, DerefMut};
 
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
-use boop::{Board, Coord, Move, Piece, PieceKind, Player};
+use boop::{Board, Coord, Move, MoveEffects, Piece, PieceKind, Player};
+
+use crate::line_feedback::LineCompletedEvent;
 
 use crate::{
     PLAYER_AI, PLAYER_HUMAN,
@@ -49,6 +52,8 @@ pub struct HumanPieceChoice(pub PieceKind);
 #[derive(Resource, Debug, Clone, PartialEq, Eq)]
 pub enum InteractionState {
     HumanPlace,
+    HumanFullBed,
+    HumanNoMoves,
     WaitForAI,
     Winner(Player),
 }
@@ -59,6 +64,10 @@ impl InteractionState {
             Self::Winner(winner)
         } else if game_state.to_move() == PLAYER_AI {
             Self::WaitForAI
+        } else if game_state.legal_moves().is_empty() {
+            Self::HumanNoMoves
+        } else if game_state.requires_alternate_graduation() {
+            Self::HumanFullBed
         } else {
             Self::HumanPlace
         }
@@ -78,6 +87,12 @@ pub enum BoardUpdateEvent {
     },
     Remove {
         coord: Coord,
+        shrink: bool,
+    },
+    ExitBoard {
+        from: Coord,
+        piece: Piece,
+        push: (i8, i8),
     },
 }
 
@@ -122,7 +137,10 @@ pub fn diff_board(old: &Board, new: &Board) -> Vec<BoardUpdateEvent> {
                 piece,
             });
         } else {
-            changes.push(BoardUpdateEvent::Remove { coord: from });
+            changes.push(BoardUpdateEvent::Remove {
+                coord: from,
+                shrink: false,
+            });
         }
     }
 
@@ -133,6 +151,161 @@ pub fn diff_board(old: &Board, new: &Board) -> Vec<BoardUpdateEvent> {
     }
 
     changes
+}
+
+/// Board visuals after a move: boop displacements, diff, then explicit graduation removes.
+pub fn board_sync_events(
+    before: &Board,
+    after: &Board,
+    effects: &MoveEffects,
+    player_move: Move,
+    acting_player: Player,
+) -> Vec<BoardUpdateEvent> {
+    let shrink_removals = effects.graduated_cells.is_some();
+
+    let displaced_from: HashSet<Coord> = effects.displacements.iter().map(|d| d.from).collect();
+    let displaced_to: HashSet<Coord> = effects.displacements.iter().map(|d| d.to).collect();
+    let graduation_cells: HashSet<Coord> = effects
+        .graduated_cells
+        .into_iter()
+        .flatten()
+        .collect();
+
+    let placed_this_turn = match player_move {
+        Move::Place { coord, piece: kind } => Some((coord, Piece { player: acting_player, kind })),
+        _ => None,
+    };
+
+    let mut events = Vec::new();
+
+    for displacement in &effects.displacements {
+        events.push(BoardUpdateEvent::Move {
+            from: displacement.from,
+            to: displacement.to,
+            piece: displacement.piece,
+        });
+    }
+
+    for change in diff_board(before, after) {
+        match change {
+            BoardUpdateEvent::Move { .. } => {}
+            BoardUpdateEvent::Spawn { coord, .. } if displaced_to.contains(&coord) => {}
+            BoardUpdateEvent::Remove { coord, .. } if displaced_from.contains(&coord) => {}
+            BoardUpdateEvent::Remove { coord, .. } if graduation_cells.contains(&coord) => {}
+            BoardUpdateEvent::Remove { coord, .. } => {
+                if let Some(exit) = effects.off_board.iter().find(|e| e.from == coord) {
+                    events.push(BoardUpdateEvent::ExitBoard {
+                        from: exit.from,
+                        piece: exit.piece,
+                        push: exit.push,
+                    });
+                } else {
+                    events.push(BoardUpdateEvent::Remove {
+                        coord,
+                        shrink: shrink_removals,
+                    });
+                }
+            }
+            other => events.push(other),
+        }
+    }
+
+    if let Some(cells) = effects.graduated_cells {
+        for coord in cells {
+            if effects.off_board.iter().any(|e| e.from == coord) {
+                continue;
+            }
+            if let Some((placed_coord, piece)) = placed_this_turn
+                && placed_coord == coord
+                && before.get(coord).is_none()
+            {
+                events.push(BoardUpdateEvent::Spawn { coord, piece });
+            }
+            events.push(BoardUpdateEvent::Remove {
+                coord,
+                shrink: true,
+            });
+        }
+    }
+
+    events
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boop::{GameState, LineHighlight, PieceKind, Player};
+
+    #[test]
+    fn graduation_sync_removes_all_three_cells_including_placed_kitten() {
+        let mut g = GameState::new();
+        for x in 0..2 {
+            g.set_piece(
+                Coord::new(x, 0),
+                Piece {
+                    player: Player::First,
+                    kind: PieceKind::Kitten,
+                },
+            );
+        }
+        g.set_to_move(Player::First);
+        g.set_pool(
+            Player::First,
+            boop::Pool {
+                kittens_in_hand: 6,
+                cats_in_hand: 0,
+                cats_in_reserve: 8,
+            },
+        );
+
+        let before = g.board().clone();
+        let player_move = Move::Place {
+            coord: Coord::new(2, 0),
+            piece: PieceKind::Kitten,
+        };
+        g.apply(player_move).unwrap();
+        let effects = g.last_move_effects().clone();
+        let after = g.board().clone();
+
+        let events = board_sync_events(
+            &before,
+            &after,
+            &effects,
+            player_move,
+            Player::First,
+        );
+
+        assert!(matches!(
+            effects.line_highlight,
+            Some(LineHighlight::Graduation(_))
+        ));
+
+        let grad_removals: HashSet<Coord> = events
+            .iter()
+            .filter_map(|event| match event {
+                BoardUpdateEvent::Remove { coord, shrink: true } => Some(*coord),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            grad_removals,
+            HashSet::from([
+                Coord::new(0, 0),
+                Coord::new(1, 0),
+                Coord::new(2, 0),
+            ])
+        );
+
+        assert!(events.iter().any(|event| matches!(
+            event,
+            BoardUpdateEvent::Spawn {
+                coord,
+                piece,
+            } if *coord == Coord::new(2, 0)
+                && piece.kind == PieceKind::Kitten
+                && piece.player == Player::First
+        )));
+    }
 }
 
 pub fn restore_board_from_game_state(
@@ -155,6 +328,7 @@ fn state_update(
     mut undo_history: ResMut<UndoHistory>,
     mut ai_computation_events: MessageWriter<AiComputationEvent>,
     mut board_update_events: MessageWriter<BoardUpdateEvent>,
+    mut line_completed_events: MessageWriter<LineCompletedEvent>,
 ) {
     for PlayerMoveEvent(player, player_move) in player_move_events.read() {
         let player = *player;
@@ -172,8 +346,20 @@ fn state_update(
             continue;
         }
 
-        for change in diff_board(&before, game_state.board()) {
-            board_update_events.write(change);
+        let effects = game_state.last_move_effects().clone();
+
+        for event in board_sync_events(
+            &before,
+            game_state.board(),
+            &effects,
+            player_move,
+            player,
+        ) {
+            board_update_events.write(event);
+        }
+
+        if let Some(highlight) = effects.line_highlight {
+            line_completed_events.write(LineCompletedEvent(highlight));
         }
 
         if game_state.winner().is_none()

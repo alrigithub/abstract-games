@@ -28,7 +28,7 @@ impl Game for BoopGame {
 
 fn ordered_moves(state: &GameState) -> Vec<Move> {
     let mut moves = state.legal_moves();
-    moves.sort_by_key(|m| center_priority(m.coord));
+    moves.sort_by_key(|m| center_priority(m.coord()));
     moves.reverse();
     moves
 }
