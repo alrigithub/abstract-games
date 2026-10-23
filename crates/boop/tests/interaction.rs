@@ -52,6 +52,32 @@ fn move_for_interaction_places_on_empty_cell() {
 }
 
 #[test]
+fn normalize_placement_prefers_cats_when_out_of_kittens() {
+    let pool = boop::Pool {
+        kittens_in_hand: 0,
+        cats_in_hand: 2,
+        cats_in_reserve: 8,
+    };
+    assert_eq!(
+        pool.normalize_placement_preference(PieceKind::Kitten),
+        PieceKind::Cat
+    );
+}
+
+#[test]
+fn normalize_placement_prefers_kittens_when_out_of_cats() {
+    let pool = boop::Pool {
+        kittens_in_hand: 3,
+        cats_in_hand: 0,
+        cats_in_reserve: 8,
+    };
+    assert_eq!(
+        pool.normalize_placement_preference(PieceKind::Cat),
+        PieceKind::Kitten
+    );
+}
+
+#[test]
 fn move_for_interaction_falls_back_to_cat_when_no_kittens() {
     let mut g = GameState::new();
     g.set_pool(

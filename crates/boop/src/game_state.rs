@@ -24,6 +24,19 @@ impl Pool {
         }
     }
 
+    /// Map UI piece choice to what the player can actually place from the pool.
+    pub fn normalize_placement_preference(&self, preferred: PieceKind) -> PieceKind {
+        match preferred {
+            PieceKind::Kitten if self.kittens_in_hand == 0 && self.cats_in_hand > 0 => {
+                PieceKind::Cat
+            }
+            PieceKind::Cat if self.cats_in_hand == 0 && self.kittens_in_hand > 0 => {
+                PieceKind::Kitten
+            }
+            _ => preferred,
+        }
+    }
+
     fn take(&mut self, kind: PieceKind) -> bool {
         match kind {
             PieceKind::Kitten if self.kittens_in_hand > 0 => {
@@ -151,6 +164,8 @@ impl GameState {
         if !self.board.is_empty(coord) {
             return None;
         }
+
+        let preferred_placement = self.pool(player).normalize_placement_preference(preferred_placement);
 
         let preferred = Move::Place {
             coord,
