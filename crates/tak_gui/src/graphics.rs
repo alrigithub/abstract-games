@@ -13,10 +13,13 @@ pub const COLOR_BACKGROUND: Color = Color::hsl(0.0, 0.0, 0.05);
 
 pub const COLOR_HUMAN: Color = Color::srgb(0.94, 0.91, 0.82);
 pub const COLOR_HUMAN_GHOST: Color = Color::srgba(0.94, 0.91, 0.82, 0.35);
-pub const COLOR_AI: Color = Color::srgb(0.22, 0.2, 0.18);
+pub const COLOR_AI: Color = Color::srgb(0.52, 0.48, 0.42);
 pub const COLOR_CAP_RING: Color = Color::srgb(0.85, 0.55, 0.2);
 
 pub const ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// Fraction of cell width used for hover/pick (higher = easier hits on WASM canvas).
+pub const CELL_PICK_RADIUS_FRAC: f32 = 0.62;
 
 #[derive(Component)]
 pub struct MainCamera;
@@ -28,13 +31,34 @@ pub struct ScaleFactor {
 }
 
 impl ScaleFactor {
+    /// Center of board cell `(x, y)` in world space (stones sit in squares, not on grid crossings).
     pub fn screen_point(&self, coord: Coord) -> Vec3 {
-        let center = (BOARD_SIZE as f32 - 1.0) / 2.0;
+        let half = BOARD_SIZE as f32 / 2.0;
         Vec3::new(
-            (coord.x as f32 - center) * self.spacing,
-            (center - coord.y as f32) * self.spacing,
+            (coord.x as f32 + 0.5 - half) * self.spacing,
+            (half - coord.y as f32 - 0.5) * self.spacing,
             0.,
         )
+    }
+
+    pub fn board_half_extent(&self) -> f32 {
+        BOARD_SIZE as f32 / 2.0 * self.spacing
+    }
+
+    pub fn coord_at_world(&self, world: Vec2) -> Option<Coord> {
+        let max_dist_sq = (self.spacing * CELL_PICK_RADIUS_FRAC).powi(2);
+
+        (0..BOARD_SIZE as u8)
+            .flat_map(|y| (0..BOARD_SIZE as u8).map(move |x| Coord { x, y }))
+            .filter(|coord| {
+                let center = self.screen_point(*coord).truncate();
+                (center - world).length_squared() <= max_dist_sq
+            })
+            .min_by(|a, b| {
+                let da = (self.screen_point(*a).truncate() - world).length_squared();
+                let db = (self.screen_point(*b).truncate() - world).length_squared();
+                da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+            })
     }
 }
 
@@ -44,6 +68,33 @@ impl Default for ScaleFactor {
             spacing: 72.0,
             factor: 1.0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn coord_at_world_inverts_cell_center() {
+        let sf = ScaleFactor {
+            spacing: 72.0,
+            factor: 1.0,
+        };
+        let coord = Coord { x: 2, y: 3 };
+        let world = sf.screen_point(coord).truncate();
+        assert_eq!(sf.coord_at_world(world), Some(coord));
+    }
+
+    #[test]
+    fn cell_center_hits_easier_than_old_grid_crossing() {
+        let sf = ScaleFactor {
+            spacing: 72.0,
+            factor: 1.0,
+        };
+        let half = sf.board_half_extent();
+        let between_cells = Vec2::new(-half + sf.spacing * 2.5, half - sf.spacing * 2.5);
+        assert_eq!(sf.coord_at_world(between_cells), Some(Coord { x: 2, y: 2 }));
     }
 }
 
@@ -126,6 +177,7 @@ fn setup_graphics(
         Camera2d,
         Camera {
             order: 2,
+            clear_color: ClearColorConfig::None,
             ..default()
         },
         FOREGROUND_RENDER_LAYER,
