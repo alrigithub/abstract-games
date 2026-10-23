@@ -131,6 +131,11 @@ fn handle_board_updates(
     for event in board_update_events.read() {
         match *event {
             BoardUpdateEvent::Spawn { coord, piece } => {
+                for (entity, element, _) in q_pieces.iter() {
+                    if element.coord == coord {
+                        commands.entity(entity).despawn();
+                    }
+                }
                 spawn_piece(
                     &mut commands,
                     &materials,
@@ -141,23 +146,37 @@ fn handle_board_updates(
                 );
             }
             BoardUpdateEvent::Move { from, to, piece } => {
-                if let Some((entity, mut element, mut transform)) = q_pieces
-                    .iter_mut()
+                let mover = q_pieces
+                    .iter()
                     .find(|(_, element, _)| element.coord == from && element.piece == piece)
-                {
-                    element.coord = to;
-                    element.piece = piece;
-                    let tween = Tween::new(
-                        EaseMethod::default(),
-                        ANIMATION_DURATION,
-                        TransformPositionLens {
-                            start: scale_factor.screen_point(from),
-                            end: scale_factor.screen_point(to),
-                        },
-                    );
-                    commands.entity(entity).insert(TweenAnim::new(tween));
-                    transform.scale = Vec3::splat(scale_factor.factor);
+                    .map(|(entity, _, _)| entity);
+                if let Some(mover_entity) = mover {
+                    for (entity, element, _) in q_pieces.iter() {
+                        if element.coord == to && entity != mover_entity {
+                            commands.entity(entity).despawn();
+                        }
+                    }
+                    if let Ok((_, mut element, mut transform)) = q_pieces.get_mut(mover_entity) {
+                        element.coord = to;
+                        element.piece = piece;
+                        let tween = Tween::new(
+                            EaseMethod::default(),
+                            ANIMATION_DURATION,
+                            TransformPositionLens {
+                                start: scale_factor.screen_point(from),
+                                end: scale_factor.screen_point(to),
+                            },
+                        );
+                        commands.entity(mover_entity).insert(TweenAnim::new(tween));
+                        transform.translation = scale_factor.screen_point(from);
+                        transform.scale = Vec3::splat(scale_factor.factor);
+                    }
                 } else {
+                    for (entity, element, _) in q_pieces.iter() {
+                        if element.coord == to || element.coord == from {
+                            commands.entity(entity).despawn();
+                        }
+                    }
                     spawn_piece(
                         &mut commands,
                         &materials,
@@ -169,47 +188,59 @@ fn handle_board_updates(
                 }
             }
             BoardUpdateEvent::Remove { coord, shrink } => {
-                for (entity, element, mut transform) in q_pieces.iter_mut() {
-                    if element.coord != coord {
-                        continue;
-                    }
+                let victims: Vec<Entity> = q_pieces
+                    .iter()
+                    .filter(|(_, element, _)| element.coord == coord)
+                    .map(|(entity, _, _)| entity)
+                    .collect();
+                for entity in victims {
                     if shrink {
-                        let scale = scale_factor.factor;
+                        if let Ok((_, _, mut transform)) = q_pieces.get_mut(entity) {
+                            let scale = scale_factor.factor;
+                            commands.entity(entity).insert((
+                                TweenAnim::new(Tween::new(
+                                    EaseMethod::default(),
+                                    ANIMATION_DURATION,
+                                    TransformScaleLens {
+                                        start: Vec3::splat(scale),
+                                        end: Vec3::splat(0.01 * scale),
+                                    },
+                                )),
+                                DespawnWhenTweenDone,
+                            ));
+                            transform.scale = Vec3::splat(scale);
+                        }
+                    } else {
+                        commands.entity(entity).despawn();
+                    }
+                }
+            }
+            BoardUpdateEvent::ExitBoard { from, piece, push } => {
+                let glider = q_pieces
+                    .iter()
+                    .find(|(_, element, _)| element.coord == from && element.piece == piece)
+                    .map(|(entity, _, _)| entity);
+                if let Some(entity) = glider {
+                    for (other, element, _) in q_pieces.iter() {
+                        if element.coord == from && other != entity {
+                            commands.entity(other).despawn();
+                        }
+                    }
+                    if let Ok((_, element, mut transform)) = q_pieces.get_mut(entity) {
+                        let _ = element;
+                        let start = scale_factor.screen_point(from);
+                        let end = off_board_glide_target(&scale_factor, from, push);
                         commands.entity(entity).insert((
                             TweenAnim::new(Tween::new(
                                 EaseMethod::default(),
                                 ANIMATION_DURATION,
-                                TransformScaleLens {
-                                    start: Vec3::splat(scale),
-                                    end: Vec3::splat(0.01 * scale),
-                                },
+                                TransformPositionLens { start, end },
                             )),
                             DespawnWhenTweenDone,
                         ));
-                        transform.scale = Vec3::splat(scale);
-                    } else {
-                        commands.entity(entity).despawn();
+                        transform.translation = start;
+                        transform.scale = Vec3::splat(scale_factor.factor);
                     }
-                    break;
-                }
-            }
-            BoardUpdateEvent::ExitBoard { from, piece, push } => {
-                if let Some((entity, mut element, mut transform)) = q_pieces
-                    .iter_mut()
-                    .find(|(_, element, _)| element.coord == from && element.piece == piece)
-                {
-                    element.coord = from;
-                    let start = scale_factor.screen_point(from);
-                    let end = off_board_glide_target(&scale_factor, from, push);
-                    commands.entity(entity).insert((
-                        TweenAnim::new(Tween::new(
-                            EaseMethod::default(),
-                            ANIMATION_DURATION,
-                            TransformPositionLens { start, end },
-                        )),
-                        DespawnWhenTweenDone,
-                    ));
-                    transform.scale = Vec3::splat(scale_factor.factor);
                 }
             }
         }

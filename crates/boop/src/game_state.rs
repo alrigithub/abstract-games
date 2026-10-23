@@ -352,6 +352,20 @@ const DIRECTIONS: [(i8, i8); 8] = [
     (-1, -1),
 ];
 
+#[derive(Debug, Clone, Copy)]
+enum PendingBoop {
+    Displace {
+        from: Coord,
+        to: Coord,
+        piece: Piece,
+    },
+    OffBoard {
+        from: Coord,
+        piece: Piece,
+        push: (i8, i8),
+    },
+}
+
 fn resolve_boops(
     board: &mut Board,
     placed_at: Coord,
@@ -359,11 +373,15 @@ fn resolve_boops(
     pools: &mut [Pool; 2],
     effects: &mut MoveEffects,
 ) {
+    let snapshot = board.clone();
+    let mut pending = Vec::new();
+    let mut reserved_destinations = std::collections::HashSet::new();
+
     for (dx, dy) in DIRECTIONS {
         let Some(adj) = placed_at.step(dx, dy) else {
             continue;
         };
-        let Some(piece) = board.get(adj) else {
+        let Some(piece) = snapshot.get(adj) else {
             continue;
         };
         if placed.kind == PieceKind::Kitten && piece.kind == PieceKind::Cat {
@@ -371,32 +389,50 @@ fn resolve_boops(
         }
 
         let push_dir = (dx, dy);
-        if is_braced(board, placed_at, adj, push_dir) {
+        if is_braced(&snapshot, placed_at, adj, push_dir) {
             continue;
         }
 
-        let Some(target) = adj.step(push_dir.0, push_dir.1) else {
-            board.clear(adj);
-            pools[pool_index(piece.player)].return_piece(piece);
-            effects.off_board.push(OffBoardExit {
-                from: adj,
-                piece,
-                push: push_dir,
-            });
-            continue;
-        };
-
-        if board.get(target).is_some() {
-            continue;
+        match adj.step(push_dir.0, push_dir.1) {
+            None => {
+                pending.push(PendingBoop::OffBoard {
+                    from: adj,
+                    piece,
+                    push: push_dir,
+                });
+            }
+            Some(dest) => {
+                if !snapshot.is_empty(dest) || reserved_destinations.contains(&dest) {
+                    continue;
+                }
+                reserved_destinations.insert(dest);
+                pending.push(PendingBoop::Displace {
+                    from: adj,
+                    to: dest,
+                    piece,
+                });
+            }
         }
+    }
 
-        board.clear(adj);
-        board.set(target, piece);
-        effects.displacements.push(PieceDisplacement {
-            from: adj,
-            to: target,
-            piece,
-        });
+    for boop in pending {
+        match boop {
+            PendingBoop::OffBoard { from, piece, push } => {
+                board.clear(from);
+                pools[pool_index(piece.player)].return_piece(piece);
+                effects.off_board.push(OffBoardExit {
+                    from,
+                    piece,
+                    push,
+                });
+            }
+            PendingBoop::Displace { from, to, piece } => {
+                board.clear(from);
+                debug_assert!(board.get(to).is_none(), "boop onto occupied cell");
+                board.set(to, piece);
+                effects.displacements.push(PieceDisplacement { from, to, piece });
+            }
+        }
     }
 }
 
