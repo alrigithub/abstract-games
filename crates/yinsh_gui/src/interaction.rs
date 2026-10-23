@@ -24,7 +24,7 @@ use crate::graphics::{
     ScaleFactorSet, color_for_player, marker_mesh, ring_mesh, spawn_marker, spawn_ring,
 };
 use crate::scoring::{RackedRing, move_ring_to_rack, rack_slot_position};
-use crate::state_update::{CancelRingSelectionEvent, GameState, PlayerMoveEvent, StateUpdateSet};
+use crate::state_update::{CancelRingSelectionEvent, PlayerMoveEvent, StateUpdateSet};
 use crate::{graphics::COLOR_RING_MOVEMENT_INDICATOR, state_update::InteractionState};
 
 #[derive(Component)]
@@ -525,9 +525,7 @@ fn mouse_interaction_system(
 
 pub fn plugin(app: &mut App) {
     app.add_plugins(TweeningPlugin)
-        .insert_resource(InteractionState::RingPlacement(all_coords()))
         .insert_resource(CursorCoord(None))
-        .insert_resource(GameState::initial())
         .add_systems(Startup, setup_interaction_cursors)
         .add_systems(
             Update,
