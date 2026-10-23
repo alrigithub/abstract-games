@@ -18,22 +18,17 @@ pub const PLAYER_HUMAN: Player = Player::First;
 pub const PLAYER_AI: Player = Player::Second;
 
 fn main() {
-    let window = Window {
-        title: "Boop".into(),
-        name: Some("boop".into()),
-        resolution: WindowResolution::new(860, 960),
-        mode: WindowMode::Windowed,
-        ..default()
-    };
-    #[cfg(target_arch = "wasm32")]
-    {
-        window.canvas = Some("#boop-canvas".into());
-    }
-
     App::new()
         .add_plugins((
             DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(window),
+                primary_window: Some(Window {
+                    title: "Boop".into(),
+                    name: Some("boop".into()),
+                    resolution: WindowResolution::new(860, 960),
+                    mode: WindowMode::Windowed,
+                    canvas: Some("#boop-canvas".into()),
+                    ..default()
+                }),
                 ..default()
             }),
             state_update::plugin,
