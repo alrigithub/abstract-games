@@ -11,6 +11,7 @@
     #keybindings {
       position: fixed; bottom: 10px; right: 10px;
       color: hsl(0, 0%, 30%); font-family: monospace; font-size: 12px; line-height: 1.6;
+      max-width: min(420px, 92vw);
     }
     #keybindings kbd {
       background-color: hsl(0, 0%, 15%); border: 1px solid hsl(0, 0%, 25%);
@@ -29,10 +30,11 @@
   <div id="container"><canvas id="tak-canvas" tabindex="0"></canvas></div>
   <div id="loading">Loading</div>
   <div id="keybindings">
-    <kbd>1</kbd> flat · <kbd>2</kbd> wall · <kbd>3</kbd> cap<br>
-    Click stack, then destination to move<br>
-    <kbd>U</kbd> / <kbd>Ctrl+Z</kbd> Undo<br>
-    <kbd>Ctrl+R</kbd> Reset<br>
+    Click an empty square to place (stones on the board cannot be flipped)<br>
+    Opening: each player places 1 opponent flat, then normal play<br>
+    After opening: <kbd>1</kbd> flat · <kbd>2</kbd> standing wall · <kbd>3</kbd> capstone — keys pick kind, then click to place<br>
+    Click your stack, then destination to move<br>
+    <kbd>U</kbd> / <kbd>Ctrl+Z</kbd> Undo · <kbd>Ctrl+R</kbd> Reset<br>
     <kbd>PageDown</kbd> / <kbd>PageUp</kbd> AI depth
   </div>
   <script type="module">
