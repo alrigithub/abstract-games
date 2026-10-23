@@ -23,6 +23,14 @@ use crate::{
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StateUpdateSet;
 
+/// Applies `PlayerMoveEvent`s from human input (runs after interaction each frame).
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MoveApplicationSet;
+
+/// AI search result waiting to be applied (separate from human move messages).
+#[derive(Resource, Default)]
+pub struct PendingAiMove(pub Option<(Player, Move)>);
+
 #[derive(Resource)]
 pub struct GameState(yinsh::GameState);
 
@@ -143,7 +151,72 @@ fn cancel_ring_selection(
     }
 }
 
-fn state_update(
+fn queue_ai_turn(
+    game_state: &GameState,
+    ai_computation_events: &mut MessageWriter<AiComputationEvent>,
+) {
+    ai_computation_events.write(AiComputationEvent::Start(PLAYER_AI, game_state.0.clone()));
+}
+
+fn apply_player_move(
+    player: Player,
+    player_move: Move,
+    game_state: &mut GameState,
+    board_update_events: &mut MessageWriter<BoardUpdateEvent>,
+    scoring: &mut ScoringPresentation,
+) {
+    assert_eq!(player, game_state.active_player);
+
+    match &player_move {
+        Move::PlaceRing(coord) => {
+            board_update_events.write(BoardUpdateEvent::AddRing(*coord, player));
+        }
+        Move::PlaceMarker(coord) => {
+            board_update_events.write(BoardUpdateEvent::AddMarker(*coord, player));
+        }
+        Move::MoveRing(start, end) => {
+            board_update_events.write(BoardUpdateEvent::MoveRing(*start, *end));
+            board_update_events.write(BoardUpdateEvent::FlipMarkers(
+                *start,
+                *end,
+                Coord::between(*start, *end)
+                    .into_iter()
+                    .filter(|&coord| game_state.board.has_marker_at(coord))
+                    .collect(),
+            ));
+        }
+        Move::RemoveRun(seed) => {
+            let line = game_state.board.run_coords_from(*seed).unwrap();
+            scoring.scored_line = line.clone();
+            board_update_events.write(BoardUpdateEvent::RemoveRun(line));
+        }
+        Move::RemoveRing(coord) => {
+            if matches!(game_state.turn_mode, TurnMode::RingRemoval(_)) {
+                scoring.linger = Some(Timer::from_seconds(SCORE_LINGER_SECS, TimerMode::Once));
+            }
+            let slot = match player {
+                Player::A => game_state.points_a.saturating_sub(1),
+                Player::B => game_state.points_b.saturating_sub(1),
+            };
+            board_update_events.write(BoardUpdateEvent::RemoveRingToRack(*coord, player, slot));
+        }
+        Move::Wait => {}
+    }
+
+    game_state.perform_move(&player_move);
+}
+
+fn sync_interaction(
+    game_state: &GameState,
+    interaction_state: &mut InteractionState,
+    scoring: &ScoringPresentation,
+) {
+    if !scoring.is_blocking() {
+        *interaction_state = InteractionState::from_game_state(game_state);
+    }
+}
+
+fn apply_human_moves(
     mut player_move_events: MessageReader<PlayerMoveEvent>,
     mut game_state: ResMut<GameState>,
     mut interaction_state: ResMut<InteractionState>,
@@ -152,61 +225,55 @@ fn state_update(
     mut scoring: ResMut<ScoringPresentation>,
 ) {
     for PlayerMoveEvent(player, player_move) in player_move_events.read() {
-        let player = *player;
-        let player_move = *player_move;
-        assert_eq!(player, game_state.active_player);
-
-        match &player_move {
-            Move::PlaceRing(coord) => {
-                board_update_events.write(BoardUpdateEvent::AddRing(*coord, player));
-            }
-            Move::PlaceMarker(coord) => {
-                board_update_events.write(BoardUpdateEvent::AddMarker(*coord, player));
-            }
-            Move::MoveRing(start, end) => {
-                board_update_events.write(BoardUpdateEvent::MoveRing(*start, *end));
-                board_update_events.write(BoardUpdateEvent::FlipMarkers(
-                    *start,
-                    *end,
-                    Coord::between(*start, *end)
-                        .into_iter()
-                        .filter(|&coord| game_state.board.has_marker_at(coord))
-                        .collect(),
-                ));
-            }
-            Move::RemoveRun(seed) => {
-                let line = game_state.board.run_coords_from(*seed).unwrap();
-                scoring.scored_line = line.clone();
-                board_update_events.write(BoardUpdateEvent::RemoveRun(line));
-            }
-            Move::RemoveRing(coord) => {
-                if matches!(game_state.turn_mode, TurnMode::RingRemoval(_)) {
-                    scoring.linger = Some(Timer::from_seconds(SCORE_LINGER_SECS, TimerMode::Once));
-                }
-                let slot = match player {
-                    Player::A => game_state.points_a.saturating_sub(1),
-                    Player::B => game_state.points_b.saturating_sub(1),
-                };
-                board_update_events.write(BoardUpdateEvent::RemoveRingToRack(*coord, player, slot));
-            }
-            Move::Wait => {}
-        }
-
-        game_state.perform_move(&player_move);
+        apply_player_move(
+            *player,
+            *player_move,
+            &mut game_state,
+            &mut board_update_events,
+            &mut scoring,
+        );
 
         if game_state.active_player == PLAYER_AI && game_state.winner().is_none() {
             if scoring.is_blocking() {
                 scoring.deferred_ai = true;
             } else {
-                ai_computation_events
-                    .write(AiComputationEvent::Start(PLAYER_AI, game_state.0.clone()));
+                queue_ai_turn(&game_state, &mut ai_computation_events);
             }
         }
     }
 
-    if !scoring.is_blocking() {
-        *interaction_state = InteractionState::from_game_state(&game_state);
+    sync_interaction(&game_state, &mut interaction_state, &scoring);
+}
+
+fn apply_pending_ai_move(
+    mut pending: ResMut<PendingAiMove>,
+    mut game_state: ResMut<GameState>,
+    mut interaction_state: ResMut<InteractionState>,
+    mut ai_computation_events: MessageWriter<AiComputationEvent>,
+    mut board_update_events: MessageWriter<BoardUpdateEvent>,
+    mut scoring: ResMut<ScoringPresentation>,
+) {
+    let Some((player, player_move)) = pending.0.take() else {
+        return;
+    };
+
+    apply_player_move(
+        player,
+        player_move,
+        &mut game_state,
+        &mut board_update_events,
+        &mut scoring,
+    );
+
+    if game_state.active_player == PLAYER_AI && game_state.winner().is_none() {
+        if scoring.is_blocking() {
+            scoring.deferred_ai = true;
+        } else {
+            queue_ai_turn(&game_state, &mut ai_computation_events);
+        }
     }
+
+    sync_interaction(&game_state, &mut interaction_state, &scoring);
 }
 
 pub fn plugin(app: &mut App) {
@@ -216,14 +283,15 @@ pub fn plugin(app: &mut App) {
         .add_message::<PlayerMoveEvent>()
         .add_message::<CancelRingSelectionEvent>()
         .add_message::<BoardUpdateEvent>()
+        .init_resource::<PendingAiMove>()
         .add_systems(
             Update,
             (
-                (cancel_ring_selection, state_update)
-                    .chain()
-                    .in_set(StateUpdateSet),
-                // Apply AI (and same-frame human) moves after the AI worker runs.
-                state_update.after(AiSet),
+                cancel_ring_selection.in_set(StateUpdateSet),
+                apply_human_moves
+                    .in_set(MoveApplicationSet)
+                    .after(crate::interaction::InteractionInputSet),
+                apply_pending_ai_move.after(AiSet),
             ),
         );
 }

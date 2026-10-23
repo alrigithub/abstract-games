@@ -9,7 +9,7 @@ use crate::{
     graphics::ScaleFactorSet,
     interaction::CursorElement,
     scoring::ScoringPresentation,
-    state_update::{GameState, StateUpdateSet, restore_board_from_game_state},
+    state_update::{GameState, PendingAiMove, StateUpdateSet, restore_board_from_game_state},
 };
 
 fn strength_key_pressed(keyboard: &ButtonInput<KeyCode>) -> Option<i32> {
@@ -37,6 +37,7 @@ fn keyboard_control(
     mut commands: Commands,
     mut game_state: ResMut<GameState>,
     mut scoring: ResMut<ScoringPresentation>,
+    mut pending_ai_move: ResMut<PendingAiMove>,
     q_board_elements: Query<Entity, (With<BoardElement>, Without<CursorElement>)>,
 ) {
     let ctrl_pressed =
@@ -48,6 +49,7 @@ fn keyboard_control(
         adjust_ai_strength(&mut ai_player_strength, delta);
     } else if ctrl_pressed && keyboard.just_pressed(KeyCode::KeyR) {
         ai_computation_events.write(AiComputationEvent::Cancel);
+        pending_ai_move.0 = None;
         scoring.reset();
         *game_state.as_deref_mut() = yinsh::GameState::initial();
         restore_board_from_game_state(

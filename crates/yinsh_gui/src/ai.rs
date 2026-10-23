@@ -1,17 +1,16 @@
-use std::time::Duration;
-
-use bevy::ecs::message::{MessageReader, MessageWriter};
+use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy_async_task::TaskRunner;
 #[cfg(not(target_arch = "wasm32"))]
 use std::task::Poll;
 
+#[cfg(not(target_arch = "wasm32"))]
+use yinsh::Move;
 use yinsh::{GameState, Player, TurnMode};
 
 use crate::graphics::ANIMATION_DURATION;
-use crate::interaction::InteractionInputSet;
-use crate::state_update::{PlayerMoveEvent, StateUpdateSet};
+use crate::state_update::{MoveApplicationSet, PendingAiMove};
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AiSet;
@@ -41,25 +40,24 @@ fn perform_ai_moves(
     mut work: ResMut<WasmAiComputation>,
     mut events: MessageReader<AiComputationEvent>,
     strength: Res<AiPlayerStrength>,
-    mut player_move_events: MessageWriter<PlayerMoveEvent>,
+    mut pending_ai_move: ResMut<PendingAiMove>,
 ) {
     for event in events.read() {
         match event {
             AiComputationEvent::Start(player, game_state) => {
                 let needs_delay = matches!(game_state.turn_mode, TurnMode::MarkerPlacement);
-                work.player = Some(*player);
-                work.state = Some(game_state.clone());
-                work.delay = Some(Timer::new(
-                    if needs_delay {
-                        ANIMATION_DURATION
-                    } else {
-                        Duration::ZERO
-                    },
-                    TimerMode::Once,
-                ));
+                if needs_delay {
+                    work.player = Some(*player);
+                    work.state = Some(game_state.clone());
+                    work.delay = Some(Timer::new(ANIMATION_DURATION, TimerMode::Once));
+                } else {
+                    let player_move = yinsh_ai::get_ai_move(strength.0, &game_state);
+                    pending_ai_move.0 = Some((*player, player_move));
+                }
             }
             AiComputationEvent::Cancel => {
                 *work = WasmAiComputation::default();
+                pending_ai_move.0 = None;
             }
         }
     }
@@ -83,7 +81,7 @@ fn perform_ai_moves(
     work.delay = None;
 
     let player_move = yinsh_ai::get_ai_move(strength.0, &game_state);
-    player_move_events.write(PlayerMoveEvent(player, player_move));
+    pending_ai_move.0 = Some((player, player_move));
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -91,7 +89,7 @@ fn perform_ai_moves(
     mut task_runner: TaskRunner<Option<(Player, Move)>>,
     mut events: MessageReader<AiComputationEvent>,
     strength: Res<AiPlayerStrength>,
-    mut player_move_events: MessageWriter<PlayerMoveEvent>,
+    mut pending_ai_move: ResMut<PendingAiMove>,
 ) {
     for event in events.read() {
         match event {
@@ -110,6 +108,7 @@ fn perform_ai_moves(
             }
             AiComputationEvent::Cancel => {
                 task_runner.start(async move { None });
+                pending_ai_move.0 = None;
             }
         }
     }
@@ -118,7 +117,7 @@ fn perform_ai_moves(
         Poll::Pending => {}
         Poll::Ready(None) => {}
         Poll::Ready(Some((player, player_move))) => {
-            player_move_events.write(PlayerMoveEvent(player, player_move));
+            pending_ai_move.0 = Some((player, player_move));
         }
     }
 }
@@ -137,9 +136,6 @@ pub fn plugin(app: &mut App) {
 
     app.add_systems(
         Update,
-        perform_ai_moves
-            .in_set(AiSet)
-            .after(InteractionInputSet)
-            .after(StateUpdateSet),
+        perform_ai_moves.in_set(AiSet).after(MoveApplicationSet),
     );
 }
