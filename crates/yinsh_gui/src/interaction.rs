@@ -22,6 +22,7 @@ use crate::graphics::{
     ANIMATION_DURATION, FOREGROUND_RENDER_LAYER, MainCamera, PlayerColors, ScaleFactor,
     ScaleFactorSet, color_for_player, marker_mesh, ring_mesh, spawn_marker, spawn_ring,
 };
+use crate::scoring::{move_ring_to_rack, rack_slot_position, RackedRing};
 use crate::state_update::{GameState, PlayerMoveEvent, StateUpdateSet};
 use crate::{graphics::COLOR_RING_MOVEMENT_INDICATOR, state_update::InteractionState};
 
@@ -156,10 +157,12 @@ fn update_board_elements(
                     }
                 }
             }
-            BoardUpdateEvent::RemoveRing(coord) => {
+            BoardUpdateEvent::RemoveRingToRack(coord, player, slot) => {
+                let dest = rack_slot_position(&scale_factor, player, slot);
                 for (entity, element) in q_rings.iter_mut() {
                     if element.0 == coord {
-                        commands.entity(entity).despawn();
+                        let from = scale_factor.screen_point(coord);
+                        move_ring_to_rack(&mut commands, entity, player, slot, from, dest);
                         break;
                     }
                 }
@@ -297,12 +300,22 @@ fn colorize_board_elements(
                             player_colors.human.clone()
                         }
                     }
+                    InteractionState::ScoringPause => player_colors.human.clone(),
                     _ => player_colors.human.clone(),
                 }
             }
         } else {
             player_colors.ai.clone()
         };
+    }
+}
+
+fn scale_racked_rings(
+    scale_factor: Res<ScaleFactor>,
+    mut q: Query<&mut Transform, With<RackedRing>>,
+) {
+    for mut transform in q.iter_mut() {
+        transform.scale = Vec3::splat(scale_factor.factor);
     }
 }
 
@@ -378,6 +391,7 @@ fn grid_cursor_system(
                 InteractionState::RunRemoval { .. } => {}
                 InteractionState::RingRemoval(_) => {}
                 InteractionState::AutoMove => {}
+                InteractionState::ScoringPause => {}
                 InteractionState::WaitForAI => {}
                 InteractionState::Winner(_) => {}
             }
@@ -397,7 +411,6 @@ fn mouse_interaction_system(
     mut player_move_events: MessageWriter<PlayerMoveEvent>,
 ) {
     if matches!(*interaction_state, InteractionState::AutoMove) {
-        // TODO
         player_move_events.write(PlayerMoveEvent(PLAYER_HUMAN, Move::Wait));
     }
 
@@ -460,6 +473,7 @@ fn mouse_interaction_system(
                 }
             }
             InteractionState::AutoMove => {}
+            InteractionState::ScoringPause => {}
             InteractionState::Winner(_) => {}
         }
     }
@@ -481,6 +495,7 @@ pub fn plugin(app: &mut App) {
                     update_board_elements,
                     move_board_elements,
                     scale_board_elements,
+                    scale_racked_rings,
                     colorize_board_elements,
                     mouse_interaction_system.ambiguous_with(AiSet),
                 )

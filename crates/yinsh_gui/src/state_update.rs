@@ -4,6 +4,8 @@ use std::collections::HashMap;
 
 use yinsh::{Coord, Move, Player, TurnMode};
 
+use crate::scoring::SCORE_LINGER_SECS;
+
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 
@@ -11,7 +13,7 @@ use crate::PLAYER_HUMAN;
 
 use crate::{
     PLAYER_AI, ai::AiComputationEvent, board::BoardElement, board_update_event::BoardUpdateEvent,
-    interaction::CursorElement,
+    interaction::CursorElement, scoring::ScoringPresentation,
 };
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -55,6 +57,8 @@ pub enum InteractionState {
     RingRemoval(Vec<Coord>),
     AutoMove,
     WaitForAI,
+    /// Brief beat after a score so the line glow stays readable.
+    ScoringPause,
     Winner(Player),
 }
 
@@ -129,6 +133,7 @@ fn state_update(
     mut undo_history: ResMut<UndoHistory>,
     mut ai_computation_events: MessageWriter<AiComputationEvent>,
     mut board_update_events: MessageWriter<BoardUpdateEvent>,
+    mut scoring: ResMut<ScoringPresentation>,
 ) {
     for PlayerMoveEvent(player, player_move) in player_move_events.read() {
         let player = *player;
@@ -161,12 +166,20 @@ fn state_update(
                 ));
             }
             Move::RemoveRun(seed) => {
-                board_update_events.write(BoardUpdateEvent::RemoveRun(
-                    game_state.board.run_coords_from(*seed).unwrap(),
-                ));
+                let line = game_state.board.run_coords_from(*seed).unwrap();
+                scoring.scored_line = line.clone();
+                board_update_events.write(BoardUpdateEvent::RemoveRun(line));
             }
             Move::RemoveRing(coord) => {
-                board_update_events.write(BoardUpdateEvent::RemoveRing(*coord));
+                if matches!(game_state.turn_mode, TurnMode::RingRemoval(_)) {
+                    scoring.linger =
+                        Some(Timer::from_seconds(SCORE_LINGER_SECS, TimerMode::Once));
+                }
+                let slot = match player {
+                    Player::A => game_state.points_a.saturating_sub(1),
+                    Player::B => game_state.points_b.saturating_sub(1),
+                };
+                board_update_events.write(BoardUpdateEvent::RemoveRingToRack(*coord, player, slot));
             }
             Move::Wait => {}
         }
@@ -174,11 +187,17 @@ fn state_update(
         game_state.perform_move(&player_move);
 
         if game_state.active_player == PLAYER_AI && game_state.winner().is_none() {
-            ai_computation_events.write(AiComputationEvent::Start(PLAYER_AI, game_state.clone()));
+            if scoring.is_blocking() {
+                scoring.deferred_ai = true;
+            } else {
+                ai_computation_events.write(AiComputationEvent::Start(PLAYER_AI, game_state.clone()));
+            }
         }
     }
 
-    *interaction_state = InteractionState::from_game_state(&game_state);
+    if !scoring.is_blocking() {
+        *interaction_state = InteractionState::from_game_state(&game_state);
+    }
 }
 
 pub fn plugin(app: &mut App) {

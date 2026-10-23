@@ -2,9 +2,20 @@ use bevy::prelude::*;
 
 use yinsh::Coord;
 
-use crate::graphics::{COLOR_GRID, ScaleFactor};
+use yinsh::all_coords;
+
+use crate::graphics::{COLOR_BOARD_FILL, COLOR_GRID, ScaleFactor};
 
 pub fn draw_grid(mut gizmos: Gizmos, scale_factor: Res<ScaleFactor>) {
+    for coord in all_coords() {
+        let center = scale_factor.screen_point(coord);
+        gizmos.circle(
+            Isometry3d::from_translation(center),
+            scale_factor.spacing * 0.18,
+            COLOR_BOARD_FILL,
+        );
+    }
+
     let grid_line_color = COLOR_GRID;
 
     // Draw lines parallel to y-axis
