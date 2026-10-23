@@ -116,18 +116,21 @@ impl GameState {
         if from == to {
             return None;
         }
-        self.legal_moves().into_iter().find(|m| {
-            let Move::Slide {
-                from: f, direction, ..
-            } = m
-            else {
-                return false;
-            };
-            if *f != from {
-                return false;
-            }
-            slide_destination(from, *direction, m.slide_drops()) == to
-        })
+        let mut matches: Vec<Move> = self
+            .legal_moves()
+            .into_iter()
+            .filter(|m| {
+                let Move::Slide { from: f, .. } = m else {
+                    return false;
+                };
+                *f == from && slide_move_touches(*m, from, to)
+            })
+            .collect();
+        if matches.is_empty() {
+            return None;
+        }
+        matches.sort_by_key(|m| slide_to_match_priority(*m, from, to));
+        Some(matches[0])
     }
 
     pub fn legal_moves(&self) -> Vec<Move> {
@@ -367,6 +370,38 @@ pub fn slide_destination(from: Coord, direction: Direction, drops: &[u8]) -> Coo
         coord = coord.step(dx, dy).expect("slide destination off board");
     }
     coord
+}
+
+pub fn slide_drop_cells(from: Coord, direction: Direction, drops: &[u8]) -> Vec<Coord> {
+    let (dx, dy) = direction.delta();
+    let mut coord = from;
+    let mut cells = Vec::with_capacity(drops.len());
+    for _ in drops {
+        coord = coord.step(dx, dy).expect("slide drop cell off board");
+        cells.push(coord);
+    }
+    cells
+}
+
+fn slide_move_touches(m: Move, from: Coord, to: Coord) -> bool {
+    let Move::Slide { direction, .. } = m else {
+        return false;
+    };
+    if slide_destination(from, direction, m.slide_drops()) == to {
+        return true;
+    }
+    slide_drop_cells(from, direction, m.slide_drops()).contains(&to)
+}
+
+fn slide_to_match_priority(m: Move, from: Coord, to: Coord) -> u8 {
+    let Move::Slide { direction, .. } = m else {
+        return u8::MAX;
+    };
+    if slide_destination(from, direction, m.slide_drops()) == to {
+        0
+    } else {
+        1
+    }
 }
 
 fn pool_index(player: Player) -> usize {

@@ -196,10 +196,12 @@ fn opening_has_no_slides() {
             kind: StoneKind::Flat,
         })
         .unwrap();
-    assert!(state
-        .legal_moves()
-        .iter()
-        .all(|m| matches!(m, Move::Place { .. })));
+    assert!(
+        state
+            .legal_moves()
+            .iter()
+            .all(|m| matches!(m, Move::Place { .. }))
+    );
 }
 
 #[test]
@@ -238,6 +240,29 @@ fn double_road_prefers_active_player() {
 }
 
 #[test]
+fn slide_to_adjacent_empty_after_opening() {
+    let mut state = GameState::new();
+    state
+        .apply(Move::Place {
+            coord: Coord::new(1, 1),
+            kind: StoneKind::Flat,
+        })
+        .unwrap();
+    state
+        .apply(Move::Place {
+            coord: Coord::new(3, 3),
+            kind: StoneKind::Flat,
+        })
+        .unwrap();
+    let from = Coord::new(3, 3);
+    let to = Coord::new(2, 3);
+    let m = state.slide_to(from, to).expect("slide to west");
+    state.apply(m).unwrap();
+    assert!(state.board().is_empty(from));
+    assert_eq!(state.board().top(to).unwrap().owner, Player::First);
+}
+
+#[test]
 fn flat_win_when_board_full() {
     let mut state = GameState::new();
     state.set_placement_phase(false);
@@ -259,9 +284,9 @@ fn flat_win_when_board_full() {
     }
     state.set_reserve(Player::First, tak::Reserve { flats: 0, cap: 1 });
     state.set_reserve(Player::Second, tak::Reserve { flats: 0, cap: 1 });
-    let reserves = [
-        state.reserve(Player::First),
-        state.reserve(Player::Second),
-    ];
-    assert_eq!(tak::check_flat_win(state.board(), &reserves), Some(Player::First));
+    let reserves = [state.reserve(Player::First), state.reserve(Player::Second)];
+    assert_eq!(
+        tak::check_flat_win(state.board(), &reserves),
+        Some(Player::First)
+    );
 }

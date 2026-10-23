@@ -41,7 +41,9 @@ fn perform_ai_moves(
                     gloo_timers::future::TimeoutFuture::new(ANIMATION_DURATION.as_millis() as u32)
                         .await;
 
-                    tak_ai::choose_move(&game_state, search_depth).map(|m| (player, m))
+                    tak_ai::choose_move(&game_state, search_depth)
+                        .or_else(|| game_state.legal_moves().first().copied())
+                        .map(|m| (player, m))
                 });
             }
             AiComputationEvent::Cancel => {

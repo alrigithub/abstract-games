@@ -2,14 +2,14 @@ use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 use bevy::window::{CursorIcon, PrimaryWindow, SystemCursorIcon};
 use bevy_tweening::{TweenAnim, TweenState, TweeningPlugin};
-use tak::{BOARD_SIZE, Coord, Move, Player, StoneKind};
+use tak::{BOARD_SIZE, Coord, Direction, Move, Player, StoneKind};
 
 use crate::{
     PLAYER_HUMAN,
     ai::AiSet,
     graphics::{
-        FOREGROUND_RENDER_LAYER, MainCamera, PieceMaterials, ScaleFactor, ScaleFactorSet,
-        material_for, piece_mesh, piece_mesh2d,
+        CELL_PICK_RADIUS_FRAC, FOREGROUND_RENDER_LAYER, MainCamera, PieceMaterials, ScaleFactor,
+        ScaleFactorSet, material_for, piece_mesh, piece_mesh2d,
     },
     state_update::{
         BoardResyncEvent, GameState, InteractionState, PlayerMoveEvent, StateUpdateSet,
@@ -42,18 +42,97 @@ impl Default for PlaceKind {
     }
 }
 
+/// Resolves a board click during the human turn into a legal move (or selection change).
+pub fn resolve_human_click(
+    game_state: &tak::GameState,
+    human: Player,
+    place_kind: StoneKind,
+    selected: &mut Option<Coord>,
+    coord: Coord,
+) -> Option<Move> {
+    if let Some(from) = *selected {
+        if from == coord {
+            *selected = None;
+            return None;
+        }
+        if let Some(m) = game_state.slide_to(from, coord) {
+            *selected = None;
+            return Some(m);
+        }
+        // Stack selected: ignore clicks that are not a legal slide (do not place/reselect).
+        return None;
+    }
+
+    if game_state.board().controlled_by(coord) == Some(human) {
+        *selected = Some(coord);
+        return None;
+    }
+
+    if game_state.board().is_empty(coord) {
+        let kind = effective_place_kind(game_state, place_kind);
+        let m = Move::Place { coord, kind };
+        if game_state.legal_moves().contains(&m) {
+            return Some(m);
+        }
+    }
+
+    None
+}
+
+fn viewport_to_world(
+    viewport_pos: Vec2,
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
+) -> Option<Vec2> {
+    camera
+        .viewport_to_world(camera_transform, viewport_pos)
+        .map(|ray| ray.origin.truncate())
+        .ok()
+}
+
+fn pick_coord(
+    scale_factor: &ScaleFactor,
+    world: Vec2,
+    game_state: &tak::GameState,
+    selected: Option<Coord>,
+) -> Option<Coord> {
+    if let Some(from) = selected {
+        let max_dist_sq = (scale_factor.spacing * CELL_PICK_RADIUS_FRAC).powi(2);
+        let mut best: Option<(Coord, f32)> = None;
+        for direction in Direction::ALL {
+            let Some(neighbor) = from.step(direction.delta().0, direction.delta().1) else {
+                continue;
+            };
+            if game_state.slide_to(from, neighbor).is_none() {
+                continue;
+            }
+            let center = scale_factor.screen_point(neighbor).truncate();
+            let dist_sq = (center - world).length_squared();
+            if dist_sq <= max_dist_sq
+                && best
+                    .as_ref()
+                    .is_none_or(|(_, best_dist)| dist_sq < *best_dist)
+            {
+                best = Some((neighbor, dist_sq));
+            }
+        }
+        if let Some((coord, _)) = best {
+            return Some(coord);
+        }
+    }
+    scale_factor.coord_at_world(world)
+}
+
 fn viewport_to_coord(
     viewport_pos: Vec2,
     camera: &Camera,
     camera_transform: &GlobalTransform,
     scale_factor: &ScaleFactor,
+    game_state: &tak::GameState,
+    selected: Option<Coord>,
 ) -> Option<Coord> {
-    let world_pos = camera
-        .viewport_to_world(camera_transform, viewport_pos)
-        .map(|ray| ray.origin.truncate())
-        .ok()?;
-
-    scale_factor.coord_at_world(world_pos)
+    let world = viewport_to_world(viewport_pos, camera, camera_transform)?;
+    pick_coord(scale_factor, world, game_state, selected)
 }
 
 fn setup_cursor(
@@ -193,6 +272,7 @@ fn update_cursor(
     interaction_state: Res<InteractionState>,
     game_state: Res<GameState>,
     place_kind: Res<PlaceKind>,
+    selected: Res<SelectedStack>,
     mut cursor_coord: ResMut<CursorCoord>,
     materials: Res<PieceMaterials>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -215,9 +295,16 @@ fn update_cursor(
         return;
     };
 
-    cursor_coord.0 = window
-        .cursor_position()
-        .and_then(|pos| viewport_to_coord(pos, camera, camera_transform, &scale_factor));
+    cursor_coord.0 = window.cursor_position().and_then(|pos| {
+        viewport_to_coord(
+            pos,
+            camera,
+            camera_transform,
+            &scale_factor,
+            &game_state,
+            selected.0,
+        )
+    });
 
     let Ok((mut element, mut visibility, mut transform, mut material, mut mesh, mut ghost_kind)) =
         cursor.single_mut()
@@ -235,6 +322,17 @@ fn update_cursor(
         ghost_kind.0 = kind;
         *mesh = piece_mesh2d(&mut meshes, kind);
     }
+    if let (Some(from), Some(to)) = (selected.0, cursor_coord.0)
+        && game_state.slide_to(from, to).is_some()
+    {
+        *visibility = Visibility::Visible;
+        element.coord = to;
+        transform.translation = scale_factor.screen_point(to);
+        transform.scale = Vec3::splat(scale_factor.factor);
+        material.0 = materials.human_ghost.clone();
+        return;
+    }
+
     if let Some(coord) = cursor_coord.0
         && game_state.board().is_empty(coord)
         && can_place(&game_state, kind)
@@ -254,14 +352,14 @@ fn update_cursor(
     *visibility = Visibility::Hidden;
 }
 
-fn effective_place_kind(game_state: &GameState, kind: StoneKind) -> StoneKind {
+fn effective_place_kind(game_state: &tak::GameState, kind: StoneKind) -> StoneKind {
     if game_state.placement_phase() {
         return StoneKind::Flat;
     }
     kind
 }
 
-fn can_place(game_state: &GameState, kind: StoneKind) -> bool {
+fn can_place(game_state: &tak::GameState, kind: StoneKind) -> bool {
     if game_state.placement_phase() {
         return matches!(kind, StoneKind::Flat)
             && game_state.reserve(game_state.to_move().opponent()).flats > 0;
@@ -279,13 +377,22 @@ fn click_coord(
     q_window: &Query<&Window, With<PrimaryWindow>>,
     q_camera: &Query<(&Camera, &GlobalTransform), With<MainCamera>>,
     scale_factor: &ScaleFactor,
+    game_state: &tak::GameState,
+    selected: Option<Coord>,
     cursor_coord: &CursorCoord,
 ) -> Option<Coord> {
     if let Some(touch) = touches.iter_just_pressed().next() {
         let Ok((camera, camera_transform)) = q_camera.single() else {
             return None;
         };
-        return viewport_to_coord(touch.position(), camera, camera_transform, scale_factor);
+        return viewport_to_coord(
+            touch.position(),
+            camera,
+            camera_transform,
+            scale_factor,
+            game_state,
+            selected,
+        );
     }
     if !mouse.just_pressed(MouseButton::Left) {
         return None;
@@ -298,7 +405,16 @@ fn click_coord(
     };
     window
         .cursor_position()
-        .and_then(|pos| viewport_to_coord(pos, camera, camera_transform, scale_factor))
+        .and_then(|pos| {
+            viewport_to_coord(
+                pos,
+                camera,
+                camera_transform,
+                scale_factor,
+                game_state,
+                selected,
+            )
+        })
         .or(cursor_coord.0)
 }
 
@@ -324,35 +440,21 @@ fn handle_clicks(
         &q_window,
         &q_camera,
         &scale_factor,
+        &game_state,
+        selected.0,
         &cursor_coord,
     ) else {
         return;
     };
 
-    if let Some(from) = selected.0 {
-        if from == coord {
-            selected.0 = None;
-            return;
-        }
-        if let Some(m) = game_state.slide_to(from, coord) {
-            player_move_events.write(PlayerMoveEvent(PLAYER_HUMAN, m));
-            selected.0 = None;
-            return;
-        }
-    }
-
-    if game_state.board().controlled_by(coord) == Some(PLAYER_HUMAN) {
-        selected.0 = Some(coord);
-        return;
-    }
-
-    if game_state.board().is_empty(coord) {
-        let kind = effective_place_kind(&game_state, place_kind.0);
-        let m = Move::Place { coord, kind };
-        if game_state.legal_moves().contains(&m) {
-            player_move_events.write(PlayerMoveEvent(PLAYER_HUMAN, m));
-            selected.0 = None;
-        }
+    if let Some(m) = resolve_human_click(
+        &game_state,
+        PLAYER_HUMAN,
+        place_kind.0,
+        &mut selected.0,
+        coord,
+    ) {
+        player_move_events.write(PlayerMoveEvent(PLAYER_HUMAN, m));
     }
 }
 
@@ -393,4 +495,76 @@ pub fn plugin(app: &mut App) {
                 set_cursor_icon,
             ),
         );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tak::{GameState, Move, StoneKind};
+
+    fn after_opening() -> GameState {
+        let mut state = GameState::new();
+        state
+            .apply(Move::Place {
+                coord: Coord::new(0, 0),
+                kind: StoneKind::Flat,
+            })
+            .unwrap();
+        state
+            .apply(Move::Place {
+                coord: Coord::new(4, 4),
+                kind: StoneKind::Flat,
+            })
+            .unwrap();
+        state
+    }
+
+    #[test]
+    fn select_then_adjacent_slide() {
+        let state = after_opening();
+        let mut selected = None;
+        let from = Coord::new(4, 4);
+        assert!(
+            resolve_human_click(&state, PLAYER_HUMAN, StoneKind::Flat, &mut selected, from)
+                .is_none()
+        );
+        assert_eq!(selected, Some(from));
+
+        let to = Coord::new(3, 4);
+        let m = resolve_human_click(&state, PLAYER_HUMAN, StoneKind::Flat, &mut selected, to)
+            .expect("adjacent slide");
+        assert!(matches!(m, Move::Slide { .. }));
+        assert_eq!(selected, None);
+    }
+
+    #[test]
+    fn selected_stack_does_not_place_on_empty_when_slide_invalid() {
+        let state = after_opening();
+        let mut selected = Some(Coord::new(4, 4));
+        let diagonal = Coord::new(3, 3);
+        assert!(
+            resolve_human_click(
+                &state,
+                PLAYER_HUMAN,
+                StoneKind::Flat,
+                &mut selected,
+                diagonal
+            )
+            .is_none()
+        );
+        assert_eq!(selected, Some(Coord::new(4, 4)));
+    }
+
+    #[test]
+    fn pick_coord_biases_to_legal_slide_neighbor() {
+        let state = after_opening();
+        let sf = ScaleFactor {
+            spacing: 72.0,
+            factor: 1.0,
+        };
+        let from = Coord::new(4, 4);
+        let west = Coord::new(3, 4);
+        let between = (sf.screen_point(from).truncate() + sf.screen_point(west).truncate()) / 2.0;
+        assert_eq!(pick_coord(&sf, between, &state, Some(from)), Some(west));
+    }
 }
