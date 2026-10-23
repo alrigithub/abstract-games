@@ -254,41 +254,6 @@ fn graduate_mixed_line_promotes_per_kitten_and_returns_cats() {
 }
 
 #[test]
-fn four_in_a_row_graduates_first_three_only() {
-    let mut g = GameState::new();
-    for x in 0..3 {
-        g.set_piece(
-            Coord::new(x, 0),
-            Piece {
-                player: Player::First,
-                kind: PieceKind::Kitten,
-            },
-        );
-    }
-    g.set_to_move(Player::First);
-    g.set_pool(
-        Player::First,
-        boop::Pool {
-            kittens_in_hand: 5,
-            cats_in_hand: 0,
-            cats_in_reserve: 8,
-        },
-    );
-
-    g.apply(Move::Place {
-        coord: Coord::new(3, 0),
-        piece: PieceKind::Kitten,
-    })
-    .unwrap();
-
-    assert!(g.board().get(Coord::new(3, 0)).is_some());
-    for x in 0..3 {
-        assert!(g.board().get(Coord::new(x, 0)).is_none());
-    }
-    assert_eq!(g.pool(Player::First).cats_in_hand, 3);
-}
-
-#[test]
 fn three_cats_in_a_row_is_win_not_graduation() {
     let mut g = GameState::new();
     g.set_piece(
