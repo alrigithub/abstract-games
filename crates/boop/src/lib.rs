@@ -1,11 +1,13 @@
 mod board;
 mod coord;
+mod effects;
 mod game_state;
 mod piece;
 mod player;
 
 pub use board::Board;
 pub use coord::Coord;
+pub use effects::{LineHighlight, MoveEffects, OffBoardExit, PieceDisplacement};
 pub use game_state::{GameState, IllegalMove, Pool, CATS_PER_PLAYER, KITTENS_PER_PLAYER};
 pub use piece::{Piece, PieceKind};
 pub use player::Player;

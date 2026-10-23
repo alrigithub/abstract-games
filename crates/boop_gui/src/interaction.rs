@@ -5,7 +5,7 @@ use bevy_tweening::{
     EaseMethod, Tween, TweenAnim, TweenState, TweeningPlugin, lens::TransformPositionLens,
     lens::TransformScaleLens,
 };
-use boop::{Coord, Move, Piece, PieceKind, BOARD_SIZE};
+use boop::{Coord, Piece, PieceKind, BOARD_SIZE};
 
 use crate::{
     PLAYER_HUMAN,
@@ -29,6 +29,9 @@ pub struct BoardElement {
 #[derive(Component)]
 pub struct CursorElement;
 
+#[derive(Component)]
+struct DespawnWhenTweenDone;
+
 #[derive(Resource, Default)]
 pub struct CursorCoord(pub Option<Coord>);
 
@@ -43,19 +46,7 @@ fn viewport_to_coord(
         .map(|ray| ray.origin.truncate())
         .ok()?;
 
-    let max_dist_sq = (scale_factor.spacing * 0.45).powi(2);
-
-    (0..BOARD_SIZE as u8)
-        .flat_map(|y| (0..BOARD_SIZE as u8).map(move |x| Coord { x, y }))
-        .filter(|coord| {
-            let screen_pos = scale_factor.screen_point(*coord).truncate();
-            (screen_pos - world_pos).length_squared() <= max_dist_sq
-        })
-        .min_by(|a, b| {
-            let da = (scale_factor.screen_point(*a).truncate() - world_pos).length_squared();
-            let db = (scale_factor.screen_point(*b).truncate() - world_pos).length_squared();
-            da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
-        })
+    scale_factor.coord_at_world(world_pos)
 }
 
 fn setup_cursor(
@@ -81,6 +72,15 @@ fn setup_cursor(
         CursorElement,
         FOREGROUND_RENDER_LAYER,
     ));
+}
+
+fn off_board_glide_target(scale_factor: &ScaleFactor, from: Coord, push: (i8, i8)) -> Vec3 {
+    let origin = scale_factor.screen_point(from);
+    let direction = Vec2::new(push.0 as f32, -(push.1 as f32));
+    if direction.length_squared() < f32::EPSILON {
+        return origin;
+    }
+    origin + direction.normalize().extend(0.0) * scale_factor.spacing * 3.2
 }
 
 fn spawn_piece(
@@ -172,12 +172,48 @@ fn handle_board_updates(
                     );
                 }
             }
-            BoardUpdateEvent::Remove { coord } => {
-                for (entity, element, _) in q_pieces.iter() {
-                    if element.coord == coord {
-                        commands.entity(entity).despawn();
-                        break;
+            BoardUpdateEvent::Remove { coord, shrink } => {
+                for (entity, element, mut transform) in q_pieces.iter_mut() {
+                    if element.coord != coord {
+                        continue;
                     }
+                    if shrink {
+                        let scale = scale_factor.factor;
+                        commands.entity(entity).insert((
+                            TweenAnim::new(Tween::new(
+                                EaseMethod::default(),
+                                ANIMATION_DURATION,
+                                TransformScaleLens {
+                                    start: Vec3::splat(scale),
+                                    end: Vec3::splat(0.01 * scale),
+                                },
+                            )),
+                            DespawnWhenTweenDone,
+                        ));
+                        transform.scale = Vec3::splat(scale);
+                    } else {
+                        commands.entity(entity).despawn();
+                    }
+                    break;
+                }
+            }
+            BoardUpdateEvent::ExitBoard { from, piece, push } => {
+                if let Some((entity, mut element, mut transform)) = q_pieces
+                    .iter_mut()
+                    .find(|(_, element, _)| element.coord == from && element.piece == piece)
+                {
+                    element.coord = from;
+                    let start = scale_factor.screen_point(from);
+                    let end = off_board_glide_target(&scale_factor, from, push);
+                    commands.entity(entity).insert((
+                        TweenAnim::new(Tween::new(
+                            EaseMethod::default(),
+                            ANIMATION_DURATION,
+                            TransformPositionLens { start, end },
+                        )),
+                        DespawnWhenTweenDone,
+                    ));
+                    transform.scale = Vec3::splat(scale_factor.factor);
                 }
             }
         }
@@ -201,10 +237,17 @@ fn handle_resync(
     }
 }
 
-fn clear_animators(q: Query<(Entity, &TweenAnim)>, mut commands: Commands) {
-    for (entity, animator) in q.iter() {
+fn clear_animators(
+    q: Query<(Entity, &TweenAnim, Option<&DespawnWhenTweenDone>)>,
+    mut commands: Commands,
+) {
+    for (entity, animator, despawn) in q.iter() {
         if matches!(animator.tween_state(), TweenState::Completed) {
-            commands.entity(entity).remove::<TweenAnim>();
+            if despawn.is_some() {
+                commands.entity(entity).despawn();
+            } else {
+                commands.entity(entity).remove::<TweenAnim>();
+            }
         }
     }
 }
@@ -262,14 +305,44 @@ fn update_cursor(
         return;
     };
 
-    if !matches!(*interaction_state, InteractionState::HumanPlace) {
+    let human_turn = matches!(
+        *interaction_state,
+        InteractionState::HumanPlace | InteractionState::HumanFullBed
+    );
+    if !human_turn {
         *visibility = Visibility::Hidden;
         return;
     }
 
     let kind = selected_piece.0;
-    if game_state.pool(PLAYER_HUMAN).cats_in_hand == 0 && kind == PieceKind::Cat {
-        // fall back visually
+
+    if matches!(*interaction_state, InteractionState::HumanFullBed) {
+        let Some(coord) = cursor_coord.0 else {
+            *visibility = Visibility::Hidden;
+            return;
+        };
+        let Some(piece) = game_state.board().get(coord) else {
+            *visibility = Visibility::Hidden;
+            return;
+        };
+        if piece.player != PLAYER_HUMAN {
+            *visibility = Visibility::Hidden;
+            return;
+        }
+        let legal = game_state
+            .move_for_interaction(PLAYER_HUMAN, coord, kind)
+            .is_some();
+        if !legal {
+            *visibility = Visibility::Hidden;
+            return;
+        }
+        *visibility = Visibility::Visible;
+        element.coord = coord;
+        element.piece = piece;
+        transform.translation = scale_factor.screen_point(coord);
+        transform.scale = Vec3::splat(scale_factor.factor * 1.08);
+        material.0 = materials.first_ghost.clone();
+        return;
     }
 
     if let Some(coord) = cursor_coord.0
@@ -306,29 +379,23 @@ fn handle_clicks(
     if !mouse.just_pressed(MouseButton::Left) {
         return;
     }
-    if !matches!(*interaction_state, InteractionState::HumanPlace) {
+    if !matches!(
+        *interaction_state,
+        InteractionState::HumanPlace | InteractionState::HumanFullBed
+    ) {
         return;
     }
     let Some(coord) = cursor_coord.0 else {
         return;
     };
 
-    let mut piece_kind = selected_piece.0;
-    let pool = game_state.pool(PLAYER_HUMAN);
-    if piece_kind == PieceKind::Cat && pool.cats_in_hand == 0 {
-        piece_kind = PieceKind::Kitten;
-    }
-    if piece_kind == PieceKind::Kitten && pool.kittens_in_hand == 0 {
+    let Some(player_move) =
+        game_state.move_for_interaction(PLAYER_HUMAN, coord, selected_piece.0)
+    else {
         return;
-    }
+    };
 
-    player_move_events.write(PlayerMoveEvent(
-        PLAYER_HUMAN,
-        Move::Place {
-            coord,
-            piece: piece_kind,
-        },
-    ));
+    player_move_events.write(PlayerMoveEvent(PLAYER_HUMAN, player_move));
 }
 
 fn set_cursor_icon(
@@ -339,7 +406,10 @@ fn set_cursor_icon(
     let Ok(window) = q_window.single() else {
         return;
     };
-    let icon = if matches!(*interaction_state, InteractionState::HumanPlace) {
+    let icon = if matches!(
+        *interaction_state,
+        InteractionState::HumanPlace | InteractionState::HumanFullBed | InteractionState::HumanNoMoves
+    ) {
         CursorIcon::System(SystemCursorIcon::Pointer)
     } else {
         CursorIcon::System(SystemCursorIcon::Progress)

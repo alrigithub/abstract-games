@@ -22,5 +22,7 @@ pub fn choose_move(state: &GameState, max_depth: u32) -> Option<Move> {
     let depth = max_depth.clamp(1, 10) as u8;
     let heuristic = SimpleHeuristic::new();
     let mut strategy = Negamax::new(BoopEvaluator::new(&heuristic), depth);
-    strategy.choose_move(state)
+    strategy
+        .choose_move(state)
+        .or_else(|| legal.into_iter().next())
 }

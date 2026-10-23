@@ -1,8 +1,11 @@
 mod ai;
 mod graphics;
 mod grid;
+mod information_display;
 mod interaction;
 mod keyboard_control;
+mod line_feedback;
+mod pool_display;
 mod state_update;
 
 use bevy::{
@@ -32,6 +35,9 @@ fn main() {
             ai::plugin,
             graphics::plugin,
             interaction::plugin,
+            information_display::plugin,
+            line_feedback::plugin,
+            pool_display::plugin,
             keyboard_control::plugin,
         ))
         .run();

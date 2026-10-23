@@ -1,5 +1,6 @@
 use crate::board::Board;
 use crate::coord::Coord;
+use crate::effects::{LineHighlight, MoveEffects, OffBoardExit, PieceDisplacement};
 use crate::piece::{Piece, PieceKind};
 use crate::player::Player;
 use crate::Move;
@@ -63,6 +64,7 @@ pub struct GameState {
     pools: [Pool; 2],
     to_move: Player,
     winner: Option<Player>,
+    last_effects: MoveEffects,
 }
 
 impl GameState {
@@ -72,7 +74,12 @@ impl GameState {
             pools: [Pool::new(), Pool::new()],
             to_move: Player::First,
             winner: None,
+            last_effects: MoveEffects::default(),
         }
+    }
+
+    pub fn last_move_effects(&self) -> &MoveEffects {
+        &self.last_effects
     }
 
     pub fn board(&self) -> &Board {
@@ -104,6 +111,62 @@ impl GameState {
     #[doc(hidden)]
     pub fn set_pool(&mut self, player: Player, pool: Pool) {
         self.pools[pool_index(player)] = pool;
+    }
+
+    /// True when the active player has a full bed and must graduate a kitten or return a cat.
+    pub fn requires_alternate_graduation(&self) -> bool {
+        let legal = self.legal_moves();
+        !legal.is_empty() && legal.iter().all(|m| !matches!(m, Move::Place { .. }))
+    }
+
+    /// Map a board click (and placement piece preference) to a legal move, if any.
+    pub fn move_for_interaction(
+        &self,
+        player: Player,
+        coord: Coord,
+        preferred_placement: PieceKind,
+    ) -> Option<Move> {
+        if self.to_move() != player || self.winner().is_some() {
+            return None;
+        }
+        let legal = self.legal_moves();
+        if legal.is_empty() {
+            return None;
+        }
+
+        if self.requires_alternate_graduation() {
+            let piece = self.board.get(coord)?;
+            if piece.player != player {
+                return None;
+            }
+            let graduate = Move::GraduateSingleKitten { coord };
+            let return_cat = Move::ReturnCatToPool { coord };
+            return match piece.kind {
+                PieceKind::Kitten if legal.contains(&graduate) => Some(graduate),
+                PieceKind::Cat if legal.contains(&return_cat) => Some(return_cat),
+                _ => None,
+            };
+        }
+
+        if !self.board.is_empty(coord) {
+            return None;
+        }
+
+        let preferred = Move::Place {
+            coord,
+            piece: preferred_placement,
+        };
+        if legal.contains(&preferred) {
+            return Some(preferred);
+        }
+        let fallback = Move::Place {
+            coord,
+            piece: match preferred_placement {
+                PieceKind::Kitten => PieceKind::Cat,
+                PieceKind::Cat => PieceKind::Kitten,
+            },
+        };
+        legal.contains(&fallback).then_some(fallback)
     }
 
     pub fn legal_moves(&self) -> Vec<Move> {
@@ -140,6 +203,11 @@ impl GameState {
         if self.winner.is_some() {
             return Err(IllegalMove);
         }
+        if !self.legal_moves().contains(&player_move) {
+            return Err(IllegalMove);
+        }
+
+        self.last_effects = MoveEffects::default();
 
         match player_move {
             Move::Place { coord, piece: kind } => self.apply_place(coord, kind),
@@ -164,7 +232,13 @@ impl GameState {
 
         let placed = Piece { player, kind };
         self.board.set(coord, placed);
-        resolve_boops(&mut self.board, coord, placed, &mut self.pools);
+        resolve_boops(
+            &mut self.board,
+            coord,
+            placed,
+            &mut self.pools,
+            &mut self.last_effects,
+        );
         resolve_graduation(self, player);
         finish_turn_after_placement(self, player);
         Ok(())
@@ -234,6 +308,11 @@ fn alternate_graduation_moves(state: &GameState, player: Player, pool: Pool) -> 
 
 fn finish_turn_after_placement(state: &mut GameState, player: Player) {
     if state.winner.is_none() && check_win(&state.board, player) {
+        if let Some(line) = find_winning_cat_line(&state.board, player) {
+            state.last_effects.line_highlight = Some(LineHighlight::Win(line));
+        } else if state.board.count_cats(player) >= 8 {
+            state.last_effects.line_highlight = Some(LineHighlight::EightCatsOnBed);
+        }
         state.winner = Some(player);
     }
     if state.winner.is_none() {
@@ -243,6 +322,11 @@ fn finish_turn_after_placement(state: &mut GameState, player: Player) {
 
 fn finish_turn_after_alternate(state: &mut GameState, player: Player) {
     if state.winner.is_none() && check_win(&state.board, player) {
+        if let Some(line) = find_winning_cat_line(&state.board, player) {
+            state.last_effects.line_highlight = Some(LineHighlight::Win(line));
+        } else if state.board.count_cats(player) >= 8 {
+            state.last_effects.line_highlight = Some(LineHighlight::EightCatsOnBed);
+        }
         state.winner = Some(player);
     }
     if state.winner.is_none() {
@@ -268,7 +352,13 @@ const DIRECTIONS: [(i8, i8); 8] = [
     (-1, -1),
 ];
 
-fn resolve_boops(board: &mut Board, placed_at: Coord, placed: Piece, pools: &mut [Pool; 2]) {
+fn resolve_boops(
+    board: &mut Board,
+    placed_at: Coord,
+    placed: Piece,
+    pools: &mut [Pool; 2],
+    effects: &mut MoveEffects,
+) {
     for (dx, dy) in DIRECTIONS {
         let Some(adj) = placed_at.step(dx, dy) else {
             continue;
@@ -288,6 +378,11 @@ fn resolve_boops(board: &mut Board, placed_at: Coord, placed: Piece, pools: &mut
         let Some(target) = adj.step(push_dir.0, push_dir.1) else {
             board.clear(adj);
             pools[pool_index(piece.player)].return_piece(piece);
+            effects.off_board.push(OffBoardExit {
+                from: adj,
+                piece,
+                push: push_dir,
+            });
             continue;
         };
 
@@ -297,6 +392,11 @@ fn resolve_boops(board: &mut Board, placed_at: Coord, placed: Piece, pools: &mut
 
         board.clear(adj);
         board.set(target, piece);
+        effects.displacements.push(PieceDisplacement {
+            from: adj,
+            to: target,
+            piece,
+        });
     }
 }
 
@@ -354,6 +454,7 @@ fn resolve_graduation(state: &mut GameState, player: Player) {
     let Some(line) = find_graduation_triple(&state.board, player) else {
         return;
     };
+    state.last_effects.line_highlight = Some(LineHighlight::Graduation(line));
     let pool = &mut state.pools[pool_index(player)];
     for coord in line {
         let Some(piece) = state.board.get(coord) else {
@@ -407,31 +508,35 @@ fn find_graduation_triple(board: &Board, player: Player) -> Option<[Coord; 3]> {
     None
 }
 
-fn find_cat_line_of_three(board: &Board, player: Player) -> bool {
+fn find_winning_cat_line(board: &Board, player: Player) -> Option<[Coord; 3]> {
     let line_dirs = [(1, 0), (0, 1), (1, 1), (1, -1)];
 
     for y in 0..crate::BOARD_SIZE as u8 {
         for x in 0..crate::BOARD_SIZE as u8 {
             let start = Coord { x, y };
             for (dx, dy) in line_dirs {
-                let Some(a) = start.step(dx, dy) else { continue };
-                let Some(b) = start.step(dx * 2, dy * 2) else { continue };
+                let Some(a) = start.step(dx, dy) else {
+                    continue;
+                };
+                let Some(b) = start.step(dx * 2, dy * 2) else {
+                    continue;
+                };
                 let line = [start, a, b];
                 if line.iter().all(|coord| {
                     board
                         .get(*coord)
                         .is_some_and(|p| p.player == player && p.kind == PieceKind::Cat)
                 }) {
-                    return true;
+                    return Some(line);
                 }
             }
         }
     }
-    false
+    None
 }
 
 fn check_win(board: &Board, player: Player) -> bool {
-    find_cat_line_of_three(board, player) || board.count_cats(player) >= 8
+    find_winning_cat_line(board, player).is_some() || board.count_cats(player) >= 8
 }
 
 impl Default for GameState {

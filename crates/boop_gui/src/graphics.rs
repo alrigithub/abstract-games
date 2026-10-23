@@ -31,13 +31,68 @@ pub struct ScaleFactor {
 }
 
 impl ScaleFactor {
+    /// Center of the board cell `(x, y)` in world space (chess-style cells, not line intersections).
     pub fn screen_point(&self, coord: Coord) -> Vec3 {
-        let center = (BOARD_SIZE as f32 - 1.0) / 2.0;
+        let half = BOARD_SIZE as f32 / 2.0;
         Vec3::new(
-            (coord.x as f32 - center) * self.spacing,
-            (center - coord.y as f32) * self.spacing,
+            (coord.x as f32 + 0.5 - half) * self.spacing,
+            (half - coord.y as f32 - 0.5) * self.spacing,
             0.,
         )
+    }
+
+    /// Half-width/height of the square board in world units.
+    pub fn board_half_extent(&self) -> f32 {
+        BOARD_SIZE as f32 / 2.0 * self.spacing
+    }
+
+    /// Pick the cell whose interior contains `world`, if any.
+    pub fn coord_at_world(&self, world: Vec2) -> Option<Coord> {
+        let max_dist_sq = (self.spacing * 0.48).powi(2);
+
+        (0..BOARD_SIZE as u8)
+            .flat_map(|y| (0..BOARD_SIZE as u8).map(move |x| Coord { x, y }))
+            .filter(|coord| {
+                let center = self.screen_point(*coord).truncate();
+                (center - world).length_squared() <= max_dist_sq
+            })
+            .min_by(|a, b| {
+                let da = (self.screen_point(*a).truncate() - world).length_squared();
+                let db = (self.screen_point(*b).truncate() - world).length_squared();
+                da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+            })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cell_centers_sit_inside_squares_not_on_grid_crossings() {
+        let sf = ScaleFactor {
+            spacing: 10.0,
+            factor: 1.0,
+        };
+        let half = sf.board_half_extent();
+        let c00 = sf.screen_point(Coord::new(0, 0));
+        assert!((c00.x - (-half + 5.0)).abs() < 0.001);
+        assert!((c00.y - (half - 5.0)).abs() < 0.001);
+
+        let c55 = sf.screen_point(Coord::new(5, 5));
+        assert!((c55.x - (half - 5.0)).abs() < 0.001);
+        assert!((c55.y - (-half + 5.0)).abs() < 0.001);
+    }
+
+    #[test]
+    fn coord_at_world_inverts_cell_center() {
+        let sf = ScaleFactor {
+            spacing: 10.0,
+            factor: 1.0,
+        };
+        let coord = Coord::new(2, 3);
+        let world = sf.screen_point(coord).truncate();
+        assert_eq!(sf.coord_at_world(world), Some(coord));
     }
 }
 
@@ -77,12 +132,12 @@ pub fn piece_mesh(
     kind: PieceKind,
     visibility: Visibility,
 ) -> impl Bundle {
-    let radius = match kind {
-        PieceKind::Kitten => 16.0,
-        PieceKind::Cat => 20.0,
+    let mesh = match kind {
+        PieceKind::Cat => meshes.add(Circle::new(22.0)),
+        PieceKind::Kitten => meshes.add(Rectangle::new(18.0, 22.0)),
     };
     (
-        Mesh2d(meshes.add(Circle::new(radius))),
+        Mesh2d(mesh),
         MeshMaterial2d(material),
         visibility,
     )

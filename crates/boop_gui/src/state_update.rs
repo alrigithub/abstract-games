@@ -4,6 +4,8 @@ use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 use boop::{Board, Coord, Move, Piece, PieceKind, Player};
 
+use crate::line_feedback::LineCompletedEvent;
+
 use crate::{
     PLAYER_AI, PLAYER_HUMAN,
     ai::AiComputationEvent,
@@ -49,6 +51,8 @@ pub struct HumanPieceChoice(pub PieceKind);
 #[derive(Resource, Debug, Clone, PartialEq, Eq)]
 pub enum InteractionState {
     HumanPlace,
+    HumanFullBed,
+    HumanNoMoves,
     WaitForAI,
     Winner(Player),
 }
@@ -59,6 +63,10 @@ impl InteractionState {
             Self::Winner(winner)
         } else if game_state.to_move() == PLAYER_AI {
             Self::WaitForAI
+        } else if game_state.legal_moves().is_empty() {
+            Self::HumanNoMoves
+        } else if game_state.requires_alternate_graduation() {
+            Self::HumanFullBed
         } else {
             Self::HumanPlace
         }
@@ -78,6 +86,12 @@ pub enum BoardUpdateEvent {
     },
     Remove {
         coord: Coord,
+        shrink: bool,
+    },
+    ExitBoard {
+        from: Coord,
+        piece: Piece,
+        push: (i8, i8),
     },
 }
 
@@ -122,7 +136,10 @@ pub fn diff_board(old: &Board, new: &Board) -> Vec<BoardUpdateEvent> {
                 piece,
             });
         } else {
-            changes.push(BoardUpdateEvent::Remove { coord: from });
+            changes.push(BoardUpdateEvent::Remove {
+                coord: from,
+                shrink: false,
+            });
         }
     }
 
@@ -155,6 +172,7 @@ fn state_update(
     mut undo_history: ResMut<UndoHistory>,
     mut ai_computation_events: MessageWriter<AiComputationEvent>,
     mut board_update_events: MessageWriter<BoardUpdateEvent>,
+    mut line_completed_events: MessageWriter<LineCompletedEvent>,
 ) {
     for PlayerMoveEvent(player, player_move) in player_move_events.read() {
         let player = *player;
@@ -172,8 +190,58 @@ fn state_update(
             continue;
         }
 
+        let effects = game_state.last_move_effects().clone();
+        let shrink_removals = matches!(
+            effects.line_highlight,
+            Some(boop::LineHighlight::Graduation(_))
+        );
+
+        let displaced_from: std::collections::HashSet<Coord> = effects
+            .displacements
+            .iter()
+            .map(|d| d.from)
+            .collect();
+        let displaced_to: std::collections::HashSet<Coord> = effects
+            .displacements
+            .iter()
+            .map(|d| d.to)
+            .collect();
+
+        for displacement in &effects.displacements {
+            board_update_events.write(BoardUpdateEvent::Move {
+                from: displacement.from,
+                to: displacement.to,
+                piece: displacement.piece,
+            });
+        }
+
         for change in diff_board(&before, game_state.board()) {
-            board_update_events.write(change);
+            match change {
+                BoardUpdateEvent::Move { .. } => {}
+                BoardUpdateEvent::Spawn { coord, .. } if displaced_to.contains(&coord) => {}
+                BoardUpdateEvent::Remove { coord, .. } if displaced_from.contains(&coord) => {}
+                BoardUpdateEvent::Remove { coord, .. } => {
+                    if let Some(exit) = effects.off_board.iter().find(|e| e.from == coord) {
+                        board_update_events.write(BoardUpdateEvent::ExitBoard {
+                            from: exit.from,
+                            piece: exit.piece,
+                            push: exit.push,
+                        });
+                    } else {
+                        board_update_events.write(BoardUpdateEvent::Remove {
+                            coord,
+                            shrink: shrink_removals,
+                        });
+                    }
+                }
+                other => {
+                    board_update_events.write(other);
+                }
+            }
+        }
+
+        if let Some(highlight) = effects.line_highlight {
+            line_completed_events.write(LineCompletedEvent(highlight));
         }
 
         if game_state.winner().is_none()
