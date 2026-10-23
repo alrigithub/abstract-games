@@ -9,3 +9,6 @@ pub struct BoardElement {
 
 #[derive(Component)]
 pub struct CursorElement;
+
+#[derive(Component)]
+pub struct StackHeightLabel;

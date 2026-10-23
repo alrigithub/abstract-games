@@ -6,10 +6,12 @@ use tzaar::{Coord, Move, all_playable_coords};
 use crate::{
     PLAYER_HUMAN,
     ai::AiSet,
-    board_entity::{BoardElement, CursorElement},
-    graphics::{MainCamera, ScaleFactor, ScaleFactorSet},
+    board_entity::{BoardElement, CursorElement, StackHeightLabel},
+    graphics::{FOREGROUND_RENDER_LAYER, MainCamera, ScaleFactor, ScaleFactorSet},
     pass_ui::{human_may_pass, submit_pass},
-    piece_visual::{PieceDrawMaterials, PieceMeshes, spawn_stack_piece_at},
+    piece_visual::{
+        INK, MARK_ON_DARK, PIECE_RADIUS, PieceDrawMaterials, PieceMeshes, spawn_stack_piece_at,
+    },
     state_update::{
         BoardResyncEvent, GameState, InteractionState, PlayerMoveEvent, StateUpdateSet,
     },
@@ -62,7 +64,6 @@ fn setup_cursor(
         &materials,
         piece,
         true,
-        true,
         Transform::default(),
         BoardElement {
             coord: Coord::new(0, 0),
@@ -83,28 +84,40 @@ fn spawn_stack_visual(
     let Some(stack) = game_state.board().stack(coord) else {
         return;
     };
-    let z_step = 5.0 * scale_factor.factor;
-    let top_index = stack.pieces().len().saturating_sub(1);
-    for (i, piece) in stack.pieces().iter().enumerate() {
-        let is_top = i == top_index;
-        let mut transform = Transform::from_translation(
-            scale_factor.screen_point(coord) + Vec3::new(0., 0., i as f32 * z_step),
-        );
-        transform.scale = Vec3::splat(scale_factor.factor);
-        spawn_stack_piece_at(
-            commands,
-            piece_meshes,
-            materials,
-            *piece,
-            is_top,
-            false,
-            transform,
-            BoardElement {
-                coord,
-                layer: i as u8,
+    let mut transform = Transform::from_translation(scale_factor.screen_point(coord));
+    transform.scale = Vec3::splat(scale_factor.factor);
+    spawn_stack_piece_at(
+        commands,
+        piece_meshes,
+        materials,
+        stack.top(),
+        false,
+        transform,
+        BoardElement { coord, layer: 0 },
+        false,
+    );
+
+    let height = stack.height();
+    if height > 1 {
+        let label_color = match stack.top().player {
+            tzaar::Player::Second => MARK_ON_DARK,
+            tzaar::Player::First => INK,
+        };
+        let mut label_tf = transform;
+        label_tf.translation.y -= PIECE_RADIUS * scale_factor.factor * 0.08;
+        label_tf.translation.z += 1.0;
+        commands.spawn((
+            Text2d::new(height.to_string()),
+            TextFont {
+                font_size: 13.0,
+                ..default()
             },
-            false,
-        );
+            TextColor(label_color),
+            label_tf,
+            BoardElement { coord, layer: 1 },
+            StackHeightLabel,
+            FOREGROUND_RENDER_LAYER,
+        ));
     }
 }
 
@@ -142,14 +155,25 @@ fn startup_board(mut resync: MessageWriter<BoardResyncEvent>) {
 
 fn move_board_elements(
     scale_factor: Res<ScaleFactor>,
-    mut query: Query<(&BoardElement, &mut Transform)>,
+    mut query: Query<(&BoardElement, &mut Transform), Without<StackHeightLabel>>,
 ) {
-    let z_step = 5.0 * scale_factor.factor;
     for (element, mut transform) in query.iter_mut() {
         let base = scale_factor.screen_point(element.coord);
         transform.translation.x = base.x;
         transform.translation.y = base.y;
-        transform.translation.z = base.z + element.layer as f32 * z_step;
+        transform.translation.z = base.z + element.layer as f32;
+    }
+}
+
+fn move_stack_labels(
+    scale_factor: Res<ScaleFactor>,
+    mut query: Query<(&BoardElement, &mut Transform), With<StackHeightLabel>>,
+) {
+    for (element, mut transform) in query.iter_mut() {
+        let base = scale_factor.screen_point(element.coord);
+        transform.translation.x = base.x;
+        transform.translation.y = base.y - PIECE_RADIUS * scale_factor.factor * 0.08;
+        transform.translation.z = base.z + 1.0;
     }
 }
 
@@ -301,6 +325,7 @@ pub fn plugin(app: &mut App) {
             (
                 handle_resync.after(StateUpdateSet),
                 move_board_elements.after(ScaleFactorSet),
+                move_stack_labels.after(ScaleFactorSet),
                 scale_board_elements.after(ScaleFactorSet),
                 update_cursor.after(ScaleFactorSet),
                 handle_clicks.before(StateUpdateSet).ambiguous_with(AiSet),

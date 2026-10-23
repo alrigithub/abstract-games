@@ -38,6 +38,6 @@ pub fn draw_grid(mut gizmos: Gizmos, scale_factor: Res<ScaleFactor>) {
 
     for coord in all_playable_coords() {
         let p = scale_factor.screen_point(coord);
-        gizmos.circle_2d(p.truncate(), 2.2 * scale_factor.factor, dot_color);
+        gizmos.circle_2d(p.truncate(), 2.0 * scale_factor.factor, dot_color);
     }
 }
