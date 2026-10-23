@@ -48,6 +48,7 @@ fn update_information_display(
         mode = match *interaction_state {
             InteractionState::RingPlacement(_) => "Place a ring on the board",
             InteractionState::MarkerPlacement(_) => "Place a marker in one of your rings",
+            InteractionState::RingSelect(_) => "Click your ring to move it",
             InteractionState::RingMovement(_, _) => "Move the selected ring",
             InteractionState::RunRemoval { .. } => "Select a run of five markers to remove",
             InteractionState::RingRemoval(_) => "Select one of your rings to remove it",
