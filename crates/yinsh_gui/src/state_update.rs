@@ -12,8 +12,12 @@ use bevy::prelude::*;
 use crate::PLAYER_HUMAN;
 
 use crate::{
-    PLAYER_AI, ai::AiComputationEvent, board::BoardElement, board_update_event::BoardUpdateEvent,
-    interaction::CursorElement, scoring::ScoringPresentation,
+    PLAYER_AI,
+    ai::{AiComputationEvent, AiSet},
+    board::BoardElement,
+    board_update_event::BoardUpdateEvent,
+    interaction::CursorElement,
+    scoring::ScoringPresentation,
 };
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -195,7 +199,7 @@ fn state_update(
                 scoring.deferred_ai = true;
             } else {
                 ai_computation_events
-                    .write(AiComputationEvent::Start(PLAYER_AI, game_state.clone()));
+                    .write(AiComputationEvent::Start(PLAYER_AI, game_state.0.clone()));
             }
         }
     }
@@ -214,8 +218,12 @@ pub fn plugin(app: &mut App) {
         .add_message::<BoardUpdateEvent>()
         .add_systems(
             Update,
-            (cancel_ring_selection, state_update)
-                .chain()
-                .in_set(StateUpdateSet),
+            (
+                (cancel_ring_selection, state_update)
+                    .chain()
+                    .in_set(StateUpdateSet),
+                // Apply AI (and same-frame human) moves after the AI worker runs.
+                state_update.after(AiSet),
+            ),
         );
 }
