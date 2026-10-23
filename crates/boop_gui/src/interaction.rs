@@ -11,7 +11,8 @@ use crate::{
     PLAYER_HUMAN,
     ai::AiSet,
     graphics::{
-        ANIMATION_DURATION, FOREGROUND_RENDER_LAYER, MainCamera, PieceMaterials, ScaleFactor,
+        PLACE_ANIMATION_DURATION, PIECE_MOVE_ANIMATION_DURATION, FOREGROUND_RENDER_LAYER,
+        MainCamera, PieceMaterials, ScaleFactor,
         ScaleFactorSet, material_for, piece_mesh,
     },
     state_update::{
@@ -112,7 +113,7 @@ fn spawn_piece(
     if animate_scale {
         entity.insert(TweenAnim::new(Tween::new(
             EaseMethod::default(),
-            ANIMATION_DURATION,
+            PLACE_ANIMATION_DURATION,
             TransformScaleLens {
                 start: Vec3::splat(0.01 * scale_factor.factor),
                 end: Vec3::splat(scale_factor.factor),
@@ -161,7 +162,7 @@ fn handle_board_updates(
                         element.piece = piece;
                         let tween = Tween::new(
                             EaseMethod::default(),
-                            ANIMATION_DURATION,
+                            PIECE_MOVE_ANIMATION_DURATION,
                             TransformPositionLens {
                                 start: scale_factor.screen_point(from),
                                 end: scale_factor.screen_point(to),
@@ -200,7 +201,7 @@ fn handle_board_updates(
                             commands.entity(entity).insert((
                                 TweenAnim::new(Tween::new(
                                     EaseMethod::default(),
-                                    ANIMATION_DURATION,
+                                    PIECE_MOVE_ANIMATION_DURATION,
                                     TransformScaleLens {
                                         start: Vec3::splat(scale),
                                         end: Vec3::splat(0.01 * scale),
@@ -233,7 +234,7 @@ fn handle_board_updates(
                         commands.entity(entity).insert((
                             TweenAnim::new(Tween::new(
                                 EaseMethod::default(),
-                                ANIMATION_DURATION,
+                                PIECE_MOVE_ANIMATION_DURATION,
                                 TransformPositionLens { start, end },
                             )),
                             DespawnWhenTweenDone,

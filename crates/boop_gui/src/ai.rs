@@ -5,7 +5,7 @@ use bevy::prelude::*;
 use bevy_async_task::TaskRunner;
 use boop::{GameState, Move, Player};
 
-use crate::graphics::ANIMATION_DURATION;
+use crate::graphics::AI_TURN_DELAY;
 use crate::state_update::{PlayerMoveEvent, StateUpdateSet};
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -35,10 +35,10 @@ fn perform_ai_moves(
                 let search_depth = strength.0;
                 task_runner.start(async move {
                     #[cfg(not(target_arch = "wasm32"))]
-                    std::thread::sleep(ANIMATION_DURATION);
+                    std::thread::sleep(AI_TURN_DELAY);
 
                     #[cfg(target_arch = "wasm32")]
-                    gloo_timers::future::TimeoutFuture::new(ANIMATION_DURATION.as_millis() as u32)
+                    gloo_timers::future::TimeoutFuture::new(AI_TURN_DELAY.as_millis() as u32)
                         .await;
 
                     boop_ai::choose_move(&game_state, search_depth).map(|m| (player, m))

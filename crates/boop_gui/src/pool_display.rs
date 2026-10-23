@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use boop::{PieceKind, Player, Pool};
+use boop::{Player, Pool};
 
 use crate::{
     PLAYER_AI, PLAYER_HUMAN,

@@ -17,7 +17,17 @@ pub const COLOR_FIRST: Color = Color::srgb(0.95, 0.55, 0.15);
 pub const COLOR_FIRST_TRANSPARENT: Color = Color::srgba(0.95, 0.55, 0.15, 0.35);
 pub const COLOR_SECOND: Color = Color::srgb(0.75, 0.78, 0.82);
 
-pub const ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(500);
+/// Human placement “settle” scale-in.
+pub const PLACE_ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(320);
+
+/// Boops, graduation removes, off-board glide.
+pub const PIECE_MOVE_ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(400);
+
+/// Pause after human move before AI search / AI piece animation.
+pub const AI_TURN_DELAY: std::time::Duration = std::time::Duration::from_millis(550);
+
+/// Fraction of cell width used for hover/pick (higher = easier cell-to-cell jumps).
+pub const CELL_PICK_RADIUS_FRAC: f32 = 0.62;
 
 #[derive(Component)]
 pub struct MainCamera;
@@ -46,7 +56,7 @@ impl ScaleFactor {
 
     /// Pick the cell whose interior contains `world`, if any.
     pub fn coord_at_world(&self, world: Vec2) -> Option<Coord> {
-        let max_dist_sq = (self.spacing * 0.48).powi(2);
+        let max_dist_sq = (self.spacing * CELL_PICK_RADIUS_FRAC).powi(2);
 
         (0..BOARD_SIZE as u8)
             .flat_map(|y| (0..BOARD_SIZE as u8).map(move |x| Coord { x, y }))
