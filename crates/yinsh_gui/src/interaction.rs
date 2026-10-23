@@ -15,7 +15,8 @@ use bevy::prelude::MeshMaterial2d;
 use yinsh::{Coord, Move, all_coords};
 
 use crate::PLAYER_HUMAN;
-use crate::ai::AiSet;
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct InteractionInputSet;
 use crate::board::{BoardElement, Marker, Ring};
 use crate::board_update_event::BoardUpdateEvent;
 use crate::graphics::{
@@ -439,7 +440,11 @@ fn mouse_interaction_system(
     mut player_move_events: MessageWriter<PlayerMoveEvent>,
     mut cancel_ring_events: MessageWriter<CancelRingSelectionEvent>,
 ) {
-    if matches!(*interaction_state, InteractionState::AutoMove) {
+    if matches!(
+        *interaction_state,
+        InteractionState::AutoMove | InteractionState::RingSelect(_)
+    ) {
+        // WaitForRingMovement: the ring is already fixed by marker placement; advance without a click.
         player_move_events.write(PlayerMoveEvent(PLAYER_HUMAN, Move::Wait));
     }
 
@@ -485,11 +490,7 @@ fn mouse_interaction_system(
                     ));
                 }
             }
-            InteractionState::RingSelect(start) => {
-                if cursor_coord == start {
-                    player_move_events.write(PlayerMoveEvent(PLAYER_HUMAN, Move::Wait));
-                }
-            }
+            InteractionState::RingSelect(_) => {}
             InteractionState::RingMovement(start, ref possible_ring_moves) => {
                 if possible_ring_moves.contains(&cursor_coord) {
                     player_move_events.write(PlayerMoveEvent(
@@ -540,7 +541,7 @@ pub fn plugin(app: &mut App) {
                     scale_board_elements,
                     scale_racked_rings,
                     colorize_board_elements,
-                    mouse_interaction_system.ambiguous_with(AiSet),
+                    mouse_interaction_system.in_set(InteractionInputSet),
                 )
                     .chain(),
             )
