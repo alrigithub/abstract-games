@@ -1,5 +1,5 @@
 use boop::{Coord, GameState, Move, Piece, PieceKind, Player, Pool, TurnMode};
-use boop_ai::{BoopGame, choose_move};
+use boop_ai::{choose_move, BoopGame};
 use minimax::Game;
 
 #[test]
@@ -72,6 +72,44 @@ fn chooses_a_legal_graduation_line_when_choice_is_pending() {
     assert!(g.legal_moves().contains(&m));
     g.apply(m).unwrap();
     assert_eq!(g.to_move(), Player::First);
+}
+
+#[test]
+fn search_tree_folds_same_turn_alternate_graduation() {
+    let coords = [(0, 0), (2, 0), (4, 0), (0, 2), (2, 2), (4, 2), (0, 4)];
+    let mut g = GameState::new();
+    for (x, y) in coords {
+        g.set_piece(
+            Coord::new(x, y),
+            Piece {
+                player: Player::Second,
+                kind: PieceKind::Kitten,
+            },
+        );
+    }
+    g.set_to_move(Player::Second);
+    g.set_pool(
+        Player::Second,
+        Pool {
+            kittens_in_hand: 1,
+            cats_in_hand: 0,
+            cats_in_reserve: 8,
+        },
+    );
+
+    let placed = BoopGame::apply(
+        &mut g.clone(),
+        Move::Place {
+            coord: Coord::new(4, 4),
+            piece: PieceKind::Kitten,
+        },
+    )
+    .expect("legal");
+
+    assert_eq!(placed.turn_mode(), TurnMode::Place);
+    assert_eq!(placed.to_move(), Player::First);
+    assert_eq!(placed.board().count_pieces(Player::Second), 7);
+    assert_eq!(placed.pool(Player::Second).cats_in_hand, 1);
 }
 
 #[test]

@@ -1,4 +1,4 @@
-use boop::{BOARD_SIZE, Coord, GameState, Move, PieceKind, TurnMode};
+use boop::{Coord, GameState, Move, PieceKind, TurnMode, BOARD_SIZE};
 use minimax::{Game, Winner};
 
 pub struct BoopGame;
@@ -11,14 +11,18 @@ impl Game for BoopGame {
         moves.extend(ordered_moves(state));
     }
 
-    /// Apply a move and, if the placement left a graduation choice pending, resolve it
-    /// greedily so that consecutive search plies always alternate players (negamax assumes
-    /// this). The root-level choice is still searched properly via `legal_moves`.
+    /// Apply a move and, if the placement left a same-player follow-up (line choice
+    /// or full-bed alternate), resolve it greedily so consecutive search plies
+    /// alternate (negamax assumes this). Root-level choices are still searched
+    /// via `legal_moves`.
     fn apply(state: &mut Self::S, m: Self::M) -> Option<Self::S> {
         let mut new_state = state.clone();
         new_state.apply(m).ok()?;
         if let Some(line) = greedy_graduation_choice(&new_state) {
             new_state.apply(Move::Graduate { line }).ok()?;
+        }
+        if let Some(follow_up) = greedy_alternate_graduation(&new_state) {
+            new_state.apply(follow_up).ok()?;
         }
         Some(new_state)
     }
@@ -47,6 +51,26 @@ pub fn greedy_graduation_choice(state: &GameState) -> Option<[Coord; 3]> {
             })
             .count()
     })
+}
+
+/// Prefer graduating a kitten (reserve → pool) over returning a cat.
+pub fn greedy_alternate_graduation(state: &GameState) -> Option<Move> {
+    if !matches!(
+        state.turn_mode(),
+        TurnMode::AlternateGraduation | TurnMode::ChooseGraduation(_)
+    ) {
+        return None;
+    }
+    let moves = state.legal_moves();
+    moves
+        .iter()
+        .find(|m| matches!(m, Move::GraduateSingleKitten { .. }))
+        .or_else(|| {
+            moves
+                .iter()
+                .find(|m| matches!(m, Move::ReturnCatToPool { .. }))
+        })
+        .copied()
 }
 
 fn ordered_moves(state: &GameState) -> Vec<Move> {

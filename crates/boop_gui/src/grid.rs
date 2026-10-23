@@ -1,12 +1,10 @@
 use bevy::prelude::*;
 use boop::BOARD_SIZE;
 
-use abstract_gui_theme::DARK;
-
-use crate::graphics::ScaleFactor;
+use crate::graphics::{QUILT_STITCH, ScaleFactor};
 
 pub fn draw_grid(mut gizmos: Gizmos, scale_factor: Res<ScaleFactor>) {
-    let grid_line_color = DARK.grid_line;
+    let grid_line_color = QUILT_STITCH;
     let half = scale_factor.board_half_extent();
 
     for i in 0..=BOARD_SIZE {

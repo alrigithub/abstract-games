@@ -1,8 +1,29 @@
-use abstract_gui_theme::{DARK, apply_dark_stage_clear_color, configure_grid_gizmos};
+use abstract_gui_theme::configure_grid_gizmos;
 use bevy::{camera::visibility::RenderLayers, prelude::*, window::PrimaryWindow};
 use boop::{BOARD_SIZE, Coord, Piece, PieceKind, Player};
 
 use crate::grid::draw_grid;
+
+/// Warm stage around the quilt — dark enough that light HUD text still reads.
+pub const STAGE: Color = Color::srgb(0.12, 0.10, 0.08);
+/// Bed frame / darker quilt binding.
+pub const BED_FRAME: Color = Color::srgb(0.42, 0.32, 0.22);
+/// Quilt squares (warm mid-tone so charcoal pieces are not lost).
+pub const QUILT_LIGHT: Color = Color::srgb(0.84, 0.76, 0.62);
+pub const QUILT_DARK: Color = Color::srgb(0.74, 0.64, 0.50);
+pub const QUILT_STITCH: Color = Color::srgb(0.38, 0.30, 0.22);
+
+/// Human / first player: charcoal fills, cream rim + warm glow.
+pub const FIRST_KITTEN: Color = Color::srgb(0.10, 0.08, 0.07);
+pub const FIRST_CAT: Color = Color::srgb(0.26, 0.20, 0.15);
+pub const FIRST_GHOST: Color = Color::srgba(0.12, 0.10, 0.08, 0.42);
+pub const DARK_RIM: Color = Color::srgb(0.97, 0.93, 0.84);
+pub const DARK_GLOW: Color = Color::srgba(0.95, 0.78, 0.38, 0.50);
+
+/// AI / second player: ivory fills, espresso rim (readable on the linen bed).
+pub const SECOND_KITTEN: Color = Color::srgb(0.93, 0.90, 0.84);
+pub const SECOND_CAT: Color = Color::srgb(0.99, 0.97, 0.93);
+pub const LIGHT_RIM: Color = Color::srgb(0.20, 0.16, 0.12);
 
 pub const FOREGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(2);
 pub const BACKGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(1);
@@ -125,6 +146,19 @@ pub struct PieceMaterials {
     pub second_cat: Handle<ColorMaterial>,
 }
 
+/// Foreground outlines so charcoal pieces read on the quilt (and ivory ones stay edged).
+#[derive(Default, Reflect, GizmoConfigGroup)]
+pub(crate) struct PieceRimGizmos;
+
+#[derive(Component)]
+struct QuiltSquare {
+    x: u8,
+    y: u8,
+}
+
+#[derive(Component)]
+struct QuiltFrame;
+
 pub fn material_for(materials: &PieceMaterials, piece: Piece) -> Handle<ColorMaterial> {
     match (piece.player, piece.kind) {
         (Player::First, PieceKind::Kitten) => materials.first_kitten.clone(),
@@ -153,7 +187,7 @@ fn setup_graphics(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    apply_dark_stage_clear_color(&mut commands);
+    commands.insert_resource(ClearColor(STAGE));
 
     commands.spawn((
         Camera2d,
@@ -177,17 +211,70 @@ fn setup_graphics(
     ));
     let _ = fg_camera;
 
+    let cell_mesh = meshes.add(Rectangle::new(1.0, 1.0));
+    let quilt_a = materials.add(QUILT_LIGHT);
+    let quilt_b = materials.add(QUILT_DARK);
+    commands.spawn((
+        Mesh2d(cell_mesh.clone()),
+        MeshMaterial2d(materials.add(BED_FRAME)),
+        Transform::from_xyz(0.0, 0.0, -10.0),
+        FOREGROUND_RENDER_LAYER,
+        QuiltFrame,
+    ));
+    for y in 0..BOARD_SIZE as u8 {
+        for x in 0..BOARD_SIZE as u8 {
+            let fill = if (x + y) % 2 == 0 {
+                quilt_a.clone()
+            } else {
+                quilt_b.clone()
+            };
+            commands.spawn((
+                Mesh2d(cell_mesh.clone()),
+                MeshMaterial2d(fill),
+                Transform::from_xyz(0.0, 0.0, -9.0),
+                FOREGROUND_RENDER_LAYER,
+                QuiltSquare { x, y },
+            ));
+        }
+    }
+
     commands.insert_resource(PieceMaterials {
-        cat_mesh: meshes.add(Circle::new(22.0)),
-        kitten_mesh: meshes.add(Rectangle::new(18.0, 22.0)),
-        first_kitten: materials.add(DARK.player_a),
-        first_cat: materials.add(DARK.player_a_cat()),
-        first_ghost: materials.add(DARK.player_a_ghost()),
-        second_kitten: materials.add(DARK.player_b),
-        second_cat: materials.add(DARK.player_b_cat()),
+        cat_mesh: meshes.add(Circle::new(24.0)),
+        kitten_mesh: meshes.add(Rectangle::new(16.0, 22.0)),
+        first_kitten: materials.add(FIRST_KITTEN),
+        first_cat: materials.add(FIRST_CAT),
+        first_ghost: materials.add(FIRST_GHOST),
+        second_kitten: materials.add(SECOND_KITTEN),
+        second_cat: materials.add(SECOND_CAT),
     });
 
-    configure_grid_gizmos(&mut config_store, Some(BACKGROUND_RENDER_LAYER));
+    // Quilt, stitch, and piece rims all live on the piece camera so the bed is not
+    // hidden behind a layer the 2D mesh pass never draws.
+    configure_grid_gizmos(&mut config_store, Some(FOREGROUND_RENDER_LAYER));
+    let (rim_config, _) = config_store.config_mut::<PieceRimGizmos>();
+    rim_config.line.width = 4.5;
+    rim_config.render_layers = FOREGROUND_RENDER_LAYER;
+}
+
+fn sync_quilt(
+    scale_factor: Res<ScaleFactor>,
+    mut frame: Query<&mut Transform, (With<QuiltFrame>, Without<QuiltSquare>)>,
+    mut squares: Query<(&QuiltSquare, &mut Transform), Without<QuiltFrame>>,
+) {
+    if let Ok(mut transform) = frame.single_mut() {
+        let size = scale_factor.board_half_extent() * 2.0 + scale_factor.spacing * 0.28;
+        transform.scale = Vec3::new(size, size, 1.0);
+        transform.translation.z = -10.0;
+    }
+    for (cell, mut transform) in squares.iter_mut() {
+        transform.translation = scale_factor.screen_point(Coord {
+            x: cell.x,
+            y: cell.y,
+        });
+        transform.translation.z = -9.0;
+        let size = scale_factor.spacing * 0.98;
+        transform.scale = Vec3::new(size, size, 1.0);
+    }
 }
 
 fn init_scale_factor(
@@ -221,14 +308,63 @@ fn set_scale_factor_inner(
 }
 
 pub fn plugin(app: &mut App) {
-    app.insert_resource(ScaleFactor::default())
+    app.init_gizmo_group::<PieceRimGizmos>()
+        .insert_resource(ScaleFactor::default())
         .add_systems(PreStartup, setup_graphics)
         .add_systems(PostStartup, init_scale_factor)
         .add_systems(
             Update,
             (
                 set_scale_factor.in_set(ScaleFactorSet),
-                draw_grid.after(ScaleFactorSet),
+                sync_quilt.after(ScaleFactorSet),
+                draw_grid.after(ScaleFactorSet).after(sync_quilt),
             ),
         );
+}
+
+#[cfg(test)]
+fn srgb_luma(color: Color) -> f32 {
+    let c = color.to_srgba();
+    0.2126 * c.red + 0.7152 * c.green + 0.0722 * c.blue
+}
+
+#[cfg(test)]
+mod contrast_tests {
+    use super::*;
+
+    #[test]
+    fn charcoal_pieces_contrast_against_the_quilt() {
+        let quilt = srgb_luma(QUILT_LIGHT).max(srgb_luma(QUILT_DARK));
+        assert!(
+            quilt - srgb_luma(FIRST_KITTEN) > 0.45,
+            "dark kittens must sit well below the linen bed"
+        );
+        assert!(
+            quilt - srgb_luma(FIRST_CAT) > 0.30,
+            "dark cats must sit well below the linen bed"
+        );
+        assert!(
+            srgb_luma(DARK_RIM) - srgb_luma(FIRST_KITTEN) > 0.70,
+            "cream rim must separate charcoal pieces from the bed"
+        );
+    }
+
+    #[test]
+    fn ivory_pieces_contrast_against_the_quilt() {
+        let quilt = srgb_luma(QUILT_DARK);
+        assert!(
+            srgb_luma(SECOND_CAT) - quilt > 0.12,
+            "ivory cats need a lighter fill than the darker quilt square"
+        );
+        assert!(
+            srgb_luma(SECOND_KITTEN) - srgb_luma(LIGHT_RIM) > 0.55,
+            "espresso rim must outline ivory pieces"
+        );
+    }
+
+    #[test]
+    fn kitten_and_cat_fills_differ_for_each_player() {
+        assert!((srgb_luma(FIRST_CAT) - srgb_luma(FIRST_KITTEN)).abs() > 0.05);
+        assert!((srgb_luma(SECOND_CAT) - srgb_luma(SECOND_KITTEN)).abs() > 0.03);
+    }
 }

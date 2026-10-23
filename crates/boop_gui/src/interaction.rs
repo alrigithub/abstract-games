@@ -1,20 +1,21 @@
 use bevy::ecs::message::{MessageReader, MessageWriter};
+use bevy::math::Isometry3d;
 use bevy::prelude::*;
 use bevy::window::{CursorIcon, PrimaryWindow, SystemCursorIcon};
 use bevy_tweening::{
     EaseMethod, Tween, TweenAnim, TweenState, TweeningPlugin, lens::TransformPositionLens,
     lens::TransformScaleLens,
 };
-use boop::{BOARD_SIZE, Coord, Move, Piece, PieceKind};
+use boop::{BOARD_SIZE, Coord, Move, Piece, PieceKind, Player};
 
 use crate::{
     PLAYER_HUMAN,
     ai::AiSet,
     graphics::{
-        BOOP_GLIDE_ANIMATION_DURATION, FOREGROUND_RENDER_LAYER,
-        GRADUATION_SHRINK_ANIMATION_DURATION, MainCamera, OFF_BOARD_ANIMATION_DURATION,
-        PLACE_ANIMATION_DURATION, PieceMaterials, ScaleFactor, ScaleFactorSet, material_for,
-        piece_mesh,
+        BOOP_GLIDE_ANIMATION_DURATION, DARK_GLOW, DARK_RIM, FOREGROUND_RENDER_LAYER,
+        GRADUATION_SHRINK_ANIMATION_DURATION, LIGHT_RIM, MainCamera, OFF_BOARD_ANIMATION_DURATION,
+        PLACE_ANIMATION_DURATION, PieceMaterials, PieceRimGizmos, ScaleFactor, ScaleFactorSet,
+        material_for, piece_mesh,
     },
     state_update::{
         BoardResyncEvent, BoardUpdateEvent, GameState, HumanPieceChoice, InteractionState,
@@ -314,7 +315,43 @@ fn scale_board_elements(
     }
 }
 
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
+/// Cream / espresso outlines sit on top of the fills so charcoal cats stay visible
+/// on the linen bed without covering the kitten-vs-cat silhouette.
+fn draw_piece_rims(
+    mut gizmos: Gizmos<PieceRimGizmos>,
+    pieces: Query<(&BoardElement, &Transform, &InheritedVisibility)>,
+) {
+    for (element, transform, visibility) in pieces.iter() {
+        if !visibility.get() {
+            continue;
+        }
+        let iso = Isometry3d::from_translation(transform.translation);
+        let scale = transform.scale.x.max(transform.scale.y);
+        let (rim, glow) = match element.piece.player {
+            Player::First => (DARK_RIM, Some(DARK_GLOW)),
+            Player::Second => (LIGHT_RIM, None),
+        };
+        match element.piece.kind {
+            PieceKind::Cat => {
+                let radius = 24.0 * scale;
+                if let Some(glow) = glow {
+                    gizmos.circle(iso, radius * 1.16, glow);
+                    gizmos.circle(iso, radius * 1.08, glow);
+                }
+                gizmos.circle(iso, radius * 1.02, rim);
+            }
+            PieceKind::Kitten => {
+                let size = Vec2::new(16.0, 22.0) * scale;
+                if let Some(glow) = glow {
+                    gizmos.rect(iso, size * 1.22, glow);
+                    gizmos.rect(iso, size * 1.12, glow);
+                }
+                gizmos.rect(iso, size * 1.04, rim);
+            }
+        }
+    }
+}
+
 fn update_cursor(
     scale_factor: Res<ScaleFactor>,
     q_window: Query<&Window, With<PrimaryWindow>>,
@@ -494,6 +531,7 @@ pub fn plugin(app: &mut App) {
                 clear_animators,
                 move_board_elements.after(ScaleFactorSet),
                 scale_board_elements.after(ScaleFactorSet),
+                draw_piece_rims.after(ScaleFactorSet),
                 update_cursor.after(ScaleFactorSet),
                 handle_clicks.before(StateUpdateSet).ambiguous_with(AiSet),
                 set_cursor_icon,
