@@ -7,11 +7,9 @@ use tzaar::{Coord, Move, all_playable_coords};
 use crate::{
     PLAYER_HUMAN,
     ai::AiSet,
+    graphics::{FOREGROUND_RENDER_LAYER, MainCamera, ScaleFactor, ScaleFactorSet},
     pass_ui::{human_may_pass, submit_pass},
-    graphics::{
-        FOREGROUND_RENDER_LAYER, MainCamera, PieceMaterials, ScaleFactor, ScaleFactorSet,
-        material_for, piece_mesh,
-    },
+    piece_visual::{PieceDrawMaterials, spawn_stack_piece},
     state_update::{
         BoardResyncEvent, GameState, InteractionState, PlayerMoveEvent, StateUpdateSet,
     },
@@ -61,28 +59,29 @@ fn viewport_to_coord(
 fn setup_cursor(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    materials: Res<PieceMaterials>,
+    materials: Res<PieceDrawMaterials>,
 ) {
-    commands.spawn((
-        piece_mesh(
-            &mut meshes,
-            materials.human_ghost.clone(),
-            tzaar::PieceKind::Tott,
-            Visibility::Hidden,
-        ),
+    let piece = tzaar::Piece {
+        player: PLAYER_HUMAN,
+        kind: tzaar::PieceKind::Tott,
+    };
+    let entity = spawn_stack_piece(&mut commands, &mut meshes, &materials, piece, true, true);
+    commands.entity(entity).insert((
         BoardElement {
             coord: Coord::new(0, 0),
             layer: 0,
         },
         CursorElement,
+        Visibility::Hidden,
         FOREGROUND_RENDER_LAYER,
+        Transform::default(),
     ));
 }
 
 fn spawn_stack_visual(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
-    materials: &PieceMaterials,
+    materials: &PieceDrawMaterials,
     scale_factor: &ScaleFactor,
     coord: Coord,
     game_state: &GameState,
@@ -90,15 +89,16 @@ fn spawn_stack_visual(
     let Some(stack) = game_state.board().stack(coord) else {
         return;
     };
-    let z_step = 4.0 * scale_factor.factor;
+    let z_step = 5.0 * scale_factor.factor;
+    let top_index = stack.pieces().len().saturating_sub(1);
     for (i, piece) in stack.pieces().iter().enumerate() {
-        let material = material_for(materials, piece.player, piece.kind);
+        let is_top = i == top_index;
+        let entity = spawn_stack_piece(commands, meshes, materials, *piece, is_top, false);
         let mut transform = Transform::from_translation(
             scale_factor.screen_point(coord) + Vec3::new(0., 0., i as f32 * z_step),
         );
         transform.scale = Vec3::splat(scale_factor.factor);
-        commands.spawn((
-            piece_mesh(meshes, material, piece.kind, Visibility::Visible),
+        commands.entity(entity).insert((
             BoardElement {
                 coord,
                 layer: i as u8,
@@ -114,7 +114,7 @@ fn handle_resync(
     game_state: Res<GameState>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    materials: Res<PieceMaterials>,
+    materials: Res<PieceDrawMaterials>,
     scale_factor: Res<ScaleFactor>,
     q_pieces: Query<Entity, (With<BoardElement>, Without<CursorElement>)>,
 ) {
@@ -174,9 +174,10 @@ fn scale_board_elements(
 }
 
 fn legal_action_from(game_state: &GameState, from: Coord, to: Coord) -> Option<Move> {
-    game_state.legal_moves().into_iter().find(|m| {
-        matches!(m, Move::Action { from: f, to: t } if *f == from && *t == to)
-    })
+    game_state
+        .legal_moves()
+        .into_iter()
+        .find(|m| matches!(m, Move::Action { from: f, to: t } if *f == from && *t == to))
 }
 
 fn update_cursor(
@@ -187,16 +188,7 @@ fn update_cursor(
     game_state: Res<GameState>,
     selected: Res<SelectedStack>,
     mut cursor_coord: ResMut<CursorCoord>,
-    materials: Res<PieceMaterials>,
-    mut cursor: Query<
-        (
-            &mut BoardElement,
-            &mut Visibility,
-            &mut Transform,
-            &mut MeshMaterial2d<ColorMaterial>,
-        ),
-        With<CursorElement>,
-    >,
+    mut cursor: Query<(&mut BoardElement, &mut Visibility, &mut Transform), With<CursorElement>>,
 ) {
     let Ok(window) = q_window.single() else {
         return;
@@ -209,7 +201,7 @@ fn update_cursor(
         .cursor_position()
         .and_then(|pos| viewport_to_coord(pos, camera, camera_transform, &scale_factor));
 
-    let Ok((mut element, mut visibility, mut transform, mut material)) = cursor.single_mut() else {
+    let Ok((mut element, mut visibility, mut transform)) = cursor.single_mut() else {
         return;
     };
 
@@ -225,7 +217,6 @@ fn update_cursor(
         element.coord = to;
         transform.translation = scale_factor.screen_point(to);
         transform.scale = Vec3::splat(scale_factor.factor);
-        material.0 = materials.human_ghost.clone();
         return;
     }
 
@@ -329,7 +320,9 @@ pub fn plugin(app: &mut App) {
                 scale_board_elements.after(ScaleFactorSet),
                 update_cursor.after(ScaleFactorSet),
                 handle_clicks.before(StateUpdateSet).ambiguous_with(AiSet),
-                handle_pass_input.before(StateUpdateSet).ambiguous_with(AiSet),
+                handle_pass_input
+                    .before(StateUpdateSet)
+                    .ambiguous_with(AiSet),
                 set_cursor_icon,
             ),
         );

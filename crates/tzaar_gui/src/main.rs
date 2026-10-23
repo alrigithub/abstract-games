@@ -5,6 +5,7 @@ mod information_display;
 mod interaction;
 mod keyboard_control;
 mod pass_ui;
+mod piece_visual;
 mod state_update;
 
 use bevy::{
@@ -33,6 +34,7 @@ fn main() {
             ai::plugin,
             state_update::plugin,
             graphics::plugin,
+            piece_visual::plugin,
             information_display::plugin,
             interaction::plugin,
             pass_ui::plugin,

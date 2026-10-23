@@ -7,9 +7,7 @@ use bevy_async_task::TaskRunner;
 use tzaar::{GameState as RulesState, Move};
 
 use crate::graphics::ANIMATION_DURATION;
-use crate::state_update::{
-    BoardResyncEvent, GameState, InteractionState, StateUpdateSet,
-};
+use crate::state_update::{BoardResyncEvent, GameState, InteractionState, StateUpdateSet};
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AiSet;
@@ -170,8 +168,5 @@ pub fn plugin(app: &mut App) {
     #[cfg(target_arch = "wasm32")]
     app.init_resource::<WasmAiDelay>();
 
-    app.add_systems(
-        Update,
-        perform_ai_moves.in_set(AiSet).after(StateUpdateSet),
-    );
+    app.add_systems(Update, perform_ai_moves.in_set(AiSet).after(StateUpdateSet));
 }

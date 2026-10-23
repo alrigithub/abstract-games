@@ -80,12 +80,11 @@ fn handle_pass_button_click(
 }
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(Startup, setup_pass_button)
-        .add_systems(
-            Update,
-            (
-                update_pass_button_visibility,
-                handle_pass_button_click.before(StateUpdateSet),
-            ),
-        );
+    app.add_systems(Startup, setup_pass_button).add_systems(
+        Update,
+        (
+            update_pass_button_visibility,
+            handle_pass_button_click.before(StateUpdateSet),
+        ),
+    );
 }
