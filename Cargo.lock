@@ -2754,6 +2754,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "gomoku"
+version = "0.1.0"
+
+[[package]]
+name = "gomoku_ai"
+version = "0.1.0"
+dependencies = [
+ "gomoku",
+ "minimax",
+]
+
+[[package]]
 name = "gpu-alloc"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
