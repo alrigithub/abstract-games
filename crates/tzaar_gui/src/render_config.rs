@@ -16,24 +16,41 @@ pub fn window_plugins() -> WindowPlugin {
     }
 }
 
-/// Device limits that disable compute so Bevy uses CPU mesh preprocessing (2D-safe on iGPUs).
-#[cfg(all(not(target_arch = "wasm32"), target_os = "windows"))]
-fn windows_wgpu_limits() -> bevy::render::settings::WgpuLimits {
-    use bevy::render::settings::WgpuLimits;
+/// 2D Tzaar does not use 3D PBR (atmosphere, environment maps, mesh GPU preprocess bind groups).
+fn game_default_plugins() -> PluginGroupBuilder {
+    use bevy::animation::AnimationPlugin;
+    use bevy::gltf::GltfPlugin;
+    use bevy::pbr::PbrPlugin;
 
-    let mut limits = WgpuLimits::default();
-    // Iris Xe DX12 reports compute but `max_storage_buffers_per_shader_stage` is 8 while
-    // Bevy's GPU mesh preprocessing bind group needs 9 — force the CPU path instead.
-    limits.max_compute_workgroup_size_x = 0;
-    limits.max_compute_workgroup_size_y = 0;
-    limits.max_compute_workgroup_size_z = 0;
-    limits.max_compute_invocations_per_workgroup = 0;
-    limits.max_compute_workgroups_per_dimension = 0;
-    limits.max_compute_workgroup_storage_size = 0;
-    limits
+    DefaultPlugins
+        .build()
+        .disable::<PbrPlugin>()
+        .disable::<GltfPlugin>()
+        .disable::<AnimationPlugin>()
 }
 
-/// `DefaultPlugins` plus window (and on Windows native, DX12 + iGPU-safe limits).
+/// On Windows Iris Xe DX12, GPU mesh preprocessing needs 9 storage buffers but the driver limit is 8.
+#[cfg(all(not(target_arch = "wasm32"), target_os = "windows"))]
+pub struct ForceCpuGpuPreprocessingPlugin;
+
+#[cfg(all(not(target_arch = "wasm32"), target_os = "windows"))]
+impl Plugin for ForceCpuGpuPreprocessingPlugin {
+    fn finish(&self, app: &mut App) {
+        use bevy::render::{
+            batching::gpu_preprocessing::{GpuPreprocessingMode, GpuPreprocessingSupport},
+            RenderApp,
+        };
+
+        let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
+            return;
+        };
+        render_app.insert_resource(GpuPreprocessingSupport {
+            max_supported_mode: GpuPreprocessingMode::None,
+        });
+    }
+}
+
+/// `DefaultPlugins` tuned for 2D Tzaar (no PBR) plus window and optional Windows DX12 settings.
 pub fn plugin_group() -> PluginGroupBuilder {
     #[cfg(all(not(target_arch = "wasm32"), target_os = "windows"))]
     {
@@ -43,12 +60,11 @@ pub fn plugin_group() -> PluginGroupBuilder {
             settings::{RenderCreation, WgpuSettings, WgpuSettingsPriority},
         };
 
-        return DefaultPlugins
+        return game_default_plugins()
             .set(RenderPlugin {
                 render_creation: RenderCreation::Automatic(WgpuSettings {
                     backends: Some(Backends::DX12),
                     priority: WgpuSettingsPriority::Compatibility,
-                    limits: windows_wgpu_limits(),
                     ..default()
                 }),
                 ..default()
@@ -56,5 +72,5 @@ pub fn plugin_group() -> PluginGroupBuilder {
             .set(window_plugins());
     }
 
-    DefaultPlugins.set(window_plugins())
+    game_default_plugins().set(window_plugins())
 }
