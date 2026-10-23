@@ -129,7 +129,7 @@ fn perform_ai_moves(
 
     if task_runner.is_idle() && pending.0 {
         pending.0 = false;
-        let snapshot = game_state.0.clone();
+        let snapshot = game_state.snapshot();
         let search_depth = strength.0;
         task_runner.start(async move {
             std::thread::sleep(ANIMATION_DURATION);

@@ -35,6 +35,11 @@ impl GameState {
         Self(tzaar::GameState::new())
     }
 
+    /// Clone of the rules-engine state (for undo, AI snapshots, etc.).
+    pub fn snapshot(&self) -> tzaar::GameState {
+        self.0.clone()
+    }
+
     pub fn replace(&mut self, state: tzaar::GameState) {
         self.0 = state;
     }
@@ -99,7 +104,7 @@ fn state_update(
             continue;
         }
 
-        undo_history.0.push(game_state.0.clone());
+        undo_history.0.push(game_state.snapshot());
 
         if game_state.apply(player_move).is_err() {
             undo_history.0.pop();
