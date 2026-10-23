@@ -1,3 +1,4 @@
+use abstract_gui_theme::{ai_strength_button_hover, ai_strength_panel};
 use bevy::prelude::*;
 
 use crate::ai::AiPlayerStrength;
@@ -24,9 +25,7 @@ pub fn adjust_ai_strength(strength: &mut AiPlayerStrength, delta: i32) {
 }
 
 fn setup_ai_strength_ui(mut commands: Commands) {
-    let panel_bg = Color::srgb(0xf3 as f32 / 255., 0xf1 as f32 / 255., 0xec as f32 / 255.);
-    let border = Color::srgb(0x5c as f32 / 255., 0x56 as f32 / 255., 0x4c as f32 / 255.);
-    let text_color = Color::srgb(0x11 as f32 / 255., 0x11 as f32 / 255., 0x11 as f32 / 255.);
+    let (panel_bg, border, text_color) = ai_strength_panel();
 
     commands
         .spawn((
@@ -113,11 +112,7 @@ fn spawn_step_button(
                 ..default()
             },
             BorderColor::all(border),
-            BackgroundColor(Color::srgb(
-                0xe8 as f32 / 255.,
-                0xe4 as f32 / 255.,
-                0xdc as f32 / 255.,
-            )),
+            BackgroundColor(ai_strength_button_hover()),
         ))
         .with_child((
             Text::new(label),

@@ -3,6 +3,7 @@ use std::f32::consts::TAU;
 use bevy::{
     asset::RenderAssetUsages, mesh::Indices, prelude::*, render::render_resource::PrimitiveTopology,
 };
+use abstract_gui_theme::{ai_mark, ai_variant, human_variant, AI, HUMAN};
 use tzaar::{Piece, PieceKind, Player};
 
 use crate::board_entity::{BoardElement, CursorElement};
@@ -11,10 +12,6 @@ use crate::graphics::FOREGROUND_RENDER_LAYER;
 pub const R_TZAAR: f32 = 20.0;
 pub const R_TZARRA: f32 = 15.5;
 pub const R_TOTT: f32 = 11.0;
-
-pub const INK: Color = Color::srgb(0.06, 0.06, 0.07);
-pub const PAPER: Color = Color::srgb(0.96, 0.94, 0.88);
-pub const MARK_ON_DARK: Color = Color::srgb(0.92, 0.90, 0.84);
 
 const RING_SEGMENTS: u32 = 40;
 
@@ -94,12 +91,12 @@ pub fn setup_piece_assets(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     commands.insert_resource(PieceDrawMaterials {
-        fill_dark: materials.add(ColorMaterial::from(INK)),
-        fill_light: materials.add(ColorMaterial::from(PAPER)),
-        mark_dark: materials.add(ColorMaterial::from(INK)),
-        mark_light: materials.add(ColorMaterial::from(MARK_ON_DARK)),
-        stack_dark: materials.add(ColorMaterial::from(INK.with_alpha(0.88))),
-        stack_light: materials.add(ColorMaterial::from(PAPER.with_alpha(0.92))),
+        fill_dark: materials.add(ColorMaterial::from(AI)),
+        fill_light: materials.add(ColorMaterial::from(HUMAN)),
+        mark_dark: materials.add(ColorMaterial::from(human_variant(0.45))),
+        mark_light: materials.add(ColorMaterial::from(ai_mark())),
+        stack_dark: materials.add(ColorMaterial::from(ai_variant(0.88))),
+        stack_light: materials.add(ColorMaterial::from(human_variant(0.92))),
     });
 
     let fill = [

@@ -7,6 +7,7 @@ description = "Bevy GUI for Tzaar (human vs AI)."
 repository = "https://github.com/alrigithub/abstract-games"
 
 [dependencies]
+abstract_gui_theme = { path = "../abstract_gui_theme" }
 tzaar = { path = "../tzaar" }
 tzaar_ai = { path = "../tzaar_ai" }
 

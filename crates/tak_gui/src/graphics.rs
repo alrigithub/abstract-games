@@ -1,24 +1,21 @@
-use bevy::{camera::visibility::RenderLayers, prelude::*, window::PrimaryWindow};
+use abstract_gui_theme::{
+    ai_variant, apply_stage_clear_color, cap_accent, configure_grid_gizmos, human_ghost_alpha,
+    human_variant, insert_player_color_materials, BACKGROUND, FOREGROUND,
+};
+use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::{post_process::bloom::Bloom, render::view::Hdr};
 use tak::{BOARD_SIZE, Coord, Player, StoneKind};
 
 use crate::grid::draw_grid;
 
-pub const FOREGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(2);
-pub const BACKGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(1);
-
-pub const COLOR_GRID: Color = Color::hsl(0.0, 0.0, 0.25);
-pub const COLOR_BACKGROUND: Color = Color::hsl(0.0, 0.0, 0.05);
-
-pub const COLOR_HUMAN: Color = Color::srgb(0.94, 0.91, 0.82);
-pub const COLOR_HUMAN_GHOST: Color = Color::srgba(0.94, 0.91, 0.82, 0.35);
-pub const COLOR_AI: Color = Color::srgb(0.52, 0.48, 0.42);
-pub const COLOR_CAP_RING: Color = Color::srgb(0.85, 0.55, 0.2);
+pub use abstract_gui_theme::{
+    BACKGROUND as BACKGROUND_RENDER_LAYER, FOREGROUND as FOREGROUND_RENDER_LAYER,
+};
 
 pub const ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(500);
 
-/// Fraction of cell width used for hover/pick (higher = easier hits on WASM canvas).
 pub const CELL_PICK_RADIUS_FRAC: f32 = 0.62;
 
 #[derive(Component)]
@@ -31,7 +28,6 @@ pub struct ScaleFactor {
 }
 
 impl ScaleFactor {
-    /// Center of board cell `(x, y)` in world space (stones sit in squares, not on grid crossings).
     pub fn screen_point(&self, coord: Coord) -> Vec3 {
         let half = BOARD_SIZE as f32 / 2.0;
         Vec3::new(
@@ -158,7 +154,7 @@ fn setup_graphics(
     mut config_store: ResMut<GizmoConfigStore>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.insert_resource(ClearColor(COLOR_BACKGROUND));
+    apply_stage_clear_color(&mut commands);
 
     #[cfg_attr(target_arch = "wasm32", allow(unused_mut, unused_variables))]
     let mut bg_camera = commands.spawn((
@@ -167,7 +163,7 @@ fn setup_graphics(
             order: 1,
             ..default()
         },
-        BACKGROUND_RENDER_LAYER,
+        BACKGROUND,
     ));
     #[cfg(not(target_arch = "wasm32"))]
     bg_camera.insert((Hdr, Bloom::default(), Msaa::Sample8));
@@ -180,24 +176,26 @@ fn setup_graphics(
             clear_color: ClearColorConfig::None,
             ..default()
         },
-        FOREGROUND_RENDER_LAYER,
+        FOREGROUND,
         MainCamera,
     ));
     #[cfg(not(target_arch = "wasm32"))]
     fg_camera.insert((Hdr, Bloom::default(), Msaa::Sample8));
 
+    let base = insert_player_color_materials(&mut commands, &mut materials);
+
     commands.insert_resource(PieceMaterials {
-        human_flat: materials.add(COLOR_HUMAN),
-        human_wall: materials.add(Color::srgb(0.78, 0.74, 0.65)),
-        human_cap: materials.add(COLOR_CAP_RING),
-        human_ghost: materials.add(COLOR_HUMAN_GHOST),
-        ai_flat: materials.add(COLOR_AI),
-        ai_wall: materials.add(Color::srgb(0.35, 0.32, 0.28)),
-        ai_cap: materials.add(COLOR_CAP_RING),
+        human_flat: base.human.clone(),
+        human_wall: materials.add(human_variant(0.85)),
+        human_cap: materials.add(cap_accent()),
+        human_ghost: materials.add(human_ghost_alpha(0.35)),
+        human_highlighted: base.human_highlighted.clone(),
+        ai_flat: base.ai.clone(),
+        ai_wall: materials.add(ai_variant(0.75)),
+        ai_cap: materials.add(cap_accent()),
     });
 
-    let (config, _) = config_store.config_mut::<DefaultGizmoConfigGroup>();
-    config.render_layers = BACKGROUND_RENDER_LAYER;
+    configure_grid_gizmos(&mut config_store, Some(BACKGROUND));
 }
 
 pub fn set_scale_factor(

@@ -1,30 +1,26 @@
-use abstract_gui_theme::{DARK, apply_dark_stage_clear_color, configure_grid_gizmos};
-use bevy::{camera::visibility::RenderLayers, prelude::*, window::PrimaryWindow};
+use abstract_gui_theme::{apply_stage_clear_color, configure_grid_gizmos, DARK, BACKGROUND, FOREGROUND};
+use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
 use boop::{BOARD_SIZE, Coord, Piece, PieceKind, Player};
 
 use crate::grid::draw_grid;
 
-pub const FOREGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(2);
-pub const BACKGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(1);
+pub use abstract_gui_theme::{
+    BACKGROUND as BACKGROUND_RENDER_LAYER, FOREGROUND as FOREGROUND_RENDER_LAYER,
+};
 
-/// Human placement “settle” scale-in.
 pub const PLACE_ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(480);
 
-/// Boop displacement glide (cell to cell).
 pub const BOOP_GLIDE_ANIMATION_DURATION: std::time::Duration =
     std::time::Duration::from_millis(580);
 
-/// Graduation: kittens shrink off the three highlighted cells.
 pub const GRADUATION_SHRINK_ANIMATION_DURATION: std::time::Duration =
     std::time::Duration::from_millis(540);
 
-/// Piece pushed off the bed.
 pub const OFF_BOARD_ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(680);
 
-/// Pause after human move before AI search / AI piece animation.
 pub const AI_TURN_DELAY: std::time::Duration = std::time::Duration::from_millis(600);
 
-/// Fraction of cell width used for hover/pick (higher = easier cell-to-cell jumps).
 pub const CELL_PICK_RADIUS_FRAC: f32 = 0.62;
 
 #[derive(Component)]
@@ -37,7 +33,6 @@ pub struct ScaleFactor {
 }
 
 impl ScaleFactor {
-    /// Center of the board cell `(x, y)` in world space (chess-style cells, not line intersections).
     pub fn screen_point(&self, coord: Coord) -> Vec3 {
         let half = BOARD_SIZE as f32 / 2.0;
         Vec3::new(
@@ -47,12 +42,10 @@ impl ScaleFactor {
         )
     }
 
-    /// Half-width/height of the square board in world units.
     pub fn board_half_extent(&self) -> f32 {
         BOARD_SIZE as f32 / 2.0 * self.spacing
     }
 
-    /// Pick the cell whose interior contains `world`, if any.
     pub fn coord_at_world(&self, world: Vec2) -> Option<Coord> {
         let max_dist_sq = (self.spacing * CELL_PICK_RADIUS_FRAC).powi(2);
 
@@ -153,7 +146,7 @@ fn setup_graphics(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    apply_dark_stage_clear_color(&mut commands);
+    apply_stage_clear_color(&mut commands);
 
     commands.spawn((
         Camera2d,
@@ -161,9 +154,8 @@ fn setup_graphics(
             order: 1,
             ..default()
         },
-        BACKGROUND_RENDER_LAYER,
+        BACKGROUND,
     ));
-    // Plain Camera2d on native: HDR + Bloom + MSAA8 has caused hard exits on Intel Iris Xe (Windows).
 
     let fg_camera = commands.spawn((
         Camera2d,
@@ -172,7 +164,7 @@ fn setup_graphics(
             clear_color: ClearColorConfig::None,
             ..default()
         },
-        FOREGROUND_RENDER_LAYER,
+        FOREGROUND,
         MainCamera,
     ));
     let _ = fg_camera;
@@ -187,7 +179,7 @@ fn setup_graphics(
         second_cat: materials.add(DARK.player_b_cat()),
     });
 
-    configure_grid_gizmos(&mut config_store, Some(BACKGROUND_RENDER_LAYER));
+    configure_grid_gizmos(&mut config_store, Some(BACKGROUND));
 }
 
 fn init_scale_factor(

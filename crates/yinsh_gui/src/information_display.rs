@@ -1,3 +1,4 @@
+use abstract_gui_theme::STATUS_TEXT;
 use bevy::prelude::*;
 
 use yinsh::Player;
@@ -19,7 +20,7 @@ fn setup_information_display(mut commands: Commands) {
             font_size: 18.0,
             ..default()
         },
-        TextColor(Color::hsl(0., 0., 0.3)),
+        TextColor(STATUS_TEXT),
         Node {
             position_type: PositionType::Absolute,
             top: Val::Px(10.),

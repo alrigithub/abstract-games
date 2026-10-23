@@ -10,4 +10,9 @@ repository = "https://github.com/alrigithub/abstract-games"
 bevy = { version = "0.17", default-features = false, features = [
     "bevy_gizmos",
     "bevy_render",
+    "bevy_sprite",
+    "bevy_sprite_render",
+    "bevy_color",
+    "bevy_mesh",
+    "bevy_asset",
 ] }

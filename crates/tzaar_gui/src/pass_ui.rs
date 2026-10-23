@@ -1,3 +1,4 @@
+use abstract_gui_theme::pass_panel;
 use bevy::ecs::message::MessageWriter;
 use bevy::prelude::*;
 use tzaar::Move;
@@ -21,6 +22,7 @@ pub fn submit_pass(player_move_events: &mut MessageWriter<PlayerMoveEvent>) {
 }
 
 fn setup_pass_button(mut commands: Commands) {
+    let (bg, border, text) = pass_panel();
     commands
         .spawn((
             Node {
@@ -31,8 +33,8 @@ fn setup_pass_button(mut commands: Commands) {
                 border: UiRect::all(Val::Px(1.)),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.12, 0.12, 0.16, 0.95)),
-            BorderColor::all(Color::srgb(0.55, 0.52, 0.45)),
+            BackgroundColor(bg),
+            BorderColor::all(border),
             Visibility::Hidden,
             PassButtonRoot,
             Button,
@@ -44,7 +46,7 @@ fn setup_pass_button(mut commands: Commands) {
                 font_size: 15.0,
                 ..default()
             },
-            TextColor(Color::srgb(0.95, 0.92, 0.85)),
+            TextColor(text),
         ));
 }
 

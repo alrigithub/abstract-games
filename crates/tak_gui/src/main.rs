@@ -3,6 +3,7 @@ mod graphics;
 mod grid;
 mod interaction;
 mod keyboard_control;
+mod selection_glow;
 mod state_update;
 
 use bevy::{
@@ -32,6 +33,7 @@ fn main() {
             ai::plugin,
             graphics::plugin,
             interaction::plugin,
+            selection_glow::plugin,
             keyboard_control::plugin,
         ))
         .run();

@@ -8,6 +8,7 @@ mod keyboard_control;
 mod pass_ui;
 mod piece_visual;
 mod render_config;
+mod selection_glow;
 mod state_update;
 
 use bevy::prelude::*;
@@ -25,6 +26,7 @@ fn main() {
         piece_visual::plugin,
         information_display::plugin,
         interaction::plugin,
+        selection_glow::plugin,
         pass_ui::plugin,
         keyboard_control::plugin,
     ));

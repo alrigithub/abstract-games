@@ -93,7 +93,7 @@ fn spawn_pool_lines(commands: &mut Commands, root: Entity, title: &str, pool: &P
                 font_size: 16.0,
                 ..default()
             },
-            TextColor(Color::srgb(0.95, 0.92, 0.85)),
+            TextColor(abstract_gui_theme::POOL_TITLE),
             PoolLineText,
         ));
         // ASCII stack markers only — default Bevy UI font on WASM lacks many Unicode symbols.
@@ -109,7 +109,7 @@ fn spawn_pool_lines(commands: &mut Commands, root: Entity, title: &str, pool: &P
                     font_size: 14.0,
                     ..default()
                 },
-                TextColor(Color::srgb(0.82, 0.84, 0.88)),
+                TextColor(abstract_gui_theme::POOL_LABEL),
                 PoolLineText,
             ));
         }
