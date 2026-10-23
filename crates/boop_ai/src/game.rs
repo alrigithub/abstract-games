@@ -1,4 +1,4 @@
-use boop::{Coord, GameState, Move, BOARD_SIZE};
+use boop::{BOARD_SIZE, Coord, GameState, Move, PieceKind, TurnMode};
 use minimax::{Game, Winner};
 
 pub struct BoopGame;
@@ -11,9 +11,15 @@ impl Game for BoopGame {
         moves.extend(ordered_moves(state));
     }
 
+    /// Apply a move and, if the placement left a graduation choice pending, resolve it
+    /// greedily so that consecutive search plies always alternate players (negamax assumes
+    /// this). The root-level choice is still searched properly via `legal_moves`.
     fn apply(state: &mut Self::S, m: Self::M) -> Option<Self::S> {
         let mut new_state = state.clone();
         new_state.apply(m).ok()?;
+        if let Some(line) = greedy_graduation_choice(&new_state) {
+            new_state.apply(Move::Graduate { line }).ok()?;
+        }
         Some(new_state)
     }
 
@@ -24,6 +30,23 @@ impl Game for BoopGame {
             None => None,
         }
     }
+}
+
+/// Prefer the candidate line that graduates the most kittens (cats only return to the pool).
+pub fn greedy_graduation_choice(state: &GameState) -> Option<[Coord; 3]> {
+    let TurnMode::ChooseGraduation(lines) = state.turn_mode() else {
+        return None;
+    };
+    lines.into_iter().max_by_key(|line| {
+        line.iter()
+            .filter(|coord| {
+                state
+                    .board()
+                    .get(**coord)
+                    .is_some_and(|p| p.kind == PieceKind::Kitten)
+            })
+            .count()
+    })
 }
 
 fn ordered_moves(state: &GameState) -> Vec<Move> {
