@@ -221,9 +221,11 @@ pub fn board_sync_events(
             {
                 events.push(BoardUpdateEvent::Spawn { coord, piece });
             }
+            // Immediate remove: shrink tweens were leaving stale meshes on WASM when
+            // graduation completed; line overlay still shows the three cells.
             events.push(BoardUpdateEvent::Remove {
                 coord,
-                shrink: true,
+                shrink: false,
             });
         }
     }
@@ -283,7 +285,7 @@ mod tests {
         let grad_removals: HashSet<Coord> = events
             .iter()
             .filter_map(|event| match event {
-                BoardUpdateEvent::Remove { coord, shrink: true } => Some(*coord),
+                BoardUpdateEvent::Remove { coord, .. } => Some(*coord),
                 _ => None,
             })
             .collect();
@@ -321,6 +323,7 @@ pub fn restore_board_from_game_state(
     let _ = game_state;
 }
 
+#[allow(clippy::too_many_arguments)]
 fn state_update(
     mut player_move_events: MessageReader<PlayerMoveEvent>,
     mut game_state: ResMut<GameState>,

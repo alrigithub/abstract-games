@@ -222,6 +222,8 @@ fn handle_board_updates(
                                 DespawnWhenTweenDone,
                             ));
                             transform.scale = Vec3::splat(scale);
+                        } else {
+                            commands.entity(entity).despawn();
                         }
                     } else {
                         commands.entity(entity).despawn();
@@ -277,6 +279,27 @@ fn handle_resync(
     }
 }
 
+/// Drop board meshes that no longer match authoritative state (e.g. missed graduation despawn).
+#[allow(clippy::type_complexity)]
+fn enforce_board_visual_consistency(
+    game_state: Res<GameState>,
+    q: Query<
+        (Entity, &BoardElement),
+        (
+            Without<CursorElement>,
+            Without<TweenAnim>,
+            Without<DespawnWhenTweenDone>,
+        ),
+    >,
+    mut commands: Commands,
+) {
+    for (entity, element) in q.iter() {
+        if game_state.board().get(element.coord) != Some(element.piece) {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
 fn clear_animators(
     q: Query<(Entity, &TweenAnim, Option<&DespawnWhenTweenDone>)>,
     mut commands: Commands,
@@ -327,6 +350,7 @@ fn update_cursor(
             &mut Visibility,
             &mut Transform,
             &mut MeshMaterial2d<ColorMaterial>,
+            &mut Mesh2d,
         ),
         With<CursorElement>,
     >,
@@ -342,7 +366,9 @@ fn update_cursor(
         .cursor_position()
         .and_then(|pos| viewport_to_coord(pos, camera, camera_transform, &scale_factor));
 
-    let Ok((mut element, mut visibility, mut transform, mut material)) = cursor.single_mut() else {
+    let Ok((mut element, mut visibility, mut transform, mut material, mut mesh)) =
+        cursor.single_mut()
+    else {
         return;
     };
 
@@ -355,7 +381,17 @@ fn update_cursor(
         return;
     }
 
-    let kind = selected_piece.0;
+    let pool = game_state.pool(PLAYER_HUMAN);
+    let mut kind = selected_piece.0;
+    if kind == PieceKind::Cat && pool.cats_in_hand == 0 {
+        kind = PieceKind::Kitten;
+    }
+
+    mesh.0 = if kind == PieceKind::Cat {
+        materials.cat_mesh.clone()
+    } else {
+        materials.kitten_mesh.clone()
+    };
 
     if matches!(*interaction_state, InteractionState::HumanFullBed) {
         let Some(coord) = cursor_coord.0 else {
@@ -380,6 +416,11 @@ fn update_cursor(
         *visibility = Visibility::Visible;
         element.coord = coord;
         element.piece = piece;
+        mesh.0 = if piece.kind == PieceKind::Cat {
+            materials.cat_mesh.clone()
+        } else {
+            materials.kitten_mesh.clone()
+        };
         transform.translation = scale_factor.screen_point(coord);
         transform.scale = Vec3::splat(scale_factor.factor * 1.08);
         material.0 = materials.first_ghost.clone();
@@ -397,8 +438,7 @@ fn update_cursor(
         };
         transform.translation = scale_factor.screen_point(coord);
         transform.scale = Vec3::splat(scale_factor.factor);
-        material.0 = if kind == PieceKind::Cat && game_state.pool(PLAYER_HUMAN).cats_in_hand > 0
-        {
+        material.0 = if kind == PieceKind::Cat {
             materials.first_cat.clone()
         } else {
             materials.first_ghost.clone()
@@ -469,6 +509,7 @@ pub fn plugin(app: &mut App) {
                 handle_board_updates
                     .after(StateUpdateSet)
                     .before(clear_animators),
+                enforce_board_visual_consistency.after(handle_board_updates),
                 clear_animators,
                 move_board_elements.after(ScaleFactorSet),
                 scale_board_elements.after(ScaleFactorSet),
