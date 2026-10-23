@@ -1,0 +1,22 @@
+[package]
+name = "tak_gui"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "Bevy GUI for Tak (human vs AI, 5×5)."
+repository = "https://github.com/alrigithub/abstract-games"
+
+[dependencies]
+tak = { path = "../tak" }
+tak_ai = { path = "../tak_ai" }
+
+bevy = { version = "0.17" }
+bevy_tweening = "0.14"
+bevy_async_task = "0.11"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { version = "0.3", features = ["futures"] }
+
+[[bin]]
+name = "tak"
+path = "src/main.rs"

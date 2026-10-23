@@ -1650,6 +1650,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "boop"
+version = "0.1.0"
+
+[[package]]
+name = "boop_ai"
+version = "0.1.0"
+dependencies = [
+ "boop",
+ "minimax",
+]
+
+[[package]]
+name = "boop_gui"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_async_task",
+ "bevy_tweening",
+ "boop",
+ "boop_ai",
+ "gloo-timers 0.3.0",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2751,6 +2775,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c4ee00b289aba7a9e5306d57c2d05499b2e5dc427f84ac708bd2c090212cf3e"
 dependencies = [
  "gl_generator",
+]
+
+[[package]]
+name = "gomoku"
+version = "0.1.0"
+
+[[package]]
+name = "gomoku_ai"
+version = "0.1.0"
+dependencies = [
+ "gomoku",
+ "minimax",
+]
+
+[[package]]
+name = "gomoku_gui"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_async_task",
+ "bevy_tweening",
+ "gloo-timers 0.3.0",
+ "gomoku",
+ "gomoku_ai",
 ]
 
 [[package]]
@@ -4687,6 +4735,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "tak"
+version = "0.1.0"
+
+[[package]]
+name = "tak_ai"
+version = "0.1.0"
+dependencies = [
+ "minimax",
+ "tak",
+]
+
+[[package]]
+name = "tak_gui"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_async_task",
+ "bevy_tweening",
+ "gloo-timers 0.3.0",
+ "tak",
+ "tak_ai",
+]
+
+[[package]]
 name = "termcolor"
 version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4961,6 +5033,30 @@ name = "typewit"
 version = "1.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8c1ae7cc0fdb8b842d65d127cb981574b0d2b249b74d1c7a2986863dc134f71"
+
+[[package]]
+name = "tzaar"
+version = "0.1.0"
+
+[[package]]
+name = "tzaar_ai"
+version = "0.1.0"
+dependencies = [
+ "minimax",
+ "tzaar",
+]
+
+[[package]]
+name = "tzaar_gui"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_async_task",
+ "bevy_tweening",
+ "gloo-timers 0.3.0",
+ "tzaar",
+ "tzaar_ai",
+]
 
 [[package]]
 name = "unicode-bidi"

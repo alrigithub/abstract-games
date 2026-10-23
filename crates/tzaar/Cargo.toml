@@ -1,0 +1,9 @@
+[package]
+name = "tzaar"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "Pure rules for Tzaar (official hex board, capture + stack turns)."
+repository = "https://github.com/alrigithub/abstract-games"
+
+[dependencies]

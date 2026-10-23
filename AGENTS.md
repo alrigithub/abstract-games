@@ -10,11 +10,12 @@ Not the BimSavage Next/Pixi shell. Not the abandoned Vite+Canvas2D hub.
 
 ## Games (priority)
 
-1. Yinsh — upstream crates under `crates/yinsh*`
-2. Gomoku — `crates/gomoku*` (planned)
-3. Boop — `crates/boop*` (planned)
+1. Yinsh — `crates/yinsh*`
+2. Gomoku — `crates/gomoku*`
+3. Boop — `crates/boop*`
+4. Tak — `crates/tak*` (5×5 v1)
 
-Later: Tak, Tzaar (out of scope until asked)
+Later: Tzaar (out of scope until asked)
 
 ## Workspace layout
 
@@ -30,15 +31,51 @@ Each game is three crates (four if eval exists):
 ## Commands
 
 ```bash
-cargo test
+cargo test --workspace
 cargo clippy --workspace
 cargo fmt --check
-cargo run -p yinsh_gui          # Yinsh desktop (binary: yinsh)
-cargo run -p gomoku_gui         # Gomoku desktop (when added)
-cargo run -p boop_gui           # Boop desktop (when added)
+cargo run -p yinsh_gui          # desktop binary: yinsh
+cargo run -p gomoku_gui         # desktop binary: gomoku
+cargo run -p boop_gui           # desktop binary: boop
+cargo run -p tak_gui            # desktop binary: tak
 cargo run -p yinsh_ai_eval --release
-# WASM: follow deploy.sh / web section below
 ```
+
+## Web / WASM
+
+Hub: `web/index.html` → `web/yinsh/`, `web/gomoku/`, `web/boop/`, `web/tak/`.
+
+**Prerequisites:** `rustup target add wasm32-unknown-unknown`, and `wasm-bindgen-cli` **0.2.106** (must match `Cargo.lock`).
+
+```bash
+# One-shot (recommended)
+./scripts/build_web.sh
+# or
+./deploy.sh
+
+# Manual equivalent
+export RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
+cargo build --profile wasm-release --target wasm32-unknown-unknown \
+  -p yinsh_gui -p gomoku_gui -p boop_gui -p tak_gui
+wasm-bindgen --out-dir web/yinsh --target web --no-typescript \
+  target/wasm32-unknown-unknown/wasm-release/yinsh.wasm
+wasm-bindgen --out-dir web/gomoku --target web --no-typescript \
+  target/wasm32-unknown-unknown/wasm-release/gomoku.wasm
+wasm-bindgen --out-dir web/boop --target web --no-typescript \
+  target/wasm32-unknown-unknown/wasm-release/boop.wasm
+wasm-bindgen --out-dir web/tak --target web --no-typescript \
+  target/wasm32-unknown-unknown/wasm-release/tak.wasm
+# Optional: wasm-opt -Os web/{game}/{game}_bg.wasm -o web/{game}/{game}_bg.wasm
+```
+
+Serve locally:
+
+```bash
+python3 -m http.server 8080 --directory web
+# open http://localhost:8080/
+```
+
+Generated artifacts (`*_bg.wasm`, `*.js` in game folders) are gitignored; CI compiles WASM but does not commit bundles.
 
 ## Patterns to copy (from yinsh)
 
@@ -47,10 +84,6 @@ cargo run -p yinsh_ai_eval --release
 - AI via `bevy_async_task` (never block the render loop)
 - `bevy_tweening` ~500ms piece motion
 - YAML fixtures for AI / midgame tests where useful
-
-## Web / WASM
-
-Build and deploy follow upstream `deploy.sh` for Yinsh. When Gomoku and Boop GUIs exist, extend the script so each `*_gui` crate emits into `web/{game}/`. Hub entry point: `web/index.html`.
 
 ## Do not
 

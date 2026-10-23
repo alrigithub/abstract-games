@@ -1,0 +1,11 @@
+[package]
+name = "boop_ai"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "Minimax AI for Boop."
+repository = "https://github.com/alrigithub/abstract-games"
+
+[dependencies]
+boop = { path = "../boop" }
+minimax = "0.5.3"
