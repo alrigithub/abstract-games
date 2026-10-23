@@ -1,5 +1,12 @@
 use bevy::app::PluginGroupBuilder;
 use bevy::prelude::*;
+use bevy::render::{
+    RenderApp, RenderPlugin,
+    batching::gpu_preprocessing::{GpuPreprocessingMode, GpuPreprocessingSupport},
+    settings::{Backends, RenderCreation, WgpuSettings, WgpuSettingsPriority},
+};
+
+const WINDOWS_NATIVE: bool = cfg!(all(not(target_arch = "wasm32"), target_os = "windows"));
 
 /// Window + rendering defaults shared by native and WASM entrypoints.
 pub fn window_plugins() -> WindowPlugin {
@@ -29,18 +36,14 @@ fn game_default_plugins() -> PluginGroupBuilder {
         .disable::<AnimationPlugin>()
 }
 
-/// On Windows Iris Xe DX12, GPU mesh preprocessing needs 9 storage buffers but the driver limit is 8.
-#[cfg(all(not(target_arch = "wasm32"), target_os = "windows"))]
+/// Forces CPU mesh preprocessing. The 2D pipeline never uses the GPU path, and on
+/// Intel Iris Xe (DX12) the GPU path needs 9 compute storage buffers but the limit is 8.
 pub struct ForceCpuGpuPreprocessingPlugin;
 
-#[cfg(all(not(target_arch = "wasm32"), target_os = "windows"))]
 impl Plugin for ForceCpuGpuPreprocessingPlugin {
-    fn finish(&self, app: &mut App) {
-        use bevy::render::{
-            batching::gpu_preprocessing::{GpuPreprocessingMode, GpuPreprocessingSupport},
-            RenderApp,
-        };
+    fn build(&self, _app: &mut App) {}
 
+    fn finish(&self, app: &mut App) {
         let Some(render_app) = app.get_sub_app_mut(RenderApp) else {
             return;
         };
@@ -50,27 +53,25 @@ impl Plugin for ForceCpuGpuPreprocessingPlugin {
     }
 }
 
-/// `DefaultPlugins` tuned for 2D Tzaar (no PBR) plus window and optional Windows DX12 settings.
-pub fn plugin_group() -> PluginGroupBuilder {
-    #[cfg(all(not(target_arch = "wasm32"), target_os = "windows"))]
-    {
-        use bevy::render::settings::Backends;
-        use bevy::render::{
-            RenderPlugin,
-            settings::{RenderCreation, WgpuSettings, WgpuSettingsPriority},
-        };
-
-        return game_default_plugins()
-            .set(RenderPlugin {
-                render_creation: RenderCreation::Automatic(WgpuSettings {
-                    backends: Some(Backends::DX12),
-                    priority: WgpuSettingsPriority::Compatibility,
-                    ..default()
-                }),
-                ..default()
-            })
-            .set(window_plugins());
+/// Windows native prefers DX12 with WebGPU-compatible limits (Iris Xe Vulkan hangs after
+/// first present); every other platform keeps Bevy's defaults.
+fn render_plugin() -> RenderPlugin {
+    if !WINDOWS_NATIVE {
+        return RenderPlugin::default();
     }
+    RenderPlugin {
+        render_creation: RenderCreation::Automatic(WgpuSettings {
+            backends: Some(Backends::DX12),
+            priority: WgpuSettingsPriority::Compatibility,
+            ..default()
+        }),
+        ..default()
+    }
+}
 
-    game_default_plugins().set(window_plugins())
+/// `DefaultPlugins` tuned for 2D Tzaar (no PBR) plus window and platform render settings.
+pub fn plugin_group() -> PluginGroupBuilder {
+    game_default_plugins()
+        .set(render_plugin())
+        .set(window_plugins())
 }
