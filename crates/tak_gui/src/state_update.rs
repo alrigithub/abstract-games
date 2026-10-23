@@ -48,11 +48,14 @@ pub enum InteractionState {
     HumanTurn,
     WaitForAI,
     Winner(Player),
+    Draw,
 }
 
 impl InteractionState {
     pub fn from_game_state(game_state: &tak::GameState) -> Self {
-        if let Some(winner) = game_state.winner() {
+        if game_state.is_draw() {
+            Self::Draw
+        } else if let Some(winner) = game_state.winner() {
             Self::Winner(winner)
         } else if game_state.to_move() == PLAYER_AI {
             Self::WaitForAI
@@ -104,9 +107,7 @@ fn state_update(
 
         board_resync_events.write(BoardResyncEvent);
 
-        if game_state.winner().is_none()
-            && game_state.to_move() == PLAYER_AI
-            && player == PLAYER_HUMAN
+        if !game_state.is_finished() && game_state.to_move() == PLAYER_AI && player == PLAYER_HUMAN
         {
             ai_computation_events.write(AiComputationEvent::Start(
                 PLAYER_AI,

@@ -263,6 +263,221 @@ fn slide_to_adjacent_empty_after_opening() {
 }
 
 #[test]
+fn road_win_north_south() {
+    let mut state = GameState::new();
+    state.set_placement_phase(false);
+    for y in 0..BOARD_SIZE as u8 {
+        state.set_stack(
+            Coord { x: 2, y },
+            vec![Stone {
+                owner: Player::First,
+                kind: StoneKind::Flat,
+            }],
+        );
+    }
+    assert_eq!(
+        tak::check_road_win(state.board(), Player::First),
+        Some(Player::First)
+    );
+}
+
+#[test]
+fn capstone_top_counts_for_road_not_flat_score() {
+    let mut state = GameState::new();
+    state.set_placement_phase(false);
+    for x in 0..BOARD_SIZE as u8 {
+        let kind = if x == 2 {
+            StoneKind::Cap
+        } else {
+            StoneKind::Flat
+        };
+        state.set_stack(
+            Coord { x, y: 2 },
+            vec![Stone {
+                owner: Player::First,
+                kind,
+            }],
+        );
+    }
+    assert_eq!(
+        tak::check_road_win(state.board(), Player::First),
+        Some(Player::First)
+    );
+    let cap = Stone {
+        owner: Player::First,
+        kind: StoneKind::Cap,
+    };
+    assert!(cap.counts_for_road());
+    assert!(!cap.counts_for_flat_scoring());
+}
+
+#[test]
+fn road_win_on_slide_completes_path() {
+    let mut state = GameState::new();
+    state.set_placement_phase(false);
+    state.set_to_move(Player::First);
+    for x in 0..3 {
+        state.set_stack(
+            Coord { x, y: 2 },
+            vec![Stone {
+                owner: Player::First,
+                kind: StoneKind::Flat,
+            }],
+        );
+    }
+    let from = Coord { x: 3, y: 2 };
+    state.set_stack(
+        from,
+        vec![
+            Stone {
+                owner: Player::First,
+                kind: StoneKind::Flat,
+            },
+            Stone {
+                owner: Player::First,
+                kind: StoneKind::Flat,
+            },
+        ],
+    );
+    let m = Move::slide(from, Direction::East, 1, &[1]);
+    state.apply(m).unwrap();
+    assert_eq!(state.winner(), Some(Player::First));
+}
+
+#[test]
+fn flat_scoring_when_one_player_runs_out_of_flats() {
+    let mut state = GameState::new();
+    state.set_placement_phase(false);
+    state.set_to_move(Player::First);
+    state.set_reserve(Player::First, tak::Reserve { flats: 0, cap: 1 });
+    state.set_stack(
+        Coord::new(0, 0),
+        vec![Stone {
+            owner: Player::First,
+            kind: StoneKind::Flat,
+        }],
+    );
+    state.set_stack(
+        Coord::new(1, 0),
+        vec![Stone {
+            owner: Player::First,
+            kind: StoneKind::Flat,
+        }],
+    );
+    state.set_stack(
+        Coord::new(4, 4),
+        vec![Stone {
+            owner: Player::Second,
+            kind: StoneKind::Flat,
+        }],
+    );
+    assert!(tak::flat_scoring_triggered(
+        state.board(),
+        &[state.reserve(Player::First), state.reserve(Player::Second),]
+    ));
+    state
+        .apply(Move::Place {
+            coord: Coord::new(2, 2),
+            kind: StoneKind::Cap,
+        })
+        .unwrap();
+    assert!(state.is_finished());
+    assert_eq!(state.winner(), Some(Player::First));
+}
+
+#[test]
+fn flat_win_tie_is_draw() {
+    let mut state = GameState::new();
+    state.set_placement_phase(false);
+    for y in 0..BOARD_SIZE as u8 {
+        for x in 0..BOARD_SIZE as u8 {
+            if (x + y) % 2 == 0 {
+                if x == 4 && y == 4 {
+                    continue;
+                }
+                state.set_stack(
+                    Coord { x, y },
+                    vec![Stone {
+                        owner: Player::First,
+                        kind: StoneKind::Flat,
+                    }],
+                );
+            } else {
+                state.set_stack(
+                    Coord { x, y },
+                    vec![Stone {
+                        owner: Player::Second,
+                        kind: StoneKind::Flat,
+                    }],
+                );
+            }
+        }
+    }
+    state.set_reserve(Player::First, tak::Reserve { flats: 0, cap: 1 });
+    state.set_reserve(Player::Second, tak::Reserve { flats: 1, cap: 1 });
+    state.set_to_move(Player::Second);
+    assert_eq!(
+        tak::check_flat_win(
+            state.board(),
+            &[state.reserve(Player::First), state.reserve(Player::Second),]
+        ),
+        None
+    );
+    state
+        .apply(Move::Place {
+            coord: Coord::new(4, 4),
+            kind: StoneKind::Wall,
+        })
+        .unwrap();
+    assert!(state.is_draw());
+    assert_eq!(state.winner(), None);
+}
+
+#[test]
+fn road_wins_before_flat_when_both_end_conditions() {
+    let mut state = GameState::new();
+    state.set_placement_phase(false);
+    state.set_to_move(Player::First);
+    for y in 0..BOARD_SIZE as u8 {
+        for x in 0..BOARD_SIZE as u8 {
+            if y == 2 {
+                continue;
+            }
+            state.set_stack(
+                Coord { x, y },
+                vec![Stone {
+                    owner: if (x + y) % 2 == 0 {
+                        Player::First
+                    } else {
+                        Player::Second
+                    },
+                    kind: StoneKind::Flat,
+                }],
+            );
+        }
+    }
+    for x in 0..4 {
+        state.set_stack(
+            Coord { x, y: 2 },
+            vec![Stone {
+                owner: Player::First,
+                kind: StoneKind::Flat,
+            }],
+        );
+    }
+    state.set_reserve(Player::First, tak::Reserve { flats: 1, cap: 1 });
+    state.set_reserve(Player::Second, tak::Reserve { flats: 0, cap: 1 });
+    state
+        .apply(Move::Place {
+            coord: Coord { x: 4, y: 2 },
+            kind: StoneKind::Flat,
+        })
+        .unwrap();
+    assert_eq!(state.winner(), Some(Player::First));
+    assert!(!state.is_draw());
+}
+
+#[test]
 fn flat_win_when_board_full() {
     let mut state = GameState::new();
     state.set_placement_phase(false);
