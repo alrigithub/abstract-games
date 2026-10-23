@@ -13,8 +13,8 @@ use crate::{
     graphics::{
         BOOP_GLIDE_ANIMATION_DURATION, FOREGROUND_RENDER_LAYER,
         GRADUATION_SHRINK_ANIMATION_DURATION, MainCamera, OFF_BOARD_ANIMATION_DURATION,
-        PLACE_ANIMATION_DURATION, PieceMaterials, ScaleFactor, ScaleFactorSet, material_for,
-        piece_mesh,
+        PLACE_ANIMATION_DURATION, PieceHalo, PieceMaterials, ScaleFactor, ScaleFactorSet,
+        attach_piece_halos, material_for, piece_mesh, retarget_piece_halos,
     },
     state_update::{
         BoardResyncEvent, BoardUpdateEvent, GameState, HumanPieceChoice, InteractionState,
@@ -68,7 +68,7 @@ fn setup_cursor(mut commands: Commands, materials: Res<PieceMaterials>) {
         player: PLAYER_HUMAN,
         kind: PieceKind::Kitten,
     };
-    commands.spawn((
+    let mut entity = commands.spawn((
         piece_mesh(
             &materials,
             materials.first_ghost.clone(),
@@ -83,6 +83,7 @@ fn setup_cursor(mut commands: Commands, materials: Res<PieceMaterials>) {
         FOREGROUND_RENDER_LAYER,
         Transform::default(),
     ));
+    attach_piece_halos(&mut entity, &materials, ghost);
 }
 
 fn off_board_glide_target(scale_factor: &ScaleFactor, from: Coord, push: (i8, i8)) -> Vec3 {
@@ -126,6 +127,7 @@ fn spawn_piece(
             },
         )));
     }
+    attach_piece_halos(&mut entity, materials, piece);
 }
 
 fn handle_board_updates(
@@ -326,6 +328,7 @@ fn update_cursor(
     materials: Res<PieceMaterials>,
     mut cursor: Query<
         (
+            Entity,
             &mut BoardElement,
             &mut Visibility,
             &mut Transform,
@@ -333,6 +336,11 @@ fn update_cursor(
             &mut Mesh2d,
         ),
         With<CursorElement>,
+    >,
+    children_q: Query<&Children>,
+    mut halo_q: Query<
+        (&PieceHalo, &mut Mesh2d, &mut MeshMaterial2d<ColorMaterial>),
+        Without<CursorElement>,
     >,
 ) {
     let Ok(window) = q_window.single() else {
@@ -346,7 +354,7 @@ fn update_cursor(
         .cursor_position()
         .and_then(|pos| viewport_to_coord(pos, camera, camera_transform, &scale_factor));
 
-    let Ok((mut element, mut visibility, mut transform, mut material, mut mesh)) =
+    let Ok((cursor_entity, mut element, mut visibility, mut transform, mut material, mut mesh)) =
         cursor.single_mut()
     else {
         return;
@@ -403,6 +411,12 @@ fn update_cursor(
         transform.translation = scale_factor.screen_point(coord);
         transform.scale = Vec3::splat(scale_factor.factor * 1.08);
         material.0 = materials.first_ghost.clone();
+        retarget_piece_halos(
+            children_q.get(cursor_entity).ok(),
+            &mut halo_q,
+            &materials,
+            piece,
+        );
         return;
     }
 
@@ -422,6 +436,12 @@ fn update_cursor(
         } else {
             materials.first_ghost.clone()
         };
+        retarget_piece_halos(
+            children_q.get(cursor_entity).ok(),
+            &mut halo_q,
+            &materials,
+            element.piece,
+        );
         return;
     }
 

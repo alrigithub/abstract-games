@@ -1,8 +1,34 @@
-use abstract_gui_theme::{DARK, apply_dark_stage_clear_color, configure_grid_gizmos};
-use bevy::{camera::visibility::RenderLayers, prelude::*, window::PrimaryWindow};
+use abstract_gui_theme::configure_grid_gizmos;
+use bevy::{
+    camera::visibility::RenderLayers,
+    ecs::{query::QueryFilter, system::EntityCommands},
+    prelude::*,
+    window::PrimaryWindow,
+};
 use boop::{BOARD_SIZE, Coord, Piece, PieceKind, Player};
 
 use crate::grid::draw_grid;
+
+/// Warm stage around the quilt — dark enough that light HUD text still reads.
+pub const STAGE: Color = Color::srgb(0.12, 0.10, 0.08);
+/// Bed frame / darker quilt binding.
+pub const BED_FRAME: Color = Color::srgb(0.42, 0.32, 0.22);
+/// Quilt squares (warm mid-tone so charcoal pieces are not lost).
+pub const QUILT_LIGHT: Color = Color::srgb(0.84, 0.76, 0.62);
+pub const QUILT_DARK: Color = Color::srgb(0.74, 0.64, 0.50);
+pub const QUILT_STITCH: Color = Color::srgb(0.38, 0.30, 0.22);
+
+/// Human / first player: charcoal fills, cream rim + warm glow.
+pub const FIRST_KITTEN: Color = Color::srgb(0.10, 0.08, 0.07);
+pub const FIRST_CAT: Color = Color::srgb(0.26, 0.20, 0.15);
+pub const FIRST_GHOST: Color = Color::srgba(0.12, 0.10, 0.08, 0.42);
+pub const DARK_RIM: Color = Color::srgb(0.97, 0.93, 0.84);
+pub const DARK_GLOW: Color = Color::srgba(0.95, 0.78, 0.38, 0.50);
+
+/// AI / second player: ivory fills, espresso rim (readable on the linen bed).
+pub const SECOND_KITTEN: Color = Color::srgb(0.93, 0.90, 0.84);
+pub const SECOND_CAT: Color = Color::srgb(0.99, 0.97, 0.93);
+pub const LIGHT_RIM: Color = Color::srgb(0.20, 0.16, 0.12);
 
 pub const FOREGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(2);
 pub const BACKGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(1);
@@ -123,7 +149,25 @@ pub struct PieceMaterials {
     pub first_ghost: Handle<ColorMaterial>,
     pub second_kitten: Handle<ColorMaterial>,
     pub second_cat: Handle<ColorMaterial>,
+    pub dark_rim: Handle<ColorMaterial>,
+    pub dark_glow: Handle<ColorMaterial>,
+    pub light_rim: Handle<ColorMaterial>,
 }
+
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+pub enum PieceHalo {
+    Rim,
+    Glow,
+}
+
+#[derive(Component)]
+struct QuiltSquare {
+    x: u8,
+    y: u8,
+}
+
+#[derive(Component)]
+struct QuiltFrame;
 
 pub fn material_for(materials: &PieceMaterials, piece: Piece) -> Handle<ColorMaterial> {
     match (piece.player, piece.kind) {
@@ -147,13 +191,81 @@ pub fn piece_mesh(
     (Mesh2d(mesh), MeshMaterial2d(material), visibility)
 }
 
+fn shape_mesh(materials: &PieceMaterials, kind: PieceKind) -> Handle<Mesh> {
+    match kind {
+        PieceKind::Cat => materials.cat_mesh.clone(),
+        PieceKind::Kitten => materials.kitten_mesh.clone(),
+    }
+}
+
+fn halo_materials(
+    materials: &PieceMaterials,
+    piece: Piece,
+) -> (Handle<ColorMaterial>, Option<Handle<ColorMaterial>>) {
+    match piece.player {
+        Player::First => (
+            materials.dark_rim.clone(),
+            Some(materials.dark_glow.clone()),
+        ),
+        Player::Second => (materials.light_rim.clone(), None),
+    }
+}
+
+/// Cream / espresso outline (and a warm glow for charcoal pieces) as children so
+/// tweens on the piece transform keep the rim locked to the body.
+pub fn attach_piece_halos(entity: &mut EntityCommands, materials: &PieceMaterials, piece: Piece) {
+    let mesh = shape_mesh(materials, piece.kind);
+    let (rim, glow) = halo_materials(materials, piece);
+    entity.with_children(|children| {
+        if let Some(glow) = glow {
+            children.spawn((
+                Mesh2d(mesh.clone()),
+                MeshMaterial2d(glow),
+                Transform::from_xyz(0.0, 0.0, -0.2).with_scale(Vec3::splat(1.42)),
+                FOREGROUND_RENDER_LAYER,
+                PieceHalo::Glow,
+            ));
+        }
+        children.spawn((
+            Mesh2d(mesh),
+            MeshMaterial2d(rim),
+            Transform::from_xyz(0.0, 0.0, -0.1).with_scale(Vec3::splat(1.20)),
+            FOREGROUND_RENDER_LAYER,
+            PieceHalo::Rim,
+        ));
+    });
+}
+
+pub fn retarget_piece_halos<F: QueryFilter>(
+    children: Option<&Children>,
+    halo_q: &mut Query<(&PieceHalo, &mut Mesh2d, &mut MeshMaterial2d<ColorMaterial>), F>,
+    materials: &PieceMaterials,
+    piece: Piece,
+) {
+    let Some(children) = children else {
+        return;
+    };
+    let mesh = shape_mesh(materials, piece.kind);
+    let (rim, glow) = halo_materials(materials, piece);
+    for child in children.iter() {
+        let Ok((halo, mut child_mesh, mut child_mat)) = halo_q.get_mut(child) else {
+            continue;
+        };
+        child_mesh.0 = mesh.clone();
+        child_mat.0 = match *halo {
+            PieceHalo::Rim => rim.clone(),
+            PieceHalo::Glow => glow.clone().unwrap_or_else(|| rim.clone()),
+        };
+    }
+}
+
 fn setup_graphics(
     mut commands: Commands,
     mut config_store: ResMut<GizmoConfigStore>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    apply_dark_stage_clear_color(&mut commands);
+    commands.insert_resource(ClearColor(STAGE));
 
     commands.spawn((
         Camera2d,
@@ -177,17 +289,68 @@ fn setup_graphics(
     ));
     let _ = fg_camera;
 
+    let cell_mesh = meshes.add(Rectangle::new(1.0, 1.0));
+    let quilt_a = materials.add(QUILT_LIGHT);
+    let quilt_b = materials.add(QUILT_DARK);
+    commands.spawn((
+        Mesh2d(cell_mesh.clone()),
+        MeshMaterial2d(materials.add(BED_FRAME)),
+        Transform::from_xyz(0.0, 0.0, -0.2),
+        BACKGROUND_RENDER_LAYER,
+        QuiltFrame,
+    ));
+    for y in 0..BOARD_SIZE as u8 {
+        for x in 0..BOARD_SIZE as u8 {
+            let fill = if (x + y) % 2 == 0 {
+                quilt_a.clone()
+            } else {
+                quilt_b.clone()
+            };
+            commands.spawn((
+                Mesh2d(cell_mesh.clone()),
+                MeshMaterial2d(fill),
+                Transform::from_xyz(0.0, 0.0, -0.1),
+                BACKGROUND_RENDER_LAYER,
+                QuiltSquare { x, y },
+            ));
+        }
+    }
+
     commands.insert_resource(PieceMaterials {
-        cat_mesh: meshes.add(Circle::new(22.0)),
-        kitten_mesh: meshes.add(Rectangle::new(18.0, 22.0)),
-        first_kitten: materials.add(DARK.player_a),
-        first_cat: materials.add(DARK.player_a_cat()),
-        first_ghost: materials.add(DARK.player_a_ghost()),
-        second_kitten: materials.add(DARK.player_b),
-        second_cat: materials.add(DARK.player_b_cat()),
+        cat_mesh: meshes.add(Circle::new(24.0)),
+        kitten_mesh: meshes.add(Rectangle::new(16.0, 22.0)),
+        first_kitten: materials.add(FIRST_KITTEN),
+        first_cat: materials.add(FIRST_CAT),
+        first_ghost: materials.add(FIRST_GHOST),
+        second_kitten: materials.add(SECOND_KITTEN),
+        second_cat: materials.add(SECOND_CAT),
+        dark_rim: materials.add(DARK_RIM),
+        dark_glow: materials.add(DARK_GLOW),
+        light_rim: materials.add(LIGHT_RIM),
     });
 
     configure_grid_gizmos(&mut config_store, Some(BACKGROUND_RENDER_LAYER));
+}
+
+fn sync_quilt(
+    scale_factor: Res<ScaleFactor>,
+    mut frame: Query<&mut Transform, (With<QuiltFrame>, Without<QuiltSquare>)>,
+    mut squares: Query<(&QuiltSquare, &mut Transform), Without<QuiltFrame>>,
+) {
+    if let Ok(mut transform) = frame.single_mut() {
+        let size = scale_factor.board_half_extent() * 2.0 + scale_factor.spacing * 0.28;
+        transform.scale = Vec3::new(size, size, 1.0);
+        transform.translation.z = -0.2;
+    }
+    for (cell, mut transform) in squares.iter_mut() {
+        transform.translation = scale_factor.screen_point(Coord {
+            x: cell.x,
+            y: cell.y,
+        });
+        transform.translation.z = -0.1;
+        let size = scale_factor.spacing * 0.98;
+        transform.scale = Vec3::new(size, size, 1.0);
+    }
 }
 
 fn init_scale_factor(
@@ -228,7 +391,55 @@ pub fn plugin(app: &mut App) {
             Update,
             (
                 set_scale_factor.in_set(ScaleFactorSet),
-                draw_grid.after(ScaleFactorSet),
+                sync_quilt.after(ScaleFactorSet),
+                draw_grid.after(ScaleFactorSet).after(sync_quilt),
             ),
         );
+}
+
+#[cfg(test)]
+fn srgb_luma(color: Color) -> f32 {
+    let c = color.to_srgba();
+    0.2126 * c.red + 0.7152 * c.green + 0.0722 * c.blue
+}
+
+#[cfg(test)]
+mod contrast_tests {
+    use super::*;
+
+    #[test]
+    fn charcoal_pieces_contrast_against_the_quilt() {
+        let quilt = srgb_luma(QUILT_LIGHT).max(srgb_luma(QUILT_DARK));
+        assert!(
+            quilt - srgb_luma(FIRST_KITTEN) > 0.45,
+            "dark kittens must sit well below the linen bed"
+        );
+        assert!(
+            quilt - srgb_luma(FIRST_CAT) > 0.30,
+            "dark cats must sit well below the linen bed"
+        );
+        assert!(
+            srgb_luma(DARK_RIM) - srgb_luma(FIRST_KITTEN) > 0.70,
+            "cream rim must separate charcoal pieces from the bed"
+        );
+    }
+
+    #[test]
+    fn ivory_pieces_contrast_against_the_quilt() {
+        let quilt = srgb_luma(QUILT_DARK);
+        assert!(
+            srgb_luma(SECOND_CAT) - quilt > 0.12,
+            "ivory cats need a lighter fill than the darker quilt square"
+        );
+        assert!(
+            srgb_luma(SECOND_KITTEN) - srgb_luma(LIGHT_RIM) > 0.55,
+            "espresso rim must outline ivory pieces"
+        );
+    }
+
+    #[test]
+    fn kitten_and_cat_fills_differ_for_each_player() {
+        assert!((srgb_luma(FIRST_CAT) - srgb_luma(FIRST_KITTEN)).abs() > 0.05);
+        assert!((srgb_luma(SECOND_CAT) - srgb_luma(SECOND_KITTEN)).abs() > 0.03);
+    }
 }
