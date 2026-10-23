@@ -1,10 +1,6 @@
-use bevy::{
-    camera::visibility::RenderLayers,
-    post_process::bloom::Bloom,
-    prelude::*,
-    render::view::Hdr,
-    window::PrimaryWindow,
-};
+use bevy::{camera::visibility::RenderLayers, prelude::*, window::PrimaryWindow};
+#[cfg(not(target_arch = "wasm32"))]
+use bevy::{post_process::bloom::Bloom, render::view::Hdr};
 use gomoku::{Coord, BOARD_SIZE};
 
 use crate::grid::draw_grid;
