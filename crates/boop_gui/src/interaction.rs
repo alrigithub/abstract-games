@@ -5,19 +5,20 @@ use bevy_tweening::{
     EaseMethod, Tween, TweenAnim, TweenState, TweeningPlugin, lens::TransformPositionLens,
     lens::TransformScaleLens,
 };
-use boop::{Coord, Move, Piece, PieceKind, BOARD_SIZE};
+use boop::{BOARD_SIZE, Coord, Move, Piece, PieceKind};
 
 use crate::{
     PLAYER_HUMAN,
     ai::AiSet,
     graphics::{
-        BOOP_GLIDE_ANIMATION_DURATION, FOREGROUND_RENDER_LAYER, GRADUATION_SHRINK_ANIMATION_DURATION,
-        OFF_BOARD_ANIMATION_DURATION, PLACE_ANIMATION_DURATION, MainCamera, PieceMaterials,
-        ScaleFactor, ScaleFactorSet, material_for, piece_mesh,
+        BOOP_GLIDE_ANIMATION_DURATION, FOREGROUND_RENDER_LAYER,
+        GRADUATION_SHRINK_ANIMATION_DURATION, MainCamera, OFF_BOARD_ANIMATION_DURATION,
+        PLACE_ANIMATION_DURATION, PieceMaterials, ScaleFactor, ScaleFactorSet, material_for,
+        piece_mesh,
     },
     state_update::{
-        BoardResyncEvent, BoardUpdateEvent, GameState, InteractionState, PlayerMoveEvent,
-        HumanPieceChoice, StateUpdateSet,
+        BoardResyncEvent, BoardUpdateEvent, GameState, HumanPieceChoice, InteractionState,
+        PlayerMoveEvent, StateUpdateSet,
     },
 };
 
@@ -62,10 +63,7 @@ fn viewport_to_coord(
     scale_factor.coord_at_world(world_pos)
 }
 
-fn setup_cursor(
-    mut commands: Commands,
-    materials: Res<PieceMaterials>,
-) {
+fn setup_cursor(mut commands: Commands, materials: Res<PieceMaterials>) {
     let ghost = Piece {
         player: PLAYER_HUMAN,
         kind: PieceKind::Kitten,
@@ -106,20 +104,16 @@ fn spawn_piece(
 ) {
     let material = material_for(materials, piece);
     let mut entity = commands.spawn((
-        piece_mesh(
-            materials,
-            material,
-            piece.kind,
-            Visibility::Visible,
-        ),
+        piece_mesh(materials, material, piece.kind, Visibility::Visible),
         BoardElement { coord, piece },
         FOREGROUND_RENDER_LAYER,
-        Transform::from_translation(scale_factor.screen_point(coord))
-            .with_scale(Vec3::splat(if animate_scale {
+        Transform::from_translation(scale_factor.screen_point(coord)).with_scale(Vec3::splat(
+            if animate_scale {
                 0.01 * scale_factor.factor
             } else {
                 scale_factor.factor
-            })),
+            },
+        )),
     ));
 
     if animate_scale {
@@ -149,14 +143,7 @@ fn handle_board_updates(
                         commands.entity(entity).despawn();
                     }
                 }
-                spawn_piece(
-                    &mut commands,
-                    &materials,
-                    &scale_factor,
-                    coord,
-                    piece,
-                    true,
-                );
+                spawn_piece(&mut commands, &materials, &scale_factor, coord, piece, true);
             }
             BoardUpdateEvent::Move { from, to, piece } => {
                 let mover = q_pieces
@@ -190,14 +177,7 @@ fn handle_board_updates(
                             commands.entity(entity).despawn();
                         }
                     }
-                    spawn_piece(
-                        &mut commands,
-                        &materials,
-                        &scale_factor,
-                        to,
-                        piece,
-                        false,
-                    );
+                    spawn_piece(&mut commands, &materials, &scale_factor, to, piece, false);
                 }
             }
             BoardUpdateEvent::Remove { coord, shrink } => {
@@ -372,6 +352,7 @@ fn update_cursor(
         return;
     };
 
+    // While choosing a graduation line the candidate overlay is the hover feedback.
     let human_turn = matches!(
         *interaction_state,
         InteractionState::HumanPlace | InteractionState::HumanFullBed
@@ -458,10 +439,7 @@ fn handle_clicks(
     if !mouse.just_pressed(MouseButton::Left) {
         return;
     }
-    if !matches!(
-        *interaction_state,
-        InteractionState::HumanPlace | InteractionState::HumanFullBed
-    ) {
+    if !interaction_state.accepts_board_clicks() {
         return;
     }
     let Some(coord) = cursor_coord.0 else {
@@ -472,9 +450,7 @@ fn handle_clicks(
         .pool(PLAYER_HUMAN)
         .normalize_placement_preference(selected_piece.0);
 
-    let Some(player_move) =
-        game_state.move_for_interaction(PLAYER_HUMAN, coord, preferred)
-    else {
+    let Some(player_move) = game_state.move_for_interaction(PLAYER_HUMAN, coord, preferred) else {
         return;
     };
 
@@ -493,10 +469,9 @@ fn set_cursor_icon(
     let Ok(window) = q_window.single() else {
         return;
     };
-    let icon = if matches!(
-        *interaction_state,
-        InteractionState::HumanPlace | InteractionState::HumanFullBed | InteractionState::HumanNoMoves
-    ) {
+    let icon = if interaction_state.accepts_board_clicks()
+        || matches!(*interaction_state, InteractionState::HumanNoMoves)
+    {
         CursorIcon::System(SystemCursorIcon::Pointer)
     } else {
         CursorIcon::System(SystemCursorIcon::Progress)

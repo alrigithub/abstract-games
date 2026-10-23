@@ -2,9 +2,11 @@ use std::time::Duration;
 
 use bevy::math::Isometry3d;
 use bevy::prelude::*;
-use boop::{Coord, LineHighlight, BOARD_SIZE};
+use boop::{BOARD_SIZE, Coord, LineHighlight, TurnMode};
 
 use crate::graphics::{ScaleFactor, ScaleFactorSet};
+use crate::interaction::CursorCoord;
+use crate::state_update::{GameState, InteractionState};
 
 /// Keep highlights visible through graduation shrink + a short beat afterward.
 pub const LINE_FEEDBACK_DURATION: Duration = Duration::from_millis(2400);
@@ -112,6 +114,54 @@ fn draw_line_feedback(
     }
 }
 
+/// While a graduation choice is pending, outline every candidate line; the line under the
+/// cursor (when it is the human's choice) is drawn solid so the click target is unambiguous.
+fn draw_graduation_choices(
+    mut gizmos: Gizmos,
+    time: Res<Time>,
+    scale_factor: Res<ScaleFactor>,
+    game_state: Res<GameState>,
+    interaction_state: Res<InteractionState>,
+    cursor_coord: Res<CursorCoord>,
+) {
+    let TurnMode::ChooseGraduation(lines) = game_state.turn_mode() else {
+        return;
+    };
+    if game_state.winner().is_some() {
+        return;
+    }
+
+    let pulse = (time.elapsed_secs() * 4.0).sin() * 0.5 + 0.5;
+    let hovered = if matches!(*interaction_state, InteractionState::HumanChooseGraduation) {
+        cursor_coord
+            .0
+            .and_then(|coord| game_state.graduation_choice_at(coord))
+    } else {
+        None
+    };
+
+    for line in lines {
+        let is_hovered = hovered == Some(line);
+        let (fill, border, connector) = if is_hovered {
+            (
+                Color::srgba(1.0, 0.88, 0.15, 0.55 + 0.2 * pulse),
+                Color::srgba(1.0, 0.95, 0.45, 1.0),
+                Color::srgba(1.0, 0.92, 0.35, 0.95),
+            )
+        } else {
+            (
+                Color::srgba(1.0, 0.88, 0.15, 0.10 + 0.08 * pulse),
+                Color::srgba(1.0, 0.9, 0.4, 0.55 + 0.25 * pulse),
+                Color::srgba(1.0, 0.9, 0.4, 0.45),
+            )
+        };
+        for coord in line {
+            draw_cell_glow(&mut gizmos, &scale_factor, coord, fill, border);
+        }
+        draw_win_connector(&mut gizmos, &scale_factor, line, connector);
+    }
+}
+
 fn draw_cell_glow(
     gizmos: &mut Gizmos,
     scale_factor: &ScaleFactor,
@@ -164,7 +214,10 @@ fn draw_win_connector(
 
 pub fn plugin(app: &mut App) {
     app.add_message::<LineCompletedEvent>()
-        .add_systems(Update, on_line_completed.after(crate::state_update::StateUpdateSet))
+        .add_systems(
+            Update,
+            on_line_completed.after(crate::state_update::StateUpdateSet),
+        )
         .add_systems(
             Update,
             (
@@ -175,5 +228,11 @@ pub fn plugin(app: &mut App) {
                     .after(tick_line_feedback),
             )
                 .chain(),
+        )
+        .add_systems(
+            Update,
+            draw_graduation_choices
+                .after(ScaleFactorSet)
+                .after(crate::state_update::StateUpdateSet),
         );
 }

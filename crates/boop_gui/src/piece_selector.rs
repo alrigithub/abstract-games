@@ -52,8 +52,10 @@ fn setup_piece_selector(mut commands: Commands) {
                     ..default()
                 })
                 .with_children(|row| {
-                    for (label, kind) in [("Kitten (small)", PieceKind::Kitten), ("Cat (big)", PieceKind::Cat)]
-                    {
+                    for (label, kind) in [
+                        ("Kitten (small)", PieceKind::Kitten),
+                        ("Cat (big)", PieceKind::Cat),
+                    ] {
                         row.spawn((
                             Button,
                             PieceChoiceButton { kind },
@@ -95,15 +97,15 @@ fn sync_piece_selector(
     >,
     mut labels: Query<&mut TextColor, With<PieceChoiceLabel>>,
 ) {
-    let human_placing = matches!(
-        *interaction_state,
-        InteractionState::HumanPlace | InteractionState::HumanFullBed
-    );
-    let can_place_cat = game_state.pool(PLAYER_HUMAN).cats_in_hand > 0;
+    let human_placing = matches!(*interaction_state, InteractionState::HumanPlace);
+    let pool = game_state.pool(PLAYER_HUMAN);
 
     for (button, mut bg, mut border, children) in buttons.iter_mut() {
-        let enabled = human_placing
-            && (button.kind == PieceKind::Kitten || can_place_cat);
+        let in_hand = match button.kind {
+            PieceKind::Kitten => pool.kittens_in_hand,
+            PieceKind::Cat => pool.cats_in_hand,
+        };
+        let enabled = human_placing && in_hand > 0;
         let selected_this = selected.0 == button.kind && enabled;
 
         *bg = BackgroundColor(if selected_this {
@@ -131,10 +133,7 @@ fn sync_piece_selector(
     }
 }
 
-fn clamp_selected_piece(
-    game_state: Res<GameState>,
-    mut selected: ResMut<HumanPieceChoice>,
-) {
+fn clamp_selected_piece(game_state: Res<GameState>, mut selected: ResMut<HumanPieceChoice>) {
     selected.0 = game_state
         .pool(PLAYER_HUMAN)
         .normalize_placement_preference(selected.0);
@@ -145,23 +144,22 @@ fn handle_piece_selector_clicks(
     game_state: Res<GameState>,
     interaction_state: Res<InteractionState>,
     mut selected: ResMut<HumanPieceChoice>,
-    interactions: Query<
-        (&Interaction, &PieceChoiceButton),
-        (Changed<Interaction>, With<Button>),
-    >,
+    interactions: Query<(&Interaction, &PieceChoiceButton), (Changed<Interaction>, With<Button>)>,
 ) {
-    if !matches!(
-        *interaction_state,
-        InteractionState::HumanPlace | InteractionState::HumanFullBed
-    ) {
+    if !matches!(*interaction_state, InteractionState::HumanPlace) {
         return;
     }
 
+    let pool = game_state.pool(PLAYER_HUMAN);
     for (interaction, button) in interactions.iter() {
         if *interaction != Interaction::Pressed {
             continue;
         }
-        if button.kind == PieceKind::Cat && game_state.pool(PLAYER_HUMAN).cats_in_hand == 0 {
+        let in_hand = match button.kind {
+            PieceKind::Kitten => pool.kittens_in_hand,
+            PieceKind::Cat => pool.cats_in_hand,
+        };
+        if in_hand == 0 {
             continue;
         }
         selected.0 = button.kind;
@@ -169,13 +167,12 @@ fn handle_piece_selector_clicks(
 }
 
 pub fn plugin(app: &mut App) {
-    app.add_systems(Startup, setup_piece_selector)
-        .add_systems(
-            Update,
-            (
-                clamp_selected_piece,
-                sync_piece_selector,
-                handle_piece_selector_clicks,
-            ),
-        );
+    app.add_systems(Startup, setup_piece_selector).add_systems(
+        Update,
+        (
+            clamp_selected_piece,
+            sync_piece_selector,
+            handle_piece_selector_clicks,
+        ),
+    );
 }
