@@ -5,6 +5,7 @@ mod information_display;
 mod interaction;
 mod keyboard_control;
 mod line_feedback;
+mod piece_selector;
 mod pool_display;
 mod state_update;
 
@@ -38,6 +39,7 @@ fn main() {
             information_display::plugin,
             line_feedback::plugin,
             pool_display::plugin,
+            piece_selector::plugin,
             keyboard_control::plugin,
         ))
         .run();

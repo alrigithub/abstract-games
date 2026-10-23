@@ -96,10 +96,11 @@ fn spawn_pool_lines(commands: &mut Commands, root: Entity, title: &str, pool: &P
             TextColor(Color::srgb(0.95, 0.92, 0.85)),
             PoolLineText,
         ));
+        // ASCII stack markers only — default Bevy UI font on WASM lacks many Unicode symbols.
         for (label, count, glyph) in [
-            ("Kittens", pool.kittens_in_hand, "▪"),
-            ("Cats", pool.cats_in_hand, "●"),
-            ("Reserve", pool.cats_in_reserve, "◆"),
+            ("Kittens", pool.kittens_in_hand, "K"),
+            ("Cats", pool.cats_in_hand, "C"),
+            ("Reserve", pool.cats_in_reserve, "R"),
         ] {
             let stack = stack_glyph_line(glyph, count);
             parent.spawn((
@@ -141,7 +142,7 @@ mod tests {
 
     #[test]
     fn stack_glyph_caps_at_eight() {
-        assert_eq!(stack_glyph_line("●", 12).chars().count(), 8);
+        assert_eq!(stack_glyph_line("C", 12).chars().count(), 8);
     }
 }
 
