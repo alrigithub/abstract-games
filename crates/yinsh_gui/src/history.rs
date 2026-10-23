@@ -8,6 +8,7 @@ use crate::{
     board_update_event::BoardUpdateEvent,
     graphics::ScaleFactorSet,
     interaction::CursorElement,
+    scoring::ScoringPresentation,
     state_update::{GameState, StateUpdateSet, restore_board_from_game_state},
 };
 
@@ -17,6 +18,7 @@ pub fn save_and_load_game_state(
     mut game_state: ResMut<GameState>,
     mut ai_computation_events: MessageWriter<AiComputationEvent>,
     mut board_update_events: MessageWriter<BoardUpdateEvent>,
+    mut scoring: ResMut<ScoringPresentation>,
     q_board_elements: Query<Entity, (With<BoardElement>, Without<CursorElement>)>,
 ) {
     let ctrl_pressed =
@@ -47,6 +49,7 @@ pub fn save_and_load_game_state(
         ));
 
         ai_computation_events.write(AiComputationEvent::Cancel);
+        scoring.reset();
         restore_board_from_game_state(
             &game_state,
             &mut commands,

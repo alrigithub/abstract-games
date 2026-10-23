@@ -35,6 +35,13 @@ impl ScoringPresentation {
     pub fn is_blocking(&self) -> bool {
         self.linger.is_some()
     }
+
+    /// Drop any in-flight score presentation (used on undo / reset).
+    pub fn reset(&mut self) {
+        self.scored_line.clear();
+        self.linger = None;
+        self.deferred_ai = false;
+    }
 }
 
 #[derive(Resource)]
@@ -57,11 +64,11 @@ fn setup_scoring_materials(
 ) {
     commands.insert_resource(ScoringMaterials {
         glow_inner: materials.add(ColorMaterial {
-            color: COLOR_WIN_GLOW.with_alpha(0.45),
+            color: COLOR_WIN_GLOW.with_alpha(0.5),
             ..default()
         }),
         glow_outer: materials.add(ColorMaterial {
-            color: COLOR_WIN_GLOW.with_alpha(0.18),
+            color: COLOR_WIN_GLOW.with_alpha(0.22),
             ..default()
         }),
     });
@@ -87,30 +94,42 @@ fn setup_scoring_materials(
 }
 
 pub fn rack_slot_position(scale_factor: &ScaleFactor, player: yinsh::Player, slot: usize) -> Vec3 {
-    // Outside the playable hex footprint (outer ring ~±4.3× spacing in x).
-    let side_x = scale_factor.spacing * 6.0;
-    let base_y = scale_factor.spacing * 1.0;
-    let step = scale_factor.spacing * 0.52;
+    // Just inside the window edge (ring outer radius is 25 in mesh units).
+    // `set_scale_factor` budgets the extra horizontal room so this clears the
+    // board's widest row instead of landing off-screen.
+    let side_x = scale_factor.half_width - 31.0 * scale_factor.factor;
+    // Slots must be at least one ring diameter (50 units) apart.
+    let step = scale_factor.spacing * 0.7;
+    let base_y = step;
     match player {
         yinsh::Player::A => Vec3::new(-side_x, base_y - slot as f32 * step, 0.0),
         yinsh::Player::B => Vec3::new(side_x, base_y - slot as f32 * step, 0.0),
     }
 }
 
-fn glow_coords_from_state(game_state: &GameState, scoring: &ScoringPresentation) -> Vec<yinsh::Coord> {
+fn glow_coords_from_state(
+    game_state: &GameState,
+    scoring: &ScoringPresentation,
+) -> Vec<yinsh::Coord> {
     if !scoring.scored_line.is_empty() {
         return scoring.scored_line.clone();
     }
 
     match game_state.turn_mode {
         TurnMode::WaitForRunRemoval(p) => dedupe_coords(game_state.board.run_coords(p)),
-        TurnMode::RunRemoval(_) => dedupe_coords(game_state.board.run_coords(game_state.active_player)),
+        TurnMode::RunRemoval(_) => {
+            dedupe_coords(game_state.board.run_coords(game_state.active_player))
+        }
         _ => Vec::new(),
     }
 }
 
 fn dedupe_coords(coords: Vec<yinsh::Coord>) -> Vec<yinsh::Coord> {
-    coords.into_iter().collect::<HashSet<_>>().into_iter().collect()
+    coords
+        .into_iter()
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn coord_from_world(scale_factor: &ScaleFactor, world: Vec3) -> yinsh::Coord {
@@ -136,7 +155,9 @@ fn sync_score_line_glow(
     let desired: HashSet<yinsh::Coord> = if scoring.is_blocking() {
         scoring.active_glow_coords()
     } else {
-        glow_coords_from_state(&game_state, &scoring).into_iter().collect()
+        glow_coords_from_state(&game_state, &scoring)
+            .into_iter()
+            .collect()
     };
 
     let existing: HashSet<yinsh::Coord> = q_glow
@@ -156,8 +177,8 @@ fn sync_score_line_glow(
     for coord in desired {
         let center = scale_factor.screen_point(coord);
         for (radius, mat) in [
-            (26.0, materials.glow_outer.clone()),
-            (18.0, materials.glow_inner.clone()),
+            (30.0, materials.glow_outer.clone()),
+            (20.0, materials.glow_inner.clone()),
         ] {
             commands.spawn((
                 Mesh2d(meshes.add(Circle::new(radius))),
@@ -227,7 +248,10 @@ pub fn move_ring_to_rack(
     let tween = Tween::new(
         bevy::prelude::EaseFunction::QuadraticInOut,
         ANIMATION_DURATION,
-        TransformPositionLens { start: from, end: to },
+        TransformPositionLens {
+            start: from,
+            end: to,
+        },
     );
     commands.entity(entity).insert((
         TweenAnim::new(tween),
@@ -247,8 +271,7 @@ fn sync_rack_slot_outlines(
             yinsh::Player::A => game_state.points_a,
             yinsh::Player::B => game_state.points_b,
         };
-        transform.translation =
-            rack_slot_position(&scale_factor, slot.player, slot.slot);
+        transform.translation = rack_slot_position(&scale_factor, slot.player, slot.slot);
         transform.scale = if slot.slot < points {
             Vec3::splat(0.0)
         } else {
@@ -258,19 +281,23 @@ fn sync_rack_slot_outlines(
 }
 
 pub fn sync_racked_rings(
+    mut commands: Commands,
     game_state: Res<GameState>,
     scale_factor: Res<ScaleFactor>,
-    mut q_racked: Query<(&RackedRing, &mut Transform), Without<TweenAnim>>,
+    mut q_racked: Query<(Entity, &RackedRing, &mut Transform), Without<TweenAnim>>,
 ) {
-    for (racked, mut transform) in q_racked.iter_mut() {
+    for (entity, racked, mut transform) in q_racked.iter_mut() {
         let points = match racked.player {
             yinsh::Player::A => game_state.points_a,
             yinsh::Player::B => game_state.points_b,
         };
         if racked.slot < points {
-            transform.translation =
-                rack_slot_position(&scale_factor, racked.player, racked.slot);
+            transform.translation = rack_slot_position(&scale_factor, racked.player, racked.slot);
             transform.scale = Vec3::splat(scale_factor.factor);
+        } else {
+            // Undo / reset rolled the score back; the board copy of this ring
+            // is respawned by `restore_board_from_game_state`.
+            commands.entity(entity).despawn();
         }
     }
 }

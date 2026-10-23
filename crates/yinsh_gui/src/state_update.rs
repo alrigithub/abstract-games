@@ -172,8 +172,7 @@ fn state_update(
             }
             Move::RemoveRing(coord) => {
                 if matches!(game_state.turn_mode, TurnMode::RingRemoval(_)) {
-                    scoring.linger =
-                        Some(Timer::from_seconds(SCORE_LINGER_SECS, TimerMode::Once));
+                    scoring.linger = Some(Timer::from_seconds(SCORE_LINGER_SECS, TimerMode::Once));
                 }
                 let slot = match player {
                     Player::A => game_state.points_a.saturating_sub(1),
@@ -190,7 +189,8 @@ fn state_update(
             if scoring.is_blocking() {
                 scoring.deferred_ai = true;
             } else {
-                ai_computation_events.write(AiComputationEvent::Start(PLAYER_AI, game_state.clone()));
+                ai_computation_events
+                    .write(AiComputationEvent::Start(PLAYER_AI, game_state.clone()));
             }
         }
     }

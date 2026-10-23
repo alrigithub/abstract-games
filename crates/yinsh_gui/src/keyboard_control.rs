@@ -7,6 +7,7 @@ use crate::{
     board_update_event::BoardUpdateEvent,
     graphics::ScaleFactorSet,
     interaction::CursorElement,
+    scoring::ScoringPresentation,
     state_update::{GameState, StateUpdateSet, UndoHistory, restore_board_from_game_state},
 };
 
@@ -19,6 +20,7 @@ fn keyboard_control(
     mut board_update_events: MessageWriter<BoardUpdateEvent>,
     mut game_state: ResMut<GameState>,
     mut undo_history: ResMut<UndoHistory>,
+    mut scoring: ResMut<ScoringPresentation>,
     q_board_elements: Query<Entity, (With<BoardElement>, Without<CursorElement>)>,
 ) {
     let ctrl_pressed =
@@ -39,6 +41,7 @@ fn keyboard_control(
         // Undo last human move
         if let Some(previous_state) = undo_history.0.pop() {
             ai_computation_events.write(AiComputationEvent::Cancel);
+            scoring.reset();
             *game_state.as_deref_mut() = previous_state;
             restore_board_from_game_state(
                 &game_state,
@@ -50,6 +53,7 @@ fn keyboard_control(
     } else if ctrl_pressed && keyboard.just_pressed(KeyCode::KeyR) {
         // Reset game
         ai_computation_events.write(AiComputationEvent::Cancel);
+        scoring.reset();
         *game_state.as_deref_mut() = yinsh::GameState::initial();
         undo_history.0.clear();
         restore_board_from_game_state(
