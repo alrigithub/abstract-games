@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 
 use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
-use boop::{Board, Coord, Move, MoveEffects, Piece, PieceKind, Player};
+use boop::{Board, Coord, Move, MoveEffects, Piece, PieceKind, Player, TurnMode};
 
 use crate::line_feedback::{ActiveLineFeedback, LineCompletedEvent};
 
@@ -52,6 +52,8 @@ pub struct HumanPieceChoice(pub PieceKind);
 #[derive(Resource, Debug, Clone, PartialEq, Eq)]
 pub enum InteractionState {
     HumanPlace,
+    /// The human's placement completed several lines; they pick which one graduates.
+    HumanChooseGraduation,
     HumanFullBed,
     HumanNoMoves,
     WaitForAI,
@@ -66,11 +68,21 @@ impl InteractionState {
             Self::WaitForAI
         } else if game_state.legal_moves().is_empty() {
             Self::HumanNoMoves
-        } else if game_state.requires_alternate_graduation() {
-            Self::HumanFullBed
         } else {
-            Self::HumanPlace
+            match game_state.turn_mode() {
+                TurnMode::ChooseGraduation(_) => Self::HumanChooseGraduation,
+                TurnMode::AlternateGraduation => Self::HumanFullBed,
+                TurnMode::Place => Self::HumanPlace,
+            }
         }
+    }
+
+    /// States in which board clicks are routed to the engine.
+    pub fn accepts_board_clicks(&self) -> bool {
+        matches!(
+            self,
+            Self::HumanPlace | Self::HumanChooseGraduation | Self::HumanFullBed
+        )
     }
 }
 
@@ -165,11 +177,7 @@ pub fn board_sync_events(
 
     let displaced_from: HashSet<Coord> = effects.displacements.iter().map(|d| d.from).collect();
     let displaced_to: HashSet<Coord> = effects.displacements.iter().map(|d| d.to).collect();
-    let graduation_cells: HashSet<Coord> = effects
-        .graduated_cells
-        .into_iter()
-        .flatten()
-        .collect();
+    let graduation_cells: HashSet<Coord> = effects.graduated_cells.into_iter().flatten().collect();
 
     let mut events = Vec::new();
 
@@ -222,78 +230,6 @@ pub fn board_sync_events(
     events
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use boop::{GameState, LineHighlight, PieceKind, Player};
-
-    #[test]
-    fn graduation_sync_removes_all_three_cells_including_placed_kitten() {
-        let mut g = GameState::new();
-        for x in 0..2 {
-            g.set_piece(
-                Coord::new(x, 0),
-                Piece {
-                    player: Player::First,
-                    kind: PieceKind::Kitten,
-                },
-            );
-        }
-        g.set_to_move(Player::First);
-        g.set_pool(
-            Player::First,
-            boop::Pool {
-                kittens_in_hand: 6,
-                cats_in_hand: 0,
-                cats_in_reserve: 8,
-            },
-        );
-
-        let before = g.board().clone();
-        let player_move = Move::Place {
-            coord: Coord::new(2, 0),
-            piece: PieceKind::Kitten,
-        };
-        g.apply(player_move).unwrap();
-        let effects = g.last_move_effects().clone();
-        let after = g.board().clone();
-
-        let events = board_sync_events(
-            &before,
-            &after,
-            &effects,
-            player_move,
-            Player::First,
-        );
-
-        assert!(matches!(
-            effects.line_highlight,
-            Some(LineHighlight::Graduation(_))
-        ));
-
-        let grad_removals: HashSet<Coord> = events
-            .iter()
-            .filter_map(|event| match event {
-                BoardUpdateEvent::Remove { coord, .. } => Some(*coord),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(
-            grad_removals,
-            HashSet::from([
-                Coord::new(0, 0),
-                Coord::new(1, 0),
-                Coord::new(2, 0),
-            ])
-        );
-
-        assert!(
-            !events.iter().any(|event| matches!(event, BoardUpdateEvent::Spawn { .. })),
-            "graduation should not spawn pieces that are removed in the same sync"
-        );
-    }
-}
-
 pub fn restore_board_from_game_state(
     game_state: &boop::GameState,
     commands: &mut Commands,
@@ -336,13 +272,7 @@ fn state_update(
 
         let effects = game_state.last_move_effects().clone();
 
-        for event in board_sync_events(
-            &before,
-            game_state.board(),
-            &effects,
-            player_move,
-            player,
-        ) {
+        for event in board_sync_events(&before, game_state.board(), &effects, player_move, player) {
             board_update_events.write(event);
         }
 
@@ -352,10 +282,9 @@ fn state_update(
             commands.remove_resource::<ActiveLineFeedback>();
         }
 
-        if game_state.winner().is_none()
-            && game_state.to_move() == PLAYER_AI
-            && player == PLAYER_HUMAN
-        {
+        // The AI also moves again right after its own placement when it has to pick one of
+        // several graduating lines (the mover keeps the turn in that case).
+        if game_state.winner().is_none() && game_state.to_move() == PLAYER_AI {
             ai_computation_events.write(AiComputationEvent::Start(
                 PLAYER_AI,
                 Box::new(game_state.0.clone()),
@@ -376,4 +305,168 @@ pub fn plugin(app: &mut App) {
         .add_message::<BoardUpdateEvent>()
         .add_message::<BoardResyncEvent>()
         .add_systems(Update, state_update.in_set(StateUpdateSet));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boop::{GameState, LineHighlight, PieceKind, Player};
+
+    #[test]
+    fn graduation_sync_removes_all_three_cells_including_placed_kitten() {
+        let mut g = GameState::new();
+        for x in 0..2 {
+            g.set_piece(
+                Coord::new(x, 0),
+                Piece {
+                    player: Player::First,
+                    kind: PieceKind::Kitten,
+                },
+            );
+        }
+        g.set_to_move(Player::First);
+        g.set_pool(
+            Player::First,
+            boop::Pool {
+                kittens_in_hand: 6,
+                cats_in_hand: 0,
+                cats_in_reserve: 8,
+            },
+        );
+
+        let before = g.board().clone();
+        let player_move = Move::Place {
+            coord: Coord::new(2, 0),
+            piece: PieceKind::Kitten,
+        };
+        g.apply(player_move).unwrap();
+        let effects = g.last_move_effects().clone();
+        let after = g.board().clone();
+
+        let events = board_sync_events(&before, &after, &effects, player_move, Player::First);
+
+        assert!(matches!(
+            effects.line_highlight,
+            Some(LineHighlight::Graduation(_))
+        ));
+
+        let grad_removals: HashSet<Coord> = events
+            .iter()
+            .filter_map(|event| match event {
+                BoardUpdateEvent::Remove { coord, .. } => Some(*coord),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            grad_removals,
+            HashSet::from([Coord::new(0, 0), Coord::new(1, 0), Coord::new(2, 0),])
+        );
+
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, BoardUpdateEvent::Spawn { .. })),
+            "graduation should not spawn pieces that are removed in the same sync"
+        );
+    }
+
+    fn two_line_setup(player: Player) -> GameState {
+        let mut g = GameState::new();
+        let kitten = Piece {
+            player,
+            kind: PieceKind::Kitten,
+        };
+        g.set_piece(Coord::new(0, 0), kitten);
+        g.set_piece(Coord::new(1, 0), kitten);
+        g.set_piece(Coord::new(2, 1), kitten);
+        g.set_piece(Coord::new(2, 2), kitten);
+        g.set_to_move(player);
+        g.set_pool(
+            player,
+            boop::Pool {
+                kittens_in_hand: 4,
+                cats_in_hand: 0,
+                cats_in_reserve: 8,
+            },
+        );
+        g
+    }
+
+    #[test]
+    fn human_multi_line_placement_enters_choose_graduation_state() {
+        let mut g = two_line_setup(PLAYER_HUMAN);
+        g.apply(Move::Place {
+            coord: Coord::new(2, 0),
+            piece: PieceKind::Kitten,
+        })
+        .unwrap();
+
+        let state = InteractionState::from_game_state(&g);
+        assert_eq!(state, InteractionState::HumanChooseGraduation);
+        assert!(state.accepts_board_clicks());
+    }
+
+    #[test]
+    fn ai_multi_line_placement_keeps_waiting_for_ai() {
+        let mut g = two_line_setup(PLAYER_AI);
+        g.apply(Move::Place {
+            coord: Coord::new(2, 0),
+            piece: PieceKind::Kitten,
+        })
+        .unwrap();
+
+        assert_eq!(g.to_move(), PLAYER_AI);
+        assert_eq!(
+            InteractionState::from_game_state(&g),
+            InteractionState::WaitForAI
+        );
+    }
+
+    #[test]
+    fn placement_with_pending_choice_spawns_piece_and_choice_removes_only_chosen_line() {
+        let mut g = two_line_setup(PLAYER_HUMAN);
+        let before = g.board().clone();
+        let place = Move::Place {
+            coord: Coord::new(2, 0),
+            piece: PieceKind::Kitten,
+        };
+        g.apply(place).unwrap();
+        let events = board_sync_events(
+            &before,
+            g.board(),
+            g.last_move_effects(),
+            place,
+            PLAYER_HUMAN,
+        );
+        assert!(matches!(
+            events.as_slice(),
+            [BoardUpdateEvent::Spawn { coord, .. }] if *coord == Coord::new(2, 0)
+        ));
+
+        let column = [Coord::new(2, 0), Coord::new(2, 1), Coord::new(2, 2)];
+        let before = g.board().clone();
+        let graduate = Move::Graduate { line: column };
+        g.apply(graduate).unwrap();
+        let events = board_sync_events(
+            &before,
+            g.board(),
+            g.last_move_effects(),
+            graduate,
+            PLAYER_HUMAN,
+        );
+
+        let removed: HashSet<Coord> = events
+            .iter()
+            .filter_map(|event| match event {
+                BoardUpdateEvent::Remove { coord, .. } => Some(*coord),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(removed, HashSet::from(column));
+        assert_eq!(events.len(), 3);
+        assert_eq!(
+            g.last_move_effects().line_highlight,
+            Some(LineHighlight::Graduation(column))
+        );
+    }
 }

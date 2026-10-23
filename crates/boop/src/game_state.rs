@@ -1,9 +1,9 @@
+use crate::Move;
 use crate::board::Board;
 use crate::coord::Coord;
 use crate::effects::{LineHighlight, MoveEffects, OffBoardExit, PieceDisplacement};
 use crate::piece::{Piece, PieceKind};
 use crate::player::Player;
-use crate::Move;
 
 pub const KITTENS_PER_PLAYER: u8 = 8;
 pub const CATS_PER_PLAYER: u8 = 8;
@@ -71,6 +71,18 @@ impl Pool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IllegalMove;
 
+/// What the player to move has to do next.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TurnMode {
+    /// Place a kitten or cat from the pool onto an empty cell.
+    Place,
+    /// All eight pieces are on the bed: graduate one kitten or return one cat to the pool.
+    AlternateGraduation,
+    /// The last placement completed several graduating lines; the mover picks one.
+    /// Lines are in board scan order (top-left first).
+    ChooseGraduation(Vec<[Coord; 3]>),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameState {
     board: Board,
@@ -78,6 +90,8 @@ pub struct GameState {
     to_move: Player,
     winner: Option<Player>,
     last_effects: MoveEffects,
+    /// Candidate lines awaiting the mover's choice (empty when no choice is pending).
+    pending_graduation: Vec<[Coord; 3]>,
 }
 
 impl GameState {
@@ -88,6 +102,7 @@ impl GameState {
             to_move: Player::First,
             winner: None,
             last_effects: MoveEffects::default(),
+            pending_graduation: Vec::new(),
         }
     }
 
@@ -126,10 +141,36 @@ impl GameState {
         self.pools[pool_index(player)] = pool;
     }
 
+    /// What the player to move must do next (meaningless once there is a winner).
+    pub fn turn_mode(&self) -> TurnMode {
+        if !self.pending_graduation.is_empty() {
+            TurnMode::ChooseGraduation(self.pending_graduation.clone())
+        } else if self.board.count_pieces(self.to_move) >= 8 {
+            TurnMode::AlternateGraduation
+        } else {
+            TurnMode::Place
+        }
+    }
+
+    /// Lines the mover may graduate right now (empty unless a choice is pending).
+    pub fn pending_graduation_lines(&self) -> &[[Coord; 3]] {
+        &self.pending_graduation
+    }
+
     /// True when the active player has a full bed and must graduate a kitten or return a cat.
     pub fn requires_alternate_graduation(&self) -> bool {
-        let legal = self.legal_moves();
-        !legal.is_empty() && legal.iter().all(|m| !matches!(m, Move::Place { .. }))
+        self.winner.is_none() && self.turn_mode() == TurnMode::AlternateGraduation
+    }
+
+    /// While a graduation choice is pending: the unique candidate line containing `coord`.
+    /// Cells shared by several candidate lines are ambiguous and yield `None`.
+    pub fn graduation_choice_at(&self, coord: Coord) -> Option<[Coord; 3]> {
+        let mut containing = self
+            .pending_graduation
+            .iter()
+            .filter(|line| line.contains(&coord));
+        let line = containing.next()?;
+        containing.next().is_none().then_some(*line)
     }
 
     /// Map a board click (and placement piece preference) to a legal move, if any.
@@ -145,6 +186,12 @@ impl GameState {
         let legal = self.legal_moves();
         if legal.is_empty() {
             return None;
+        }
+
+        if !self.pending_graduation.is_empty() {
+            let line = self.graduation_choice_at(coord)?;
+            let graduate = Move::Graduate { line };
+            return legal.contains(&graduate).then_some(graduate);
         }
 
         if self.requires_alternate_graduation() {
@@ -165,7 +212,9 @@ impl GameState {
             return None;
         }
 
-        let preferred_placement = self.pool(player).normalize_placement_preference(preferred_placement);
+        let preferred_placement = self
+            .pool(player)
+            .normalize_placement_preference(preferred_placement);
 
         let preferred = Move::Place {
             coord,
@@ -187,6 +236,13 @@ impl GameState {
     pub fn legal_moves(&self) -> Vec<Move> {
         if self.winner.is_some() {
             return Vec::new();
+        }
+        if !self.pending_graduation.is_empty() {
+            return self
+                .pending_graduation
+                .iter()
+                .map(|line| Move::Graduate { line: *line })
+                .collect();
         }
         let player = self.to_move;
         let pool = self.pool(player);
@@ -226,11 +282,13 @@ impl GameState {
 
         match player_move {
             Move::Place { coord, piece: kind } => self.apply_place(coord, kind),
+            Move::Graduate { line } => self.apply_graduate(line),
             Move::GraduateSingleKitten { coord } => self.apply_graduate_single_kitten(coord),
             Move::ReturnCatToPool { coord } => self.apply_return_cat_to_pool(coord),
         }
     }
 
+    /// Place → boop → (three cats: win) → graduate → end-of-turn win check.
     fn apply_place(&mut self, coord: Coord, kind: PieceKind) -> Result<(), IllegalMove> {
         if Coord::try_new(coord.x, coord.y).is_none() || !self.board.is_empty(coord) {
             return Err(IllegalMove);
@@ -254,8 +312,36 @@ impl GameState {
             &mut self.pools,
             &mut self.last_effects,
         );
-        resolve_graduation(self, player);
-        finish_turn_after_placement(self, player);
+
+        // Three cats in a row wins outright, before any graduation could break the line.
+        if let Some(line) = find_winning_cat_line(&self.board, player) {
+            self.last_effects.line_highlight = Some(LineHighlight::Win(line));
+            self.winner = Some(player);
+            return Ok(());
+        }
+
+        let candidates = graduation_candidates(&self.board, player);
+        match candidates.as_slice() {
+            [] => {}
+            [line] => graduate_line(self, player, *line),
+            _ => {
+                // Several lines formed at once: the mover keeps the turn and picks one.
+                self.pending_graduation = candidates;
+                return Ok(());
+            }
+        }
+        finish_turn(self, player);
+        Ok(())
+    }
+
+    fn apply_graduate(&mut self, line: [Coord; 3]) -> Result<(), IllegalMove> {
+        if !self.pending_graduation.contains(&line) {
+            return Err(IllegalMove);
+        }
+        let player = self.to_move;
+        self.pending_graduation.clear();
+        graduate_line(self, player, line);
+        finish_turn(self, player);
         Ok(())
     }
 
@@ -274,7 +360,7 @@ impl GameState {
             return Err(IllegalMove);
         }
         self.board.clear(coord);
-        finish_turn_after_alternate(self, player);
+        finish_turn(self, player);
         Ok(())
     }
 
@@ -291,7 +377,7 @@ impl GameState {
         }
         self.board.clear(coord);
         self.pools[pool_index(player)].cats_in_hand += 1;
-        finish_turn_after_alternate(self, player);
+        finish_turn(self, player);
         Ok(())
     }
 }
@@ -321,28 +407,16 @@ fn alternate_graduation_moves(state: &GameState, player: Player, pool: Pool) -> 
     moves
 }
 
-fn finish_turn_after_placement(state: &mut GameState, player: Player) {
-    if state.winner.is_none() && check_win(&state.board, player) {
-        if let Some(line) = find_winning_cat_line(&state.board, player) {
-            state.last_effects.line_highlight = Some(LineHighlight::Win(line));
-        } else if state.board.count_cats(player) >= 8 {
-            state.last_effects.line_highlight = Some(LineHighlight::EightCatsOnBed);
-        }
-        state.winner = Some(player);
-    }
+/// End-of-turn win check (three cats in a row, or all eight cats on the bed), then pass the turn.
+fn finish_turn(state: &mut GameState, player: Player) {
     if state.winner.is_none() {
-        state.to_move = player.opponent();
-    }
-}
-
-fn finish_turn_after_alternate(state: &mut GameState, player: Player) {
-    if state.winner.is_none() && check_win(&state.board, player) {
         if let Some(line) = find_winning_cat_line(&state.board, player) {
             state.last_effects.line_highlight = Some(LineHighlight::Win(line));
-        } else if state.board.count_cats(player) >= 8 {
+            state.winner = Some(player);
+        } else if state.board.count_cats(player) >= CATS_PER_PLAYER as u32 {
             state.last_effects.line_highlight = Some(LineHighlight::EightCatsOnBed);
+            state.winner = Some(player);
         }
-        state.winner = Some(player);
     }
     if state.winner.is_none() {
         state.to_move = player.opponent();
@@ -404,10 +478,6 @@ fn resolve_boops(
         }
 
         let push_dir = (dx, dy);
-        if is_braced(&snapshot, placed_at, adj, push_dir) {
-            continue;
-        }
-
         match adj.step(push_dir.0, push_dir.1) {
             None => {
                 pending.push(PendingBoop::OffBoard {
@@ -417,6 +487,8 @@ fn resolve_boops(
                 });
             }
             Some(dest) => {
+                // Brace rule: a piece with another piece directly behind it (in the push
+                // direction) stays put. Pieces elsewhere on the line do not brace it.
                 if !snapshot.is_empty(dest) || reserved_destinations.contains(&dest) {
                     continue;
                 }
@@ -435,76 +507,22 @@ fn resolve_boops(
             PendingBoop::OffBoard { from, piece, push } => {
                 board.clear(from);
                 pools[pool_index(piece.player)].return_piece(piece);
-                effects.off_board.push(OffBoardExit {
-                    from,
-                    piece,
-                    push,
-                });
+                effects.off_board.push(OffBoardExit { from, piece, push });
             }
             PendingBoop::Displace { from, to, piece } => {
                 board.clear(from);
                 debug_assert!(board.get(to).is_none(), "boop onto occupied cell");
                 board.set(to, piece);
-                effects.displacements.push(PieceDisplacement { from, to, piece });
+                effects
+                    .displacements
+                    .push(PieceDisplacement { from, to, piece });
             }
         }
     }
 }
 
-/// Pieces in a contiguous straight line of two or more brace against pushes along that line.
-fn is_braced(board: &Board, placed_at: Coord, adj: Coord, push_dir: (i8, i8)) -> bool {
-    contiguous_line_count(board, placed_at, adj, push_dir) >= 2
-}
-
-fn contiguous_line_count(
-    board: &Board,
-    exclude: Coord,
-    seed: Coord,
-    direction: (i8, i8),
-) -> u32 {
-    if board.get(seed).is_none() {
-        return 0;
-    }
-
-    let (dx, dy) = direction;
-    let mut count = if seed == exclude { 0 } else { 1 };
-
-    let mut c = seed;
-    while let Some(next) = c.step(dx, dy) {
-        if next == exclude {
-            c = next;
-            continue;
-        }
-        if board.get(next).is_some() {
-            count += 1;
-            c = next;
-        } else {
-            break;
-        }
-    }
-
-    c = seed;
-    while let Some(next) = c.step(-dx, -dy) {
-        if next == exclude {
-            c = next;
-            continue;
-        }
-        if board.get(next).is_some() {
-            count += 1;
-            c = next;
-        } else {
-            break;
-        }
-    }
-
-    count
-}
-
-fn resolve_graduation(state: &mut GameState, player: Player) {
-    // First qualifying line of three (scan order); three cats in a row is a win, not graduation.
-    let Some(line) = find_graduation_triple(&state.board, player) else {
-        return;
-    };
+/// Remove the three pieces of `line`: kittens graduate (reserve cat → pool), cats return to pool.
+fn graduate_line(state: &mut GameState, player: Player, line: [Coord; 3]) {
     state.last_effects.line_highlight = Some(LineHighlight::Graduation(line));
     state.last_effects.graduated_cells = Some(line);
     let pool = &mut state.pools[pool_index(player)];
@@ -524,71 +542,41 @@ fn resolve_graduation(state: &mut GameState, player: Player) {
     }
 }
 
-fn find_graduation_triple(board: &Board, player: Player) -> Option<[Coord; 3]> {
-    let line_dirs = [(1, 0), (0, 1), (1, 1), (1, -1)];
+/// Every contiguous straight triple of `player`'s pieces, in board scan order.
+fn triples_of(board: &Board, player: Player) -> impl Iterator<Item = [Coord; 3]> + '_ {
+    const LINE_DIRS: [(i8, i8); 4] = [(1, 0), (0, 1), (1, 1), (1, -1)];
 
-    for y in 0..crate::BOARD_SIZE as u8 {
-        for x in 0..crate::BOARD_SIZE as u8 {
-            let start = Coord { x, y };
-            for (dx, dy) in line_dirs {
-                let Some(a) = start.step(dx, dy) else {
-                    continue;
-                };
-                let Some(b) = start.step(dx * 2, dy * 2) else {
-                    continue;
-                };
-                let cells = [start, a, b];
-                if !cells.iter().all(|coord| {
-                    board
-                        .get(*coord)
-                        .is_some_and(|p| p.player == player)
-                }) {
-                    continue;
-                }
-                let all_cats = cells.iter().all(|coord| {
-                    board
-                        .get(*coord)
-                        .is_some_and(|p| p.kind == PieceKind::Cat)
-                });
-                if all_cats {
-                    continue;
-                }
-                return Some(cells);
-            }
-        }
-    }
-    None
+    (0..crate::BOARD_SIZE as u8)
+        .flat_map(|y| (0..crate::BOARD_SIZE as u8).map(move |x| Coord { x, y }))
+        .flat_map(|start| LINE_DIRS.into_iter().map(move |dir| (start, dir)))
+        .filter_map(move |(start, (dx, dy))| {
+            let a = start.step(dx, dy)?;
+            let b = start.step(dx * 2, dy * 2)?;
+            let line = [start, a, b];
+            line.iter()
+                .all(|coord| board.get(*coord).is_some_and(|p| p.player == player))
+                .then_some(line)
+        })
+}
+
+/// Lines of three that graduate (at least one kitten). Three cats in a row is a win instead.
+fn graduation_candidates(board: &Board, player: Player) -> Vec<[Coord; 3]> {
+    triples_of(board, player)
+        .filter(|line| {
+            line.iter().any(|coord| {
+                board
+                    .get(*coord)
+                    .is_some_and(|p| p.kind == PieceKind::Kitten)
+            })
+        })
+        .collect()
 }
 
 fn find_winning_cat_line(board: &Board, player: Player) -> Option<[Coord; 3]> {
-    let line_dirs = [(1, 0), (0, 1), (1, 1), (1, -1)];
-
-    for y in 0..crate::BOARD_SIZE as u8 {
-        for x in 0..crate::BOARD_SIZE as u8 {
-            let start = Coord { x, y };
-            for (dx, dy) in line_dirs {
-                let Some(a) = start.step(dx, dy) else {
-                    continue;
-                };
-                let Some(b) = start.step(dx * 2, dy * 2) else {
-                    continue;
-                };
-                let line = [start, a, b];
-                if line.iter().all(|coord| {
-                    board
-                        .get(*coord)
-                        .is_some_and(|p| p.player == player && p.kind == PieceKind::Cat)
-                }) {
-                    return Some(line);
-                }
-            }
-        }
-    }
-    None
-}
-
-fn check_win(board: &Board, player: Player) -> bool {
-    find_winning_cat_line(board, player).is_some() || board.count_cats(player) >= 8
+    triples_of(board, player).find(|line| {
+        line.iter()
+            .all(|coord| board.get(*coord).is_some_and(|p| p.kind == PieceKind::Cat))
+    })
 }
 
 impl Default for GameState {
