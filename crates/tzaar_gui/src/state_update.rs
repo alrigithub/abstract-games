@@ -7,7 +7,7 @@ use tzaar::{Move, Player};
 use crate::{
     PLAYER_AI, PLAYER_HUMAN,
     ai::AiPending,
-    interaction::{BoardElement, CursorElement},
+    board_entity::{BoardElement, CursorElement},
 };
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -33,6 +33,11 @@ impl DerefMut for GameState {
 impl GameState {
     pub fn initial() -> Self {
         Self(tzaar::GameState::new())
+    }
+
+    /// Clone of the rules-engine state (for undo, AI snapshots, etc.).
+    pub fn snapshot(&self) -> tzaar::GameState {
+        self.0.clone()
     }
 
     pub fn replace(&mut self, state: tzaar::GameState) {
@@ -99,7 +104,7 @@ fn state_update(
             continue;
         }
 
-        undo_history.0.push(game_state.0.clone());
+        undo_history.0.push(game_state.snapshot());
 
         if game_state.apply(player_move).is_err() {
             undo_history.0.pop();

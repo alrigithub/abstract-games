@@ -1,19 +1,18 @@
-use bevy::{camera::visibility::RenderLayers, prelude::*, window::PrimaryWindow};
-#[cfg(not(target_arch = "wasm32"))]
-use bevy::{post_process::bloom::Bloom, render::view::Hdr};
-use tzaar::{Coord, PieceKind, Player, all_playable_coords};
+use bevy::{
+    camera::visibility::RenderLayers,
+    prelude::*,
+    render::view::NoIndirectDrawing,
+    window::PrimaryWindow,
+};
 
 use crate::grid::draw_grid;
 
 pub const FOREGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(2);
 pub const BACKGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(1);
 
-pub const COLOR_GRID: Color = Color::hsl(0.0, 0.0, 0.28);
-pub const COLOR_BACKGROUND: Color = Color::hsl(0.35, 0.2, 0.1);
-
-pub const COLOR_HUMAN: Color = Color::srgb(0.95, 0.92, 0.85);
-pub const COLOR_HUMAN_GHOST: Color = Color::srgba(0.95, 0.92, 0.85, 0.35);
-pub const COLOR_AI: Color = Color::srgb(0.18, 0.17, 0.2);
+pub const COLOR_GRID: Color = Color::srgb(0.42, 0.38, 0.32);
+pub const COLOR_INTERSECTION: Color = Color::srgb(0.52, 0.48, 0.40);
+pub const COLOR_BACKGROUND: Color = Color::srgb(0.82, 0.76, 0.66);
 
 pub const ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(500);
 
@@ -28,7 +27,7 @@ pub struct ScaleFactor {
 }
 
 impl ScaleFactor {
-    pub fn screen_point(&self, coord: Coord) -> Vec3 {
+    pub fn screen_point(&self, coord: tzaar::Coord) -> Vec3 {
         let x = coord.x as f32;
         let y = coord.y as f32;
         let sx = (x - y * 0.5) * self.spacing;
@@ -44,7 +43,7 @@ impl Default for ScaleFactor {
         let mut max_x = f32::MIN;
         let mut min_y = f32::MAX;
         let mut max_y = f32::MIN;
-        for coord in all_playable_coords() {
+        for coord in tzaar::all_playable_coords() {
             let x = (coord.x as f32 - coord.y as f32 * 0.5) * spacing;
             let y = -coord.y as f32 * spacing * 0.866;
             min_x = min_x.min(x);
@@ -64,96 +63,36 @@ impl Default for ScaleFactor {
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ScaleFactorSet;
 
-#[derive(Resource)]
-pub struct PieceMaterials {
-    pub human_tzaar: Handle<ColorMaterial>,
-    pub human_tzarra: Handle<ColorMaterial>,
-    pub human_tott: Handle<ColorMaterial>,
-    pub human_ghost: Handle<ColorMaterial>,
-    pub ai_tzaar: Handle<ColorMaterial>,
-    pub ai_tzarra: Handle<ColorMaterial>,
-    pub ai_tott: Handle<ColorMaterial>,
-}
-
-pub fn material_for(
-    materials: &PieceMaterials,
-    player: Player,
-    kind: PieceKind,
-) -> Handle<ColorMaterial> {
-    match (player, kind) {
-        (Player::First, PieceKind::Tzaar) => materials.human_tzaar.clone(),
-        (Player::First, PieceKind::Tzarra) => materials.human_tzarra.clone(),
-        (Player::First, PieceKind::Tott) => materials.human_tott.clone(),
-        (Player::Second, PieceKind::Tzaar) => materials.ai_tzaar.clone(),
-        (Player::Second, PieceKind::Tzarra) => materials.ai_tzarra.clone(),
-        (Player::Second, PieceKind::Tott) => materials.ai_tott.clone(),
-    }
-}
-
-pub fn piece_mesh(
-    meshes: &mut Assets<Mesh>,
-    material: Handle<ColorMaterial>,
-    kind: PieceKind,
-    visibility: Visibility,
-) -> impl Bundle {
-    let radius = match kind {
-        PieceKind::Tzaar => 22.0,
-        PieceKind::Tzarra => 17.0,
-        PieceKind::Tott => 13.0,
-    };
-    (
-        Mesh2d(meshes.add(Circle::new(radius))),
-        MeshMaterial2d(material),
-        visibility,
-    )
-}
-
-fn setup_graphics(
-    mut commands: Commands,
-    mut config_store: ResMut<GizmoConfigStore>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
+fn setup_graphics(mut commands: Commands, mut config_store: ResMut<GizmoConfigStore>) {
     commands.insert_resource(ClearColor(COLOR_BACKGROUND));
 
-    #[cfg_attr(target_arch = "wasm32", allow(unused_mut, unused_variables))]
-    let mut bg_camera = commands.spawn((
+    // Plain Camera2d on native: HDR + Bloom + MSAA8 has caused hard exits / hangs on
+    // Intel Iris Xe (Windows). Grid gizmos must target the background render layer.
+    commands.spawn((
         Camera2d,
         Camera {
             order: 1,
             ..default()
         },
         BACKGROUND_RENDER_LAYER,
+        NoIndirectDrawing,
     ));
-    #[cfg(not(target_arch = "wasm32"))]
-    bg_camera.insert((Hdr, Bloom::default(), Msaa::Sample8));
 
-    #[cfg_attr(target_arch = "wasm32", allow(unused_mut, unused_variables))]
-    let mut fg_camera = commands.spawn((
+    commands.spawn((
         Camera2d,
         Camera {
             order: 2,
+            clear_color: ClearColorConfig::None,
             ..default()
         },
         MainCamera,
         FOREGROUND_RENDER_LAYER,
+        NoIndirectDrawing,
     ));
-    #[cfg(not(target_arch = "wasm32"))]
-    fg_camera.insert((Hdr, Bloom::default(), Msaa::Sample8));
-
-    let human = COLOR_HUMAN;
-    let ai = COLOR_AI;
-    commands.insert_resource(PieceMaterials {
-        human_tzaar: materials.add(ColorMaterial::from(human)),
-        human_tzarra: materials.add(ColorMaterial::from(human.with_alpha(0.92))),
-        human_tott: materials.add(ColorMaterial::from(human.with_alpha(0.84))),
-        human_ghost: materials.add(ColorMaterial::from(COLOR_HUMAN_GHOST)),
-        ai_tzaar: materials.add(ColorMaterial::from(ai)),
-        ai_tzarra: materials.add(ColorMaterial::from(ai.with_alpha(0.92))),
-        ai_tott: materials.add(ColorMaterial::from(ai.with_alpha(0.84))),
-    });
 
     let (config, _) = config_store.config_mut::<DefaultGizmoConfigGroup>();
-    config.line.width = 2.0;
+    config.line.width = 2.25;
+    config.render_layers = BACKGROUND_RENDER_LAYER;
 }
 
 fn resize_scale_factor(
