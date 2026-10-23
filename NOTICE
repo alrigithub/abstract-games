@@ -1,0 +1,6 @@
+This repository is a fork of https://github.com/sharkdp/yinsh
+Copyright (c) David Peter and contributors.
+Yinsh crates under crates/yinsh* retain upstream authorship.
+Additional games (Gomoku, Boop, …) and monorepo scaffolding
+are Copyright (c) Alex Ritivoi / alrigithub contributors.
+Licensed under MIT OR Apache-2.0 (see LICENSE files / crate Cargo.toml).

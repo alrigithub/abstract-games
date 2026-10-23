@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <style type="text/css">
+    html,
+    body {
+      margin: 0px;
+      height: 100%;
+      background-color: hsl(0, 0%, 5%);
+    }
+
+    #container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+    }
+
+    #yinsh-canvas {
+      border: 0;
+      outline: none;
+    }
+
+    #keybindings {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      color: hsl(0, 0%, 30%);
+      font-family: monospace;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    #keybindings kbd {
+      background-color: hsl(0, 0%, 15%);
+      border: 1px solid hsl(0, 0%, 25%);
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-family: monospace;
+    }
+
+    #loading {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: hsl(0, 0%, 30%);
+      font-family: monospace;
+      font-size: 16px;
+    }
+
+    #loading::after {
+      content: '...';
+      animation: dots 1.5s steps(4, end) infinite;
+      display: inline-block;
+      width: 1.5em;
+      text-align: left;
+    }
+
+    @keyframes dots {
+      0% {
+        content: '';
+      }
+
+      25% {
+        content: '.';
+      }
+
+      50% {
+        content: '..';
+      }
+
+      75% {
+        content: '...';
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="container">
+    <canvas id="yinsh-canvas" tabindex="0"></canvas>
+  </div>
+  <div id="loading">Loading</div>
+  <div id="keybindings">
+    <kbd>U</kbd> / <kbd>Ctrl+Z</kbd> Undo<br>
+    <kbd>Ctrl+R</kbd> Reset<br>
+    <kbd>PageDown</kbd> / <kbd>PageUp</kbd> AI strength
+  </div>
+  <script type="module">
+    import init from './yinsh.js'
+
+    init().then(() => {
+      document.getElementById('loading').style.display = 'none';
+    }).catch((error) => {
+      if (!error.message.startsWith("Using exceptions for control flow, don't mind me. This isn't actually an error!")) {
+        throw error;
+      }
+      document.getElementById('loading').style.display = 'none';
+    });
+  </script>
+</body>
+
+</html>
