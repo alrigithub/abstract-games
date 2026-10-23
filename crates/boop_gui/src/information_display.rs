@@ -43,10 +43,11 @@ fn update_information_display(
     };
 
     let pool = game_state.pool(PLAYER_HUMAN);
+    let placement_kind = pool.normalize_placement_preference(selected_piece.0);
     let mode = match *interaction_state {
         InteractionState::HumanPlace => format!(
             "Place a {} (bottom buttons or C key)",
-            match selected_piece.0 {
+            match placement_kind {
                 boop::PieceKind::Kitten => "kitten",
                 boop::PieceKind::Cat => "cat",
             }

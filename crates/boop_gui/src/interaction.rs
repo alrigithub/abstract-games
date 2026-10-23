@@ -5,7 +5,7 @@ use bevy_tweening::{
     EaseMethod, Tween, TweenAnim, TweenState, TweeningPlugin, lens::TransformPositionLens,
     lens::TransformScaleLens,
 };
-use boop::{Coord, Piece, PieceKind, BOARD_SIZE};
+use boop::{Coord, Move, Piece, PieceKind, BOARD_SIZE};
 
 use crate::{
     PLAYER_HUMAN,
@@ -381,11 +381,9 @@ fn update_cursor(
         return;
     }
 
-    let pool = game_state.pool(PLAYER_HUMAN);
-    let mut kind = selected_piece.0;
-    if kind == PieceKind::Cat && pool.cats_in_hand == 0 {
-        kind = PieceKind::Kitten;
-    }
+    let kind = game_state
+        .pool(PLAYER_HUMAN)
+        .normalize_placement_preference(selected_piece.0);
 
     mesh.0 = if kind == PieceKind::Cat {
         materials.cat_mesh.clone()
@@ -454,7 +452,7 @@ fn handle_clicks(
     interaction_state: Res<InteractionState>,
     cursor_coord: Res<CursorCoord>,
     game_state: Res<GameState>,
-    selected_piece: Res<HumanPieceChoice>,
+    mut selected_piece: ResMut<HumanPieceChoice>,
     mut player_move_events: MessageWriter<PlayerMoveEvent>,
 ) {
     if !mouse.just_pressed(MouseButton::Left) {
@@ -470,11 +468,19 @@ fn handle_clicks(
         return;
     };
 
+    let preferred = game_state
+        .pool(PLAYER_HUMAN)
+        .normalize_placement_preference(selected_piece.0);
+
     let Some(player_move) =
-        game_state.move_for_interaction(PLAYER_HUMAN, coord, selected_piece.0)
+        game_state.move_for_interaction(PLAYER_HUMAN, coord, preferred)
     else {
         return;
     };
+
+    if let Move::Place { piece, .. } = player_move {
+        selected_piece.0 = piece;
+    }
 
     player_move_events.write(PlayerMoveEvent(PLAYER_HUMAN, player_move));
 }

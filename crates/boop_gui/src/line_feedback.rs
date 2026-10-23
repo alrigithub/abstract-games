@@ -38,6 +38,23 @@ fn tick_line_feedback(
     }
 }
 
+/// Clear graduation/win connectors once the pulse has been seen, or on any click after game end.
+fn dismiss_line_on_click(
+    mouse: Res<ButtonInput<MouseButton>>,
+    feedback: Option<Res<ActiveLineFeedback>>,
+    mut commands: Commands,
+) {
+    let Some(feedback) = feedback else {
+        return;
+    };
+    if !mouse.just_pressed(MouseButton::Left) {
+        return;
+    }
+    if feedback.timer.elapsed() >= Duration::from_millis(300) {
+        commands.remove_resource::<ActiveLineFeedback>();
+    }
+}
+
 fn draw_line_feedback(
     mut gizmos: Gizmos,
     scale_factor: Res<ScaleFactor>,
@@ -152,6 +169,7 @@ pub fn plugin(app: &mut App) {
             Update,
             (
                 tick_line_feedback.run_if(resource_exists::<ActiveLineFeedback>),
+                dismiss_line_on_click.run_if(resource_exists::<ActiveLineFeedback>),
                 draw_line_feedback
                     .after(ScaleFactorSet)
                     .after(tick_line_feedback),

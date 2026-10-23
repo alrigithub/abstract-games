@@ -158,8 +158,8 @@ pub fn board_sync_events(
     before: &Board,
     after: &Board,
     effects: &MoveEffects,
-    player_move: Move,
-    acting_player: Player,
+    _player_move: Move,
+    _acting_player: Player,
 ) -> Vec<BoardUpdateEvent> {
     let shrink_removals = effects.graduated_cells.is_some();
 
@@ -170,11 +170,6 @@ pub fn board_sync_events(
         .into_iter()
         .flatten()
         .collect();
-
-    let placed_this_turn = match player_move {
-        Move::Place { coord, piece: kind } => Some((coord, Piece { player: acting_player, kind })),
-        _ => None,
-    };
 
     let mut events = Vec::new();
 
@@ -215,14 +210,8 @@ pub fn board_sync_events(
             if effects.off_board.iter().any(|e| e.from == coord) {
                 continue;
             }
-            if let Some((placed_coord, piece)) = placed_this_turn
-                && placed_coord == coord
-                && before.get(coord).is_none()
-            {
-                events.push(BoardUpdateEvent::Spawn { coord, piece });
-            }
-            // Immediate remove: shrink tweens were leaving stale meshes on WASM when
-            // graduation completed; line overlay still shows the three cells.
+            // Do not spawn the completing piece only to despawn it — graduation clears
+            // the bed immediately; the line overlay marks the three cells instead.
             events.push(BoardUpdateEvent::Remove {
                 coord,
                 shrink: false,
@@ -298,15 +287,10 @@ mod tests {
             ])
         );
 
-        assert!(events.iter().any(|event| matches!(
-            event,
-            BoardUpdateEvent::Spawn {
-                coord,
-                piece,
-            } if *coord == Coord::new(2, 0)
-                && piece.kind == PieceKind::Kitten
-                && piece.player == Player::First
-        )));
+        assert!(
+            !events.iter().any(|event| matches!(event, BoardUpdateEvent::Spawn { .. })),
+            "graduation should not spawn pieces that are removed in the same sync"
+        );
     }
 }
 

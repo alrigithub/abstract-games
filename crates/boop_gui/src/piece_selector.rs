@@ -135,9 +135,9 @@ fn clamp_selected_piece(
     game_state: Res<GameState>,
     mut selected: ResMut<HumanPieceChoice>,
 ) {
-    if selected.0 == PieceKind::Cat && game_state.pool(PLAYER_HUMAN).cats_in_hand == 0 {
-        selected.0 = PieceKind::Kitten;
-    }
+    selected.0 = game_state
+        .pool(PLAYER_HUMAN)
+        .normalize_placement_preference(selected.0);
 }
 
 #[allow(clippy::type_complexity)]
