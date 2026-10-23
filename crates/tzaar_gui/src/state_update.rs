@@ -6,7 +6,7 @@ use tzaar::{Move, Player};
 
 use crate::{
     PLAYER_AI, PLAYER_HUMAN,
-    ai::AiComputationEvent,
+    ai::AiPending,
     interaction::{BoardElement, CursorElement},
 };
 
@@ -79,37 +79,39 @@ pub fn restore_board_from_game_state(
     board_resync_events.write(BoardResyncEvent);
 }
 
+fn queue_ai_if_needed(game_state: &GameState, pending: &mut AiPending) {
+    pending.0 = game_state.winner().is_none() && game_state.to_move() == PLAYER_AI;
+}
+
 fn state_update(
     mut player_move_events: MessageReader<PlayerMoveEvent>,
     mut game_state: ResMut<GameState>,
     mut interaction_state: ResMut<InteractionState>,
     mut undo_history: ResMut<UndoHistory>,
-    mut ai_computation_events: MessageWriter<AiComputationEvent>,
+    mut pending: ResMut<AiPending>,
     mut board_resync_events: MessageWriter<BoardResyncEvent>,
 ) {
     for PlayerMoveEvent(player, player_move) in player_move_events.read() {
         let player = *player;
         let player_move = *player_move;
 
-        if player == PLAYER_HUMAN {
-            undo_history.0.push(game_state.0.clone());
+        if player != PLAYER_HUMAN {
+            continue;
         }
 
+        undo_history.0.push(game_state.0.clone());
+
         if game_state.apply(player_move).is_err() {
-            if player == PLAYER_HUMAN {
-                undo_history.0.pop();
-            }
+            undo_history.0.pop();
             continue;
         }
 
         board_resync_events.write(BoardResyncEvent);
+        queue_ai_if_needed(&game_state, &mut pending);
+    }
 
-        if game_state.winner().is_none() && game_state.to_move() == PLAYER_AI {
-            ai_computation_events.write(AiComputationEvent::Start(
-                PLAYER_AI,
-                Box::new(game_state.0.clone()),
-            ));
-        }
+    if game_state.winner().is_none() && game_state.to_move() == PLAYER_AI {
+        pending.0 = true;
     }
 
     *interaction_state = InteractionState::from_game_state(&game_state);

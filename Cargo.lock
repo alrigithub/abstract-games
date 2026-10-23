@@ -5053,7 +5053,6 @@ dependencies = [
  "bevy",
  "bevy_async_task",
  "bevy_tweening",
- "gloo-timers 0.3.0",
  "tzaar",
  "tzaar_ai",
 ]

@@ -2,11 +2,12 @@ use bevy::ecs::message::{MessageReader, MessageWriter};
 use bevy::prelude::*;
 use bevy::window::{CursorIcon, PrimaryWindow, SystemCursorIcon};
 use bevy_tweening::{TweenAnim, TweenState, TweeningPlugin};
-use tzaar::{Coord, Move, TurnPhase, all_playable_coords};
+use tzaar::{Coord, Move, all_playable_coords};
 
 use crate::{
     PLAYER_HUMAN,
     ai::AiSet,
+    pass_ui::{human_may_pass, submit_pass},
     graphics::{
         FOREGROUND_RENDER_LAYER, MainCamera, PieceMaterials, ScaleFactor, ScaleFactorSet,
         material_for, piece_mesh,
@@ -249,6 +250,14 @@ fn handle_clicks(
         return;
     };
 
+    if human_may_pass(&game_state, &interaction_state)
+        && selected.0.is_none()
+        && game_state.board().stack(coord).is_none()
+    {
+        submit_pass(&mut player_move_events);
+        return;
+    }
+
     if let Some(from) = selected.0 {
         if from == coord {
             selected.0 = None;
@@ -270,23 +279,23 @@ fn handle_clicks(
     }
 }
 
-fn handle_pass_key(
+fn handle_pass_input(
     keyboard: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
     interaction_state: Res<InteractionState>,
     game_state: Res<GameState>,
     mut player_move_events: MessageWriter<PlayerMoveEvent>,
 ) {
-    if !keyboard.just_pressed(KeyCode::KeyP) {
+    if !human_may_pass(&game_state, &interaction_state) {
         return;
     }
-    if !matches!(*interaction_state, InteractionState::HumanTurn) {
-        return;
-    }
-    if game_state.phase() != TurnPhase::OptionalSecond {
-        return;
-    }
-    if game_state.legal_moves().contains(&Move::PassSecond) {
-        player_move_events.write(PlayerMoveEvent(PLAYER_HUMAN, Move::PassSecond));
+
+    let pass_key = keyboard.just_pressed(KeyCode::KeyP)
+        || keyboard.just_pressed(KeyCode::Space)
+        || keyboard.just_pressed(KeyCode::Enter);
+
+    if pass_key || mouse.just_pressed(MouseButton::Right) {
+        submit_pass(&mut player_move_events);
     }
 }
 
@@ -320,7 +329,7 @@ pub fn plugin(app: &mut App) {
                 scale_board_elements.after(ScaleFactorSet),
                 update_cursor.after(ScaleFactorSet),
                 handle_clicks.before(StateUpdateSet).ambiguous_with(AiSet),
-                handle_pass_key.before(StateUpdateSet).ambiguous_with(AiSet),
+                handle_pass_input.before(StateUpdateSet).ambiguous_with(AiSet),
                 set_cursor_icon,
             ),
         );
