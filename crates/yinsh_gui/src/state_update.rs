@@ -42,13 +42,12 @@ impl GameState {
     }
 }
 
-#[derive(Resource, Default)]
-pub struct UndoHistory(pub Vec<yinsh::GameState>);
-
 #[derive(Resource)]
 pub enum InteractionState {
     RingPlacement(Vec<Coord>),
     MarkerPlacement(Vec<Coord>),
+    /// Ring is highlighted but not yet committed for movement (click ring to confirm).
+    RingSelect(Coord),
     RingMovement(Coord, Vec<Coord>),
     RunRemoval {
         all_run_coords: Vec<Coord>,
@@ -76,6 +75,7 @@ impl InteractionState {
                 TurnMode::MarkerPlacement => {
                     Self::MarkerPlacement(game_state.board.marker_moves(PLAYER_HUMAN).collect())
                 }
+                TurnMode::WaitForRingMovement(start) => Self::RingSelect(start),
                 TurnMode::RingMovement(start) => {
                     Self::RingMovement(start, game_state.board.ring_moves(start))
                 }
@@ -94,7 +94,6 @@ impl InteractionState {
                 }
                 TurnMode::WaitForRunRemoval(_)
                 | TurnMode::WaitForMarkerPlacement
-                | TurnMode::WaitForRingMovement(_)
                 | TurnMode::WaitForRingRemoval(_) => Self::AutoMove,
             }
         }
@@ -126,26 +125,32 @@ pub fn restore_board_from_game_state(
 #[derive(Message)]
 pub struct PlayerMoveEvent(pub Player, pub Move);
 
+#[derive(Message)]
+pub struct CancelRingSelectionEvent;
+
+fn cancel_ring_selection(
+    mut events: MessageReader<CancelRingSelectionEvent>,
+    mut game_state: ResMut<GameState>,
+) {
+    for _ in events.read() {
+        if let TurnMode::RingMovement(start) = game_state.turn_mode {
+            game_state.turn_mode = TurnMode::WaitForRingMovement(start);
+        }
+    }
+}
+
 fn state_update(
     mut player_move_events: MessageReader<PlayerMoveEvent>,
     mut game_state: ResMut<GameState>,
     mut interaction_state: ResMut<InteractionState>,
-    mut undo_history: ResMut<UndoHistory>,
     mut ai_computation_events: MessageWriter<AiComputationEvent>,
     mut board_update_events: MessageWriter<BoardUpdateEvent>,
     mut scoring: ResMut<ScoringPresentation>,
 ) {
     for PlayerMoveEvent(player, player_move) in player_move_events.read() {
         let player = *player;
-        let player_move = player_move.clone();
+        let player_move = *player_move;
         assert_eq!(player, game_state.active_player);
-
-        // Save state before human's turn-starting moves (for undo)
-        if player == PLAYER_HUMAN
-            && matches!(player_move, Move::PlaceMarker(_) | Move::PlaceRing(_))
-        {
-            undo_history.0.push(game_state.0.clone());
-        }
 
         match &player_move {
             Move::PlaceRing(coord) => {
@@ -204,8 +209,13 @@ pub fn plugin(app: &mut App) {
     let initial_game_state = GameState::initial();
     app.insert_resource(InteractionState::from_game_state(&initial_game_state))
         .insert_resource(initial_game_state)
-        .init_resource::<UndoHistory>()
         .add_message::<PlayerMoveEvent>()
+        .add_message::<CancelRingSelectionEvent>()
         .add_message::<BoardUpdateEvent>()
-        .add_systems(Update, state_update.in_set(StateUpdateSet));
+        .add_systems(
+            Update,
+            (cancel_ring_selection, state_update)
+                .chain()
+                .in_set(StateUpdateSet),
+        );
 }

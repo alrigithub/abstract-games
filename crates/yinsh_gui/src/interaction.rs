@@ -23,7 +23,7 @@ use crate::graphics::{
     ScaleFactorSet, color_for_player, marker_mesh, ring_mesh, spawn_marker, spawn_ring,
 };
 use crate::scoring::{RackedRing, move_ring_to_rack, rack_slot_position};
-use crate::state_update::{GameState, PlayerMoveEvent, StateUpdateSet};
+use crate::state_update::{CancelRingSelectionEvent, GameState, PlayerMoveEvent, StateUpdateSet};
 use crate::{graphics::COLOR_RING_MOVEMENT_INDICATOR, state_update::InteractionState};
 
 #[derive(Component)]
@@ -32,26 +32,43 @@ pub struct CursorElement;
 #[derive(Resource)]
 pub struct CursorCoord(pub Option<Coord>);
 
+/// How close the pointer must be to a board intersection (fraction of grid spacing).
+const BOARD_PICK_RADIUS_FACTOR: f32 = 0.42;
+
+fn viewport_to_world(
+    viewport_pos: Vec2,
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
+) -> Option<Vec2> {
+    camera
+        .viewport_to_world(camera_transform, viewport_pos)
+        .map(|ray| ray.origin.truncate())
+        .ok()
+}
+
+fn nearest_board_coord(world_pos: Vec2, scale_factor: &ScaleFactor) -> (Coord, f32) {
+    all_coords()
+        .into_iter()
+        .map(|c| {
+            let d = (scale_factor.screen_point(c).truncate() - world_pos).length();
+            (c, d)
+        })
+        .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+        .unwrap()
+}
+
 fn viewport_to_coord(
     viewport_pos: Vec2,
     camera: &Camera,
     camera_transform: &GlobalTransform,
     scale_factor: &ScaleFactor,
 ) -> Option<Coord> {
-    let world_pos = camera
-        .viewport_to_world(camera_transform, viewport_pos)
-        .map(|ray| ray.origin.truncate())
-        .ok()?;
-    Some(
-        yinsh::all_coords()
-            .into_iter()
-            .min_by_key(|c| {
-                let screen_pos = scale_factor.screen_point(*c);
-                let pos = Vec3::new(world_pos.x, world_pos.y, 0.0);
-                (screen_pos - pos).length_squared() as i32
-            })
-            .unwrap(),
-    )
+    let world_pos = viewport_to_world(viewport_pos, camera, camera_transform)?;
+    let (coord, dist) = nearest_board_coord(world_pos, scale_factor);
+    if dist > scale_factor.spacing * BOARD_PICK_RADIUS_FACTOR {
+        return None;
+    }
+    Some(coord)
 }
 
 fn setup_interaction_cursors(
@@ -263,7 +280,8 @@ fn colorize_board_elements(
                 player_colors.human_transparent.clone()
             } else {
                 match *interaction_state {
-                    InteractionState::RingMovement(start, _) => {
+                    InteractionState::RingSelect(start)
+                    | InteractionState::RingMovement(start, _) => {
                         if *coord == start && ring.is_some() {
                             player_colors.human_highlighted.clone()
                         } else {
@@ -382,6 +400,12 @@ fn grid_cursor_system(
                         cursor_marker_coord.0 = cursor_coord;
                     }
                 }
+                InteractionState::RingSelect(start) => {
+                    if cursor_coord == start {
+                        *cursor_ring_visibility = Visibility::Visible;
+                        cursor_ring_coord.0 = cursor_coord;
+                    }
+                }
                 InteractionState::RingMovement(_, ref possible_ring_moves) => {
                     if possible_ring_moves.contains(&cursor_coord) {
                         *cursor_ring_visibility = Visibility::Visible;
@@ -397,7 +421,11 @@ fn grid_cursor_system(
             }
 
             mouse_cursor_coord.0 = Some(cursor_coord);
+        } else {
+            mouse_cursor_coord.0 = None;
         }
+    } else {
+        mouse_cursor_coord.0 = None;
     }
 }
 
@@ -409,21 +437,23 @@ fn mouse_interaction_system(
     scale_factor: Res<ScaleFactor>,
     q_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
     mut player_move_events: MessageWriter<PlayerMoveEvent>,
+    mut cancel_ring_events: MessageWriter<CancelRingSelectionEvent>,
 ) {
     if matches!(*interaction_state, InteractionState::AutoMove) {
         player_move_events.write(PlayerMoveEvent(PLAYER_HUMAN, Move::Wait));
     }
 
+    let Ok((camera, camera_transform)) = q_camera.single() else {
+        return;
+    };
+
     // Get coordinate from touch if available
     let touch_coord = touches.iter_just_pressed().next().and_then(|touch| {
-        let Ok((camera, camera_transform)) = q_camera.single() else {
-            return None;
-        };
         viewport_to_coord(touch.position(), camera, camera_transform, &scale_factor)
     });
 
     let clicked = buttons.just_pressed(MouseButton::Left);
-    let cursor_coord = if touch_coord.is_some() {
+    let pointer_on_board = if touch_coord.is_some() {
         touch_coord
     } else if clicked {
         cursor_coord.0
@@ -431,7 +461,15 @@ fn mouse_interaction_system(
         None
     };
 
-    if let Some(cursor_coord) = cursor_coord {
+    if clicked
+        && pointer_on_board.is_none()
+        && matches!(*interaction_state, InteractionState::RingMovement(_, _))
+    {
+        cancel_ring_events.write(CancelRingSelectionEvent);
+        return;
+    }
+
+    if let Some(cursor_coord) = pointer_on_board {
         match *interaction_state {
             InteractionState::RingPlacement(ref free_coords) => {
                 if free_coords.contains(&cursor_coord) {
@@ -445,6 +483,11 @@ fn mouse_interaction_system(
                         PLAYER_HUMAN,
                         Move::PlaceMarker(cursor_coord),
                     ));
+                }
+            }
+            InteractionState::RingSelect(start) => {
+                if cursor_coord == start {
+                    player_move_events.write(PlayerMoveEvent(PLAYER_HUMAN, Move::Wait));
                 }
             }
             InteractionState::RingMovement(start, ref possible_ring_moves) => {

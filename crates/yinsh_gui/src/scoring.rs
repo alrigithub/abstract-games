@@ -6,16 +6,34 @@ use yinsh::TurnMode;
 
 use crate::board::BoardElement;
 use crate::graphics::{
-    ANIMATION_DURATION, BACKGROUND_RENDER_LAYER, COLOR_GRID, COLOR_WIN_GLOW, ScaleFactor,
+    ANIMATION_DURATION, BACKGROUND_RENDER_LAYER, COLOR_GRID, FOREGROUND_RENDER_LAYER, ScaleFactor,
     ScaleFactorSet,
 };
+
+#[cfg(target_arch = "wasm32")]
+use crate::graphics::COLOR_WIN_GLOW;
 use crate::state_update::{GameState, InteractionState, StateUpdateSet};
 
-/// How long the score-line glow stays after markers and ring are removed.
-pub const SCORE_LINGER_SECS: f32 = 0.9;
+/// How long the scored line stays highlighted after the ring is removed.
+pub const SCORE_LINGER_SECS: f32 = 0.85;
 
 #[derive(Component)]
 pub struct ScoreLineGlow;
+
+#[derive(Component)]
+struct ScoreLineGlowPulse {
+    base_scale: f32,
+}
+
+#[derive(Component)]
+struct ScoreDust {
+    velocity: Vec2,
+    lifetime: Timer,
+    start_alpha: f32,
+}
+
+const DUST_SPECKS_PER_CELL: usize = 16;
+const DUST_LIFETIME_SECS: f32 = 0.75;
 
 #[derive(Component)]
 pub struct RackedRing {
@@ -46,8 +64,19 @@ impl ScoringPresentation {
 
 #[derive(Resource)]
 pub struct ScoringMaterials {
-    pub glow_inner: Handle<ColorMaterial>,
-    pub glow_outer: Handle<ColorMaterial>,
+    pub glow_core: Handle<ColorMaterial>,
+    pub glow_halo: Handle<ColorMaterial>,
+}
+
+/// HDR-style win flash (see Bevy bloom-2d example); bloom camera picks this up on desktop.
+#[cfg(not(target_arch = "wasm32"))]
+fn score_bloom_color(intensity: f32) -> Color {
+    Color::linear_rgb(1.2 * intensity, 2.4 * intensity, 6.5 * intensity)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn score_bloom_color(intensity: f32) -> Color {
+    COLOR_WIN_GLOW.with_alpha(0.35 + 0.25 * intensity)
 }
 
 #[derive(Component)]
@@ -63,12 +92,12 @@ fn setup_scoring_materials(
     scale_factor: Res<ScaleFactor>,
 ) {
     commands.insert_resource(ScoringMaterials {
-        glow_inner: materials.add(ColorMaterial {
-            color: COLOR_WIN_GLOW.with_alpha(0.5),
+        glow_core: materials.add(ColorMaterial {
+            color: score_bloom_color(1.0),
             ..default()
         }),
-        glow_outer: materials.add(ColorMaterial {
-            color: COLOR_WIN_GLOW.with_alpha(0.22),
+        glow_halo: materials.add(ColorMaterial {
+            color: score_bloom_color(0.55),
             ..default()
         }),
     });
@@ -177,8 +206,8 @@ fn sync_score_line_glow(
     for coord in desired {
         let center = scale_factor.screen_point(coord);
         for (radius, mat) in [
-            (30.0, materials.glow_outer.clone()),
-            (20.0, materials.glow_inner.clone()),
+            (34.0, materials.glow_halo.clone()),
+            (18.0, materials.glow_core.clone()),
         ] {
             commands.spawn((
                 Mesh2d(meshes.add(Circle::new(radius))),
@@ -186,8 +215,128 @@ fn sync_score_line_glow(
                 Transform::from_translation(center + Vec3::new(0.0, 0.0, -0.2))
                     .with_scale(Vec3::splat(piece_scale)),
                 ScoreLineGlow,
+                ScoreLineGlowPulse {
+                    base_scale: piece_scale,
+                },
                 BACKGROUND_RENDER_LAYER,
             ));
+        }
+    }
+}
+
+fn pulse_score_line_glow(
+    time: Res<Time>,
+    scoring: Res<ScoringPresentation>,
+    mut q: Query<(&ScoreLineGlowPulse, &mut Transform), With<ScoreLineGlow>>,
+) {
+    let pulse = if scoring.is_blocking() {
+        1.0 + 0.12 * (time.elapsed_secs() * 9.0).sin()
+    } else if !scoring.scored_line.is_empty() {
+        1.0 + 0.06 * (time.elapsed_secs() * 7.0).sin()
+    } else {
+        return;
+    };
+
+    for (base, mut transform) in q.iter_mut() {
+        transform.scale = Vec3::splat(base.base_scale * pulse);
+    }
+}
+
+fn dust_rand(seed: u32) -> impl FnMut() -> f32 {
+    let mut s = seed.max(1);
+    move || {
+        s = s.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        s as f32 / u32::MAX as f32
+    }
+}
+
+fn spawn_score_dust_burst(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    scoring: Res<ScoringPresentation>,
+    scale_factor: Res<ScaleFactor>,
+    mut last_line: Local<Vec<yinsh::Coord>>,
+) {
+    if scoring.scored_line.is_empty() {
+        *last_line = Vec::new();
+        return;
+    }
+    if *last_line == scoring.scored_line {
+        return;
+    }
+    *last_line = scoring.scored_line.clone();
+
+    let mesh = meshes.add(Circle::new(2.8));
+    let piece_scale = scale_factor.factor;
+    let spread = scale_factor.spacing * 0.35;
+
+    for (cell_index, coord) in scoring.scored_line.iter().copied().enumerate() {
+        let origin = scale_factor.screen_point(coord);
+        let seed = (coord.x as i32 as u32)
+            .wrapping_mul(997)
+            .wrapping_add(coord.y as u32)
+            ^ cell_index as u32;
+        let mut rand = dust_rand(seed);
+
+        for speck in 0..DUST_SPECKS_PER_CELL {
+            let angle = rand() * std::f32::consts::TAU;
+            let speed = 55.0 + rand() * 95.0;
+            let velocity = Vec2::new(angle.cos(), angle.sin()) * speed;
+            let offset = Vec2::new((rand() - 0.5) * spread, (rand() - 0.5) * spread);
+            let dust_color = Color::srgb(
+                0.23 + rand() * 0.55,
+                0.45 + rand() * 0.35,
+                0.75 + rand() * 0.2,
+            );
+            let start_alpha = 0.55 + rand() * 0.4;
+            let material = materials.add(ColorMaterial {
+                color: dust_color.with_alpha(start_alpha),
+                ..default()
+            });
+
+            commands.spawn((
+                Mesh2d(mesh.clone()),
+                MeshMaterial2d(material),
+                Transform::from_translation(origin + offset.extend(0.15))
+                    .with_scale(Vec3::splat(piece_scale * (0.7 + rand() * 0.6))),
+                ScoreDust {
+                    velocity,
+                    lifetime: Timer::from_seconds(DUST_LIFETIME_SECS, TimerMode::Once),
+                    start_alpha,
+                },
+                FOREGROUND_RENDER_LAYER,
+            ));
+            let _ = speck;
+        }
+    }
+}
+
+fn tick_score_dust(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut q: Query<(
+        Entity,
+        &mut Transform,
+        &mut ScoreDust,
+        &MeshMaterial2d<ColorMaterial>,
+    )>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    for (entity, mut transform, mut dust, mat) in q.iter_mut() {
+        dust.lifetime.tick(time.delta());
+        let t = dust.lifetime.fraction().clamp(0.0, 1.0);
+        transform.translation.x += dust.velocity.x * time.delta_secs();
+        transform.translation.y += dust.velocity.y * time.delta_secs();
+        dust.velocity *= 0.92_f32.powf(time.delta_secs() * 60.0);
+
+        if let Some(color_mat) = materials.get_mut(&mat.0) {
+            let a = dust.start_alpha * (1.0 - t).powf(1.4);
+            color_mat.color = color_mat.color.with_alpha(a);
+        }
+
+        if dust.lifetime.is_finished() {
+            commands.entity(entity).despawn();
         }
     }
 }
@@ -309,6 +458,9 @@ pub fn plugin(app: &mut App) {
             Update,
             (
                 sync_score_line_glow.after(ScaleFactorSet),
+                pulse_score_line_glow.after(sync_score_line_glow),
+                spawn_score_dust_burst.after(StateUpdateSet),
+                tick_score_dust,
                 scoring_linger_tick.after(StateUpdateSet),
                 sync_racked_rings.after(ScaleFactorSet),
                 sync_rack_slot_outlines.after(ScaleFactorSet),

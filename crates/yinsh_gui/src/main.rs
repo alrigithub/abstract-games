@@ -1,4 +1,5 @@
 mod ai;
+mod ai_strength_ui;
 mod board;
 mod board_update_event;
 mod graphics;
@@ -41,6 +42,7 @@ fn main() {
             interaction::plugin,
             scoring::plugin,
             information_display::plugin,
+            ai_strength_ui::plugin,
             keyboard_control::plugin,
             #[cfg(not(target_arch = "wasm32"))]
             history::plugin,
