@@ -19,6 +19,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "366ffbaa4442f4684d91e2cd7c5ea7c4ed8add41959a31447066e279e432b618"
 
 [[package]]
+name = "abstract_gui_theme"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+]
+
+[[package]]
 name = "accesskit"
 version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1665,6 +1672,7 @@ dependencies = [
 name = "boop_gui"
 version = "0.1.0"
 dependencies = [
+ "abstract_gui_theme",
  "bevy",
  "bevy_async_task",
  "bevy_tweening",
@@ -2793,6 +2801,7 @@ dependencies = [
 name = "gomoku_gui"
 version = "0.1.0"
 dependencies = [
+ "abstract_gui_theme",
  "bevy",
  "bevy_async_task",
  "bevy_tweening",

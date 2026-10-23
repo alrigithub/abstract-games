@@ -1,0 +1,13 @@
+[package]
+name = "abstract_gui_theme"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "Shared Bevy board-game visual tokens and setup helpers."
+repository = "https://github.com/alrigithub/abstract-games"
+
+[dependencies]
+bevy = { version = "0.17", default-features = false, features = [
+    "bevy_gizmos",
+    "bevy_render",
+] }
