@@ -1,5 +1,6 @@
-//! Behavioural parity with the canonical (Smirk & Dagger) rules used by the shell engine:
-//! boop/brace mechanics, win-before-graduation, and graduation choice.
+//! Behavioural parity with the official Smirk & Dagger rulebook (place → boop →
+//! graduate → win). The React shell is a UX reference only; where it auto-picks
+//! a line or a full-bed kitten, these tests require the rulebook's player choice.
 
 use boop::{Coord, GameState, LineHighlight, Move, Piece, PieceKind, Player, Pool, TurnMode};
 
@@ -133,10 +134,12 @@ fn kitten_does_not_boop_cat_but_cat_boops_cat() {
 
 // --- Win before graduation --------------------------------------------------
 
-/// Three cats in a row is an immediate win even if the same placement also completes
-/// a mixed line that shares a cat with the winning line.
+/// Rulebook turn order is place → boop → graduate → win. A mixed line is a
+/// graduating line; three cats is not. Graduating the mixed line that shares a
+/// cat with the three-cat line therefore destroys the win (the shell does this
+/// too; an earlier Bevy revision checked the cat line first and was wrong).
 #[test]
-fn three_cat_line_wins_even_when_it_shares_a_cat_with_a_mixed_line() {
+fn mixed_line_graduates_before_win_check_when_it_shares_a_cat() {
     let mut g = GameState::new();
     g.set_piece(Coord::new(0, 0), cat(Player::First));
     g.set_piece(Coord::new(1, 0), cat(Player::First));
@@ -151,19 +154,18 @@ fn three_cat_line_wins_even_when_it_shares_a_cat_with_a_mixed_line() {
     })
     .unwrap();
 
-    assert_eq!(g.winner(), Some(Player::First));
-    assert_eq!(
-        g.last_move_effects().line_highlight,
-        Some(LineHighlight::Win([
-            Coord::new(0, 0),
-            Coord::new(1, 0),
-            Coord::new(2, 0),
-        ]))
-    );
-    assert!(g.last_move_effects().graduated_cells.is_none());
-    for coord in [Coord::new(0, 0), Coord::new(1, 0), Coord::new(2, 0)] {
-        assert_eq!(g.board().get(coord), Some(cat(Player::First)));
+    assert_eq!(g.winner(), None);
+    assert_eq!(g.to_move(), Player::Second);
+    for coord in [Coord::new(2, 0), Coord::new(2, 1), Coord::new(2, 2)] {
+        assert!(g.board().get(coord).is_none());
     }
+    assert_eq!(g.board().get(Coord::new(0, 0)), Some(cat(Player::First)));
+    assert_eq!(g.board().get(Coord::new(1, 0)), Some(cat(Player::First)));
+    assert_eq!(
+        g.last_move_effects().graduated_cells,
+        Some([Coord::new(2, 0), Coord::new(2, 1), Coord::new(2, 2)])
+    );
+    assert_eq!(g.pool(Player::First), pool(2, 4, 2));
 }
 
 #[test]
@@ -271,19 +273,17 @@ fn pending_graduation_rejects_placement_and_wrong_lines() {
     })
     .unwrap();
 
-    assert!(
-        g.apply(Move::Place {
+    assert!(g
+        .apply(Move::Place {
             coord: Coord::new(4, 4),
             piece: PieceKind::Kitten,
         })
-        .is_err()
-    );
-    assert!(
-        g.apply(Move::Graduate {
+        .is_err());
+    assert!(g
+        .apply(Move::Graduate {
             line: [Coord::new(3, 3), Coord::new(4, 4), Coord::new(5, 5)],
         })
-        .is_err()
-    );
+        .is_err());
     assert_eq!(g.to_move(), Player::First);
 }
 
