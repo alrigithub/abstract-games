@@ -18,18 +18,76 @@
       line-height: 1.5;
     }
     h1 { font-weight: 600; letter-spacing: -0.02em; }
-    ul { padding-left: 1.25rem; }
+    ul.games {
+      list-style: none;
+      padding: 0;
+      margin: 1.25rem 0;
+    }
+    ul.games li {
+      margin-bottom: 1rem;
+    }
+    ul.games li:last-child {
+      margin-bottom: 0;
+    }
+    .game-title {
+      font-size: 1rem;
+    }
+    .sep {
+      color: hsl(0, 0%, 45%);
+      margin: 0 0.15em;
+    }
     a { color: hsl(210, 80%, 65%); }
+    a.rules {
+      font-size: 0.92rem;
+      color: hsl(210, 45%, 58%);
+    }
+    .skim {
+      margin: 0.2rem 0 0;
+      color: hsl(0, 0%, 52%);
+      font-size: 0.88rem;
+    }
+    .soon {
+      color: hsl(0, 0%, 48%);
+      font-size: 0.92rem;
+      font-weight: 400;
+    }
     p.note { color: hsl(0, 0%, 55%); font-size: 0.9rem; }
   </style>
 </head>
 <body>
   <h1>Abstract Games</h1>
   <p>Human vs AI — Rust + Bevy WASM builds from <a href="https://github.com/alrigithub/abstract-games">abstract-games</a>.</p>
-  <ul>
-    <li><a href="./yinsh/">Yinsh</a></li>
-    <li><a href="./gomoku/">Gomoku</a></li>
-    <li><a href="./boop/">Boop</a></li>
+  <ul class="games">
+    <li>
+      <div class="game-title">
+        <a href="./yinsh/">Yinsh</a><span class="sep">·</span><a class="rules" href="https://gipf.com/yinsh/rules/rules.html" target="_blank" rel="noopener noreferrer">Rules</a>
+      </div>
+      <p class="skim">Win: remove 3 rings (row of 5 markers).</p>
+    </li>
+    <li>
+      <div class="game-title">
+        <a href="./gomoku/">Gomoku</a><span class="sep">·</span><a class="rules" href="https://www.renju.net/gomokurules/" target="_blank" rel="noopener noreferrer">Rules</a>
+      </div>
+      <p class="skim">Win: exactly five in a row.</p>
+    </li>
+    <li>
+      <div class="game-title">
+        <a href="./boop/">Boop</a><span class="sep">·</span><a class="rules" href="https://rules.dized.com/game/3_U-I3tNQyW4X0aaWER7YA/boop" target="_blank" rel="noopener noreferrer">Rules</a>
+      </div>
+      <p class="skim">Win: 3 cats in a row (or all 8 cats on the bed).</p>
+    </li>
+    <li>
+      <div class="game-title">
+        Tak<span class="sep">·</span><span class="soon">play soon</span><span class="sep">·</span><a class="rules" href="https://crabfragmentlabs.com/tak" target="_blank" rel="noopener noreferrer">Rules</a>
+      </div>
+      <p class="skim">Win: road connecting opposite edges.</p>
+    </li>
+    <li>
+      <div class="game-title">
+        Tzaar<span class="sep">·</span><span class="soon">play soon</span><span class="sep">·</span><a class="rules" href="https://www.gipf.com/tzaar/rules/rules.html" target="_blank" rel="noopener noreferrer">Rules</a>
+      </div>
+      <p class="skim">Win: wipe one opponent piece type, or leave them unable to capture.</p>
+    </li>
   </ul>
   <p class="note">Run <code>./scripts/build_web.sh</code> to generate WASM assets before hosting.</p>
 </body>
