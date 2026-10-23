@@ -6,7 +6,8 @@ use yinsh::TurnMode;
 
 use crate::board::BoardElement;
 use crate::graphics::{
-    ANIMATION_DURATION, BACKGROUND_RENDER_LAYER, COLOR_WIN_GLOW, ScaleFactor, ScaleFactorSet,
+    ANIMATION_DURATION, BACKGROUND_RENDER_LAYER, COLOR_GRID, COLOR_WIN_GLOW, ScaleFactor,
+    ScaleFactorSet,
 };
 use crate::state_update::{GameState, InteractionState, StateUpdateSet};
 
@@ -52,7 +53,7 @@ fn setup_scoring_materials(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    player_colors: Res<crate::graphics::PlayerColors>,
+    scale_factor: Res<ScaleFactor>,
 ) {
     commands.insert_resource(ScoringMaterials {
         glow_inner: materials.add(ColorMaterial {
@@ -66,32 +67,30 @@ fn setup_scoring_materials(
     });
 
     let outline = materials.add(ColorMaterial {
-        color: Color::srgba(0.5, 0.48, 0.44, 0.35),
+        color: COLOR_GRID.with_alpha(0.55),
         ..default()
     });
 
     for player in [yinsh::Player::A, yinsh::Player::B] {
         for slot in 0..3 {
-            let fill = match player {
-                yinsh::Player::A => player_colors.human.clone(),
-                yinsh::Player::B => player_colors.ai.clone(),
-            };
+            let position = rack_slot_position(&scale_factor, player, slot);
             commands.spawn((
+                // Same annulus as board rings — empty scored-ring slot off the playfield.
                 Mesh2d(meshes.add(Annulus::new(20., 25.))),
                 MeshMaterial2d(outline.clone()),
                 RackSlotOutline { player, slot },
+                Transform::from_translation(position).with_scale(Vec3::splat(scale_factor.factor)),
                 BACKGROUND_RENDER_LAYER,
             ));
-            // Hidden until filled — racked rings draw on top at same slot.
-            let _ = fill;
         }
     }
 }
 
 pub fn rack_slot_position(scale_factor: &ScaleFactor, player: yinsh::Player, slot: usize) -> Vec3 {
-    let side_x = scale_factor.spacing * 4.8;
-    let base_y = scale_factor.spacing * 1.2;
-    let step = scale_factor.spacing * 0.55;
+    // Outside the playable hex footprint (outer ring ~±4.3× spacing in x).
+    let side_x = scale_factor.spacing * 6.0;
+    let base_y = scale_factor.spacing * 1.0;
+    let step = scale_factor.spacing * 0.52;
     match player {
         yinsh::Player::A => Vec3::new(-side_x, base_y - slot as f32 * step, 0.0),
         yinsh::Player::B => Vec3::new(side_x, base_y - slot as f32 * step, 0.0),
@@ -153,6 +152,7 @@ fn sync_score_line_glow(
         commands.entity(entity).despawn();
     }
 
+    let piece_scale = scale_factor.factor;
     for coord in desired {
         let center = scale_factor.screen_point(coord);
         for (radius, mat) in [
@@ -162,7 +162,8 @@ fn sync_score_line_glow(
             commands.spawn((
                 Mesh2d(meshes.add(Circle::new(radius))),
                 MeshMaterial2d(mat),
-                Transform::from_translation(center + Vec3::new(0.0, 0.0, -0.2)),
+                Transform::from_translation(center + Vec3::new(0.0, 0.0, -0.2))
+                    .with_scale(Vec3::splat(piece_scale)),
                 ScoreLineGlow,
                 BACKGROUND_RENDER_LAYER,
             ));
