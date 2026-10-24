@@ -3,6 +3,7 @@ export * from './board-renderer';
 export * from './board-lighting';
 export * from './board-grid-lines'; // zoom-stable grid line helpers
 export * from './board-assist';
+export * from './ghost-visual';
 export * from './board-scene';
 export * from './camera-views';
 export * from './constants';

@@ -201,7 +201,7 @@ export function buildYinshAssist(
 
   if (options.lastAiMove) {
     const ai = aiLastMoveAssist(options.lastAiMove, options.aiPlayer);
-    assist.ghosts!.push(...(ai.ghosts ?? []));
+    assist.ghosts = [...(assist.ghosts ?? []), ...(ai.ghosts ?? [])];
   }
 
   const shadows: AssistShadowHint[] = assist.shadows ? [...assist.shadows] : [];

@@ -19,7 +19,6 @@ const LIGHT_DIR = new THREE.Vector3(-1, Math.SQRT2, 1).normalize();
 
 const BOX_CORNERS = Array.from({ length: 8 }, () => new THREE.Vector3());
 const PLAYFIELD_CATCHER_NAME = '__playfieldShadowCatcher';
-const playfieldBounds = new THREE.Box3();
 
 function chooseShadowMapSize(): number {
   if (typeof window === 'undefined') return 2048;
@@ -89,7 +88,7 @@ export function applyBoardLighting(
   const pieceHeightMargin = options.pieceHeightMargin ?? 1.35;
   const light = new THREE.DirectionalLight(0xffffff, 1.05);
   light.position.set(-7, 11, 8);
-  light.castShadow = true;
+  light.castShadow = false;
   applyShadowMapSettings(light, chooseShadowMapSize());
 
   const target = new THREE.Object3D();
@@ -107,7 +106,7 @@ export function applyBoardLighting(
     }
     tmpBox.min.y = Math.min(tmpBox.min.y, BOARD.PLAYFIELD_SURFACE_Y);
     tmpBox.max.y = Math.max(tmpBox.max.y, BOARD.PLAYFIELD_SURFACE_Y + pieceHeightMargin);
-    tmpBox.expandByScalar(0.35);
+    tmpBox.expandByScalar(0.55);
 
     const center = tmpBox.getCenter(new THREE.Vector3());
     const size = tmpBox.getSize(new THREE.Vector3());
@@ -116,7 +115,7 @@ export function applyBoardLighting(
     target.position.copy(center);
     light.position.copy(center).addScaledVector(LIGHT_DIR, lightDistance);
 
-    const pad = Math.max(0.2, Math.max(size.x, size.z) * 0.04);
+    const pad = Math.max(0.55, Math.max(size.x, size.z) * 0.09);
     fitShadowCameraToBox(light, tmpBox, pad);
   }
 
@@ -161,67 +160,20 @@ export function setMeshShadowFlags(
   });
 }
 
-/** Drop-shadow strength on unlit (MeshBasic) boards. */
-export const PIECE_DROP_SHADOW_OPACITY = 0.38;
-
-function createPlayfieldShadowCatcher(): THREE.Mesh {
-  const catcher = new THREE.Mesh(
-    new THREE.PlaneGeometry(1, 1),
-    new THREE.ShadowMaterial({
-      opacity: PIECE_DROP_SHADOW_OPACITY,
-      transparent: true,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
-    }),
-  );
-  catcher.name = PLAYFIELD_CATCHER_NAME;
-  catcher.rotation.x = -Math.PI / 2;
-  catcher.userData.isShadowCatcher = true;
-  catcher.receiveShadow = true;
-  catcher.castShadow = false;
-  catcher.renderOrder = 0;
-  catcher.raycast = () => {};
-  return catcher;
-}
-
-function syncPlayfieldShadowCatcher(boardRoot: THREE.Object3D) {
-  boardRoot.updateMatrixWorld(true);
-  playfieldBounds.makeEmpty();
-  boardRoot.traverse(node => {
-    if (!(node instanceof THREE.Mesh)) return;
-    if (node.userData.isShadowCatcher) return;
-    playfieldBounds.expandByObject(node);
-  });
-  if (playfieldBounds.isEmpty()) return;
-
-  let catcher = boardRoot.getObjectByName(PLAYFIELD_CATCHER_NAME) as THREE.Mesh | undefined;
-  if (!catcher) {
-    catcher = createPlayfieldShadowCatcher();
-    boardRoot.add(catcher);
-  }
-
-  const center = playfieldBounds.getCenter(new THREE.Vector3());
-  const size = playfieldBounds.getSize(new THREE.Vector3());
-  const pad = 0.12;
-  catcher.position.set(center.x, BOARD.PLAYFIELD_SURFACE_Y + 0.0008, center.z);
-  catcher.scale.set(Math.max(size.x, 0.5) + pad * 2, Math.max(size.z, 0.5) + pad * 2, 1);
-}
-
-/** Playfield receives directional shadows; thin grid lines and decals do not. */
+/** Playfield meshes do not cast or receive shadow maps (grounding uses contact decals). */
 export function tagPlayfieldForShadows(boardRoot: THREE.Object3D) {
   setMeshShadowFlags(boardRoot, { cast: false, receive: false });
-  syncPlayfieldShadowCatcher(boardRoot);
+  const stale = boardRoot.getObjectByName(PLAYFIELD_CATCHER_NAME);
+  if (stale) boardRoot.remove(stale);
   boardRoot.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;
-    if (node.userData.boardGridLine || node.userData.isShadowCatcher) return;
+    if (node.userData.boardGridLine) return;
     node.receiveShadow = false;
   });
 }
 
 export function tagPieceForShadows(root: THREE.Object3D, receiveInStack: boolean) {
-  setMeshShadowFlags(root, { cast: true, receive: receiveInStack });
+  setMeshShadowFlags(root, { cast: false, receive: receiveInStack });
   root.traverse(node => {
     if (node instanceof THREE.LineSegments) {
       node.castShadow = false;

@@ -13,7 +13,6 @@ import {
   applyBoardLighting,
   createBoardWebGLRenderer,
   createCameraViewController,
-  createContactShadowBlob,
   measureBoardFrameMs,
   tagPlayfieldForShadows,
   gomokuCellWorld,
@@ -130,7 +129,6 @@ export async function createGomokuScene(
     const boardPlane = new THREE.Mesh(planeGeo, materials.board);
     boardPlane.rotation.x = -Math.PI / 2;
     boardGroup.add(boardPlane);
-    boardGroup.add(createContactShadowBlob(boardSpan * BOARD.CONTACT_BLOB_SOFT_SCALE, GOMOKU_DIMS.SLAB));
     const yLine = BOARD.LINE_Y + 0.001;
     for (let i = 0; i < size; i++) {
       const offset = i - span / 2;

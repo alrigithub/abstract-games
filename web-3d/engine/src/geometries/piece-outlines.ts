@@ -59,7 +59,7 @@ export function contactShadowScaleFromGeometry(geo: THREE.BufferGeometry | null 
   if (!box) return fallback;
   const footprint = Math.max(box.max.x - box.min.x, box.max.z - box.min.z, 0.01);
   // Wider pieces (e.g. Boop vases) need a footprint-based blob; small Tak stones keep the legacy minimum.
-  return Math.max(fallback, footprint * BOARD.SHADOW_SCALE);
+  return Math.max(fallback, footprint * BOARD.SHADOW_SCALE * 1.06);
 }
 
 export function syncPieceContactShadowScale(shadow: THREE.Mesh, geo: THREE.BufferGeometry): void {
@@ -82,8 +82,9 @@ export function syncPieceGroundShadowPosition(
   } else {
     shadow.position.y = mesh.position.y - fallbackHalfHeight + BOARD.SHADOW_CONTACT_EPSILON;
   }
-  shadow.position.x = mesh.position.x;
-  shadow.position.z = mesh.position.z;
+  const center = groundShadowBounds.getCenter(new THREE.Vector3());
+  shadow.position.x = center.x;
+  shadow.position.z = center.z;
 }
 
 export function makePieceShadow(

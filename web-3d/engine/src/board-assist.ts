@@ -56,6 +56,13 @@ function createWarmCelebrationDiscTexture(): THREE.CanvasTexture | null {
 
 type CellPosition = (index: number) => THREE.Vector3;
 
+/** When set, ghosts use real piece visuals at 50% opacity instead of flat discs. */
+export type AssistGhostVisualBuilder = (hint: AssistGhostHint, cellPosition: CellPosition) => THREE.Object3D | null;
+
+export interface BoardAssistLayerOptions {
+  createGhostVisual?: AssistGhostVisualBuilder;
+}
+
 function footprintGeometry(footprint: AssistFootprint): THREE.BufferGeometry {
   if (footprint.shape === 'ring') {
     const inner = footprint.innerRadius ?? footprint.outerRadius * 0.72;
@@ -71,6 +78,8 @@ export class BoardAssistLayer {
   private readonly shadowPool: THREE.Mesh[] = [];
   private readonly ghostRingPool: THREE.Mesh[] = [];
   private readonly ghostMarkerPool: THREE.Mesh[] = [];
+  private readonly ghostVisualPool: THREE.Object3D[] = [];
+  private readonly createGhostVisual?: AssistGhostVisualBuilder;
   private readonly runMarkerPool: THREE.Mesh[] = [];
   private readonly runMarkerOuterPool: THREE.Mesh[] = [];
   private readonly ringPickPool: THREE.Mesh[] = [];
@@ -108,7 +117,8 @@ export class BoardAssistLayer {
   private runCelebrationColor = '#ffb347';
   private shadowTint = 0x19232e;
 
-  constructor() {
+  constructor(options: BoardAssistLayerOptions = {}) {
+    this.createGhostVisual = options.createGhostVisual;
     this.destDotMaterial = new THREE.MeshBasicMaterial({
       color: WIN_ACCENT,
       transparent: true,
@@ -238,6 +248,7 @@ export class BoardAssistLayer {
     for (const m of this.ringPool) m.geometry.dispose();
     for (const m of this.ghostRingPool) m.geometry.dispose();
     for (const m of this.ghostMarkerPool) m.geometry.dispose();
+    for (const g of this.ghostVisualPool) this.disposeGhostVisual(g);
     for (const m of this.runMarkerPool) m.geometry.dispose();
     for (const m of this.runMarkerOuterPool) m.geometry.dispose();
     for (const m of this.ringPickPool) m.geometry.dispose();
@@ -353,13 +364,27 @@ export class BoardAssistLayer {
   private collectMarkerGhostStats(): Pick<BoardAssistStats, 'markerGhostCount' | 'markerGhostMinOpacity'> {
     let count = 0;
     let minOpacity = 1;
-    for (const mesh of this.ghostMarkerPool) {
-      if (!mesh.visible) continue;
+    const tally = (mesh: THREE.Mesh) => {
+      if (!mesh.visible) return;
       count++;
       const mat = mesh.material;
       if (mat instanceof THREE.MeshBasicMaterial) {
         minOpacity = Math.min(minOpacity, mat.opacity);
       }
+    };
+    for (const mesh of this.ghostMarkerPool) tally(mesh);
+    for (const group of this.ghostVisualPool) {
+      if (!group.visible || !this.ghostVisualHasMarker(group)) continue;
+      count++;
+      group.traverse(node => {
+        if (!(node instanceof THREE.Mesh)) return;
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        for (const mat of mats) {
+          if ('opacity' in mat && typeof mat.opacity === 'number') {
+            minOpacity = Math.min(minOpacity, mat.opacity);
+          }
+        }
+      });
     }
     return { markerGhostCount: count, markerGhostMinOpacity: count ? minOpacity : 0 };
   }
@@ -382,6 +407,7 @@ export class BoardAssistLayer {
     count(this.shadowPool);
     count(this.ghostRingPool);
     count(this.ghostMarkerPool);
+    for (const g of this.ghostVisualPool) if (g.visible) n++;
     count(this.runMarkerPool);
     count(this.runMarkerOuterPool);
     count(this.ringPickPool);
@@ -442,6 +468,21 @@ export class BoardAssistLayer {
   private hideAllGhosts() {
     for (const m of this.ghostRingPool) m.visible = false;
     for (const m of this.ghostMarkerPool) m.visible = false;
+    for (const g of this.ghostVisualPool) g.visible = false;
+  }
+
+  private disposeGhostVisual(root: THREE.Object3D) {
+    root.traverse(node => {
+      if (node instanceof THREE.Mesh) {
+        node.geometry.dispose();
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        for (const mat of mats) mat.dispose();
+      }
+    });
+  }
+
+  private ghostVisualHasMarker(root: THREE.Object3D): boolean {
+    return root.userData.assistMarkerGhost === true;
   }
 
   private hideAllRunMarkers() {
@@ -589,6 +630,27 @@ export class BoardAssistLayer {
 
   private placeGhosts(ghosts: readonly AssistGhostHint[], cellPosition: CellPosition) {
     this.hideAllGhosts();
+    if (this.createGhostVisual) {
+      let visualIdx = 0;
+      for (const hint of ghosts) {
+        let group = this.ghostVisualPool[visualIdx];
+        if (!group) {
+          group = new THREE.Group();
+          group.renderOrder = MARKER_GHOST_RENDER_ORDER;
+          this.root.add(group);
+          this.ghostVisualPool.push(group);
+        }
+        const built = this.createGhostVisual(hint, cellPosition);
+        if (!built) continue;
+        this.disposeGhostVisual(group);
+        group.clear();
+        group.add(built);
+        group.userData.assistMarkerGhost = !!hint.marker;
+        group.visible = true;
+        visualIdx++;
+      }
+      return;
+    }
     let ringIdx = 0;
     let markerIdx = 0;
     for (const hint of ghosts) {

@@ -8,7 +8,6 @@ import {
 } from './board-grid-lines';
 import { createCameraViewController, fitOrthographicToWorldPoints, type CameraViewController } from './camera-views';
 import { ANIMATION, BOARD, CAMERA } from './constants';
-import { createContactShadowBlob } from './geometries/contact-shadow';
 import {
   decoratePieceMesh,
   makePieceShadow,
@@ -23,7 +22,8 @@ import {
   tagPlayfieldForShadows,
 } from './board-lighting';
 import { applyBoardEnvironment, createBoardWebGLRenderer, measureBoardFrameMs } from './board-renderer';
-import { BoardAssistLayer } from './board-assist';
+import { BoardAssistLayer, type AssistGhostVisualBuilder } from './board-assist';
+import { applyGhostOpacity } from './ghost-visual';
 import { WIN_ACCENT } from './theme';
 
 const FLIP_HALO_NAME = 'flip-preview-halo';
@@ -38,6 +38,7 @@ import {
 } from './sound/place-sfx';
 import { themeTokens, type ThemeId } from './theme';
 import type {
+  AssistGhostHint,
   BoardAssistState,
   BoardSnapshot,
   EnginePiece,
@@ -112,8 +113,27 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const stackedPiecesReceiveShadow = options.stackedPiecesReceiveShadow ?? false;
   container.appendChild(renderer.domElement);
 
+  function collectShadowFitPoints(): THREE.Vector3[] {
+    const points = collectFramePoints().map(p => p.clone());
+    const pad = 0.7;
+    snapshot.cells.forEach((stack, index) => {
+      if (!stack.length) return;
+      const base = cellPosition(index);
+      const centers = layoutStackCenters(stack, stackMeasure, playfieldY);
+      stack.forEach((piece, stackIndex) => {
+        const topY =
+          meshYFromStackCenter(centers[stackIndex]!, piece as EnginePiece) + height(piece as never);
+        points.push(
+          new THREE.Vector3(base.x - pad, BOARD.PLAYFIELD_SURFACE_Y, base.z - pad),
+          new THREE.Vector3(base.x + pad, topY, base.z + pad),
+        );
+      });
+    });
+    return points;
+  }
+
   function syncShadowFrustum() {
-    boardLighting.fitToPoints(collectFramePoints().map(p => p.clone()));
+    boardLighting.fitToPoints(collectShadowFitPoints());
   }
 
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
@@ -127,7 +147,29 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const pilesGroup = new THREE.Group();
   const shadowsGroup = new THREE.Group();
   scene.add(board, shadowsGroup, piecesGroup, ghostGroup, reserveGroup, pilesGroup);
-  const assistLayer = new BoardAssistLayer();
+  function buildAssistGhost(hint: AssistGhostHint, cellPosition: (index: number) => THREE.Vector3): THREE.Object3D | null {
+    if (!options.pieces.createVisual) return null;
+    const stack: EnginePiece[] = [];
+    if (hint.ring) stack.push({ id: 'assist-ring', player: hint.player, shape: 'ring' });
+    if (hint.marker) stack.push({ id: 'assist-marker', player: hint.player, shape: 'marker' });
+    if (!stack.length) return null;
+    const anchor = cellPosition(hint.cell);
+    const group = new THREE.Group();
+    group.position.set(anchor.x, 0, anchor.z);
+    const centers = layoutStackCenters(stack, stackMeasure, playfieldY);
+    stack.forEach((piece, stackIndex) => {
+      const vis = options.pieces.createVisual!(piece);
+      applyGhostOpacity(vis, 0.5);
+      vis.rotation.y = pieceYaw(piece.id);
+      vis.position.y = meshYFromStackCenter(centers[stackIndex]!, piece);
+      group.add(vis);
+    });
+    return group;
+  }
+
+  const assistLayer = new BoardAssistLayer(
+    options.pieces.createVisual ? { createGhostVisual: buildAssistGhost } : {},
+  );
   assistLayer.attach(scene);
   assistLayer.applyTheme(tokens);
   let assistState: BoardAssistState | null = null;
@@ -664,7 +706,6 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     const boardPlane = new THREE.Mesh(planeGeo, boardMaterial);
     boardPlane.rotation.x = -Math.PI / 2;
     board.add(boardPlane);
-    board.add(createContactShadowBlob(size, boardSlab));
     const half = size / 2;
     const lineWidth = BOARD.LINE_W;
     for (let i = 0; i <= size; i++) {

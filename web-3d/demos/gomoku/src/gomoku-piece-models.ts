@@ -105,7 +105,6 @@ function createProceduralVisual(
   materials: { stoneA: THREE.MeshBasicMaterial; stoneB: THREE.MeshBasicMaterial },
 ): THREE.Mesh {
   const mesh = new THREE.Mesh(geometry, player === 'A' ? materials.stoneA : materials.stoneB);
-  mesh.castShadow = true;
   mesh.receiveShadow = false;
   tagPieceForShadows(mesh, false);
   return mesh;

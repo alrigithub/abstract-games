@@ -15,6 +15,6 @@ describe('contactShadowScaleFromGeometry', () => {
     geo.computeBoundingBox();
     const scale = contactShadowScaleFromGeometry(geo);
     expect(scale).toBeGreaterThan(BOARD.SHADOW_SCALE * 0.95);
-    expect(scale).toBeCloseTo(0.96 * BOARD.SHADOW_SCALE, 5);
+    expect(scale).toBeCloseTo(0.96 * BOARD.SHADOW_SCALE * 1.06, 5);
   });
 });
