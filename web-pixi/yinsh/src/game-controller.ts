@@ -1,4 +1,4 @@
-import { theme } from "./theme";
+import { createAiWorkerBridge, theme } from "@abstract/pixi-shared";
 import type { MoveJson, Player, RenderState } from "./types";
 import {
   wasmApplyMove,
@@ -167,17 +167,15 @@ export class GameController {
   private scoringLinger = false;
   private aiThinking = false;
   private aiDepth = 10;
-  private aiWorker: Worker;
+  private aiBridge = createAiWorkerBridge(
+    new URL("./ai-worker.ts", import.meta.url),
+  );
   private aiReqId = 0;
   private pendingAiId: number | null = null;
   private deferredAi = false;
 
   constructor() {
-    this.aiWorker = new Worker(new URL("./ai-worker.ts", import.meta.url), {
-      type: "module",
-    });
-    this.aiWorker.onmessage = (ev: MessageEvent<{ id: number; moveJson: string; error?: string }>) => {
-      const { id, moveJson, error } = ev.data;
+    this.aiBridge.setHandler(({ id, moveJson, error }) => {
       if (this.pendingAiId !== id) return;
       this.pendingAiId = null;
       this.aiThinking = false;
@@ -186,7 +184,7 @@ export class GameController {
         return;
       }
       void this.applyMove(JSON.parse(moveJson) as MoveJson, false);
-    };
+    });
   }
 
   setAiDepth(depth: number) {
@@ -348,7 +346,7 @@ export class GameController {
     this.emit();
     const id = ++this.aiReqId;
     this.pendingAiId = id;
-    this.aiWorker.postMessage({
+    this.aiBridge.post({
       id,
       stateJson: JSON.stringify(this.state),
       depth: this.aiDepth,

@@ -1,7 +1,12 @@
 import { Container, Graphics } from "pixi.js";
-import type { Coord } from "./coords";
-import { screenPoint } from "./coords";
 import { theme } from "./theme";
+
+export type EffectCoord = { x: number; y: number };
+
+export type ScreenPointFn = (
+  c: EffectCoord,
+  spacing: number,
+) => { x: number; y: number };
 
 type Dust = {
   g: Graphics;
@@ -12,13 +17,13 @@ type Dust = {
   startAlpha: number;
 };
 
-export class ScoreEffects extends Container {
+/** Win / highlight glow with dust burst (Yinsh scoring, Tzaar victory, etc.). */
+export class WinEffects extends Container {
   private glowLayer = new Container();
   private dustLayer = new Container();
   private dust: Dust[] = [];
   private pulseT = 0;
   private lingerMs = 0;
-  private line: Coord[] = [];
 
   constructor() {
     super();
@@ -26,8 +31,12 @@ export class ScoreEffects extends Container {
     this.addChild(this.dustLayer);
   }
 
-  showScoredLine(coords: Coord[], spacing: number, factor: number) {
-    this.line = coords;
+  showPoints(
+    coords: EffectCoord[],
+    spacing: number,
+    factor: number,
+    screenPoint: ScreenPointFn,
+  ) {
     this.lingerMs = theme.scoreLingerMs;
     this.pulseT = 0;
     this.glowLayer.removeChildren();
@@ -62,7 +71,7 @@ export class ScoreEffects extends Container {
     }
   }
 
-  update(dtMs: number, spacing: number, factor: number) {
+  update(dtMs: number) {
     if (this.lingerMs > 0) {
       this.lingerMs -= dtMs;
       this.pulseT += dtMs / 1000;
@@ -71,8 +80,7 @@ export class ScoreEffects extends Container {
       const hz = blocking ? 9 : 7;
       const scale = 1 + amp * Math.sin(this.pulseT * hz * Math.PI * 2);
       this.glowLayer.scale.set(scale);
-    } else if (this.line.length) {
-      this.line = [];
+    } else if (this.glowLayer.children.length) {
       this.glowLayer.removeChildren();
     }
 
@@ -90,7 +98,9 @@ export class ScoreEffects extends Container {
         this.dust.splice(i, 1);
       }
     }
-    void spacing;
-    void factor;
+  }
+
+  isLingering(): boolean {
+    return this.lingerMs > 0;
   }
 }

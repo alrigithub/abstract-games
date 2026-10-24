@@ -71,6 +71,11 @@ impl GameState {
         self.phase = phase;
     }
 
+    #[doc(hidden)]
+    pub fn set_winner(&mut self, winner: Option<Player>) {
+        self.winner = winner;
+    }
+
     pub fn legal_moves(&self) -> Vec<Move> {
         if self.winner.is_some() {
             return Vec::new();

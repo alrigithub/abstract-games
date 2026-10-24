@@ -77,15 +77,15 @@ python3 -m http.server 8080 --directory web
 
 Generated artifacts (`*_bg.wasm`, `*.js` in game folders) are gitignored; CI compiles WASM but does not commit bundles.
 
-### Yinsh (Pixi alternate client)
+### Pixi web clients (`web-pixi/`)
 
-Source: `web-pixi/yinsh/` (Rust rules via `yinsh_wasm`, AI in a Web Worker). Production build output: `web/yinsh-pixi/` (hub link `./yinsh-pixi/`).
+npm workspace: `@abstract/pixi-shared` in `web-pixi/shared/`; one game package per title. Builds land in `web/<game>-pixi/` (hub links in `web/index.html`).
 
 ```bash
-./scripts/build_yinsh_wasm.sh
-cd web-pixi/yinsh && npm install && npm run build
-# dev: npm run dev
-# preview + Playwright: npm run test:e2e:ci
+./scripts/build_web_pixi.sh          # all five games (+ yinsh_wasm / tzaar_wasm where needed)
+cd web-pixi && npm run test:unit     # Tak TS engine tests
+cd web-pixi && npm run test:e2e:yinsh   # Playwright per game (preview ports differ)
+# Yinsh/Tzaar WASM only: ./scripts/build_yinsh_wasm.sh  ./scripts/build_tzaar_wasm.sh
 ```
 
 ## Patterns to copy (from yinsh)

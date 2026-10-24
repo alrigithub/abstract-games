@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="${ROOT}/web-pixi/yinsh/public/wasm"
 WASM_BINDGEN_VERSION="0.2.106"
+TARGET_ROOT="${CARGO_TARGET_DIR:-${ROOT}/target}"
+if [[ "${TARGET_ROOT}" != /* ]]; then
+  TARGET_ROOT="${ROOT}/${TARGET_ROOT}"
+fi
+WASM_BIN="${TARGET_ROOT}/wasm32-unknown-unknown/wasm-release/yinsh_wasm.wasm"
 
 cd "$ROOT"
 
@@ -27,7 +32,7 @@ wasm-bindgen \
   --out-dir "$OUT" \
   --target web \
   --no-typescript \
-  "${ROOT}/target/wasm32-unknown-unknown/wasm-release/yinsh_wasm.wasm"
+  "${WASM_BIN}"
 
 if command -v wasm-opt >/dev/null 2>&1; then
   wasm-opt -Os "${OUT}/yinsh_wasm_bg.wasm" -o "${OUT}/yinsh_wasm_bg.wasm"

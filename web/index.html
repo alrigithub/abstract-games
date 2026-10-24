@@ -160,40 +160,47 @@
 <body>
   <h1>Abstract Games</h1>
   <p>Human vs AI — Rust + Bevy WASM builds from <a href="https://github.com/alrigithub/abstract-games">abstract-games</a>.</p>
+  <p class="skim" style="margin:1rem 0 0.5rem;font-size:0.95rem;color:hsl(0,0%,72%)">
+    <strong style="color:hsl(0,0%,88%);font-weight:600">Pixi web clients</strong> (shared stage, light theme):
+    <a href="./yinsh-pixi/">Yinsh</a><span class="sep">·</span>
+    <a href="./gomoku-pixi/">Gomoku</a><span class="sep">·</span>
+    <a href="./boop-pixi/">Boop</a><span class="sep">·</span>
+    <a href="./tak-pixi/">Tak</a><span class="sep">·</span>
+    <a href="./tzaar-pixi/">Tzaar</a>
+  </p>
   <ul class="games">
     <li>
       <div class="game-title">
         <a href="./yinsh/">Yinsh</a><span class="sep">·</span><button type="button" class="rules" data-game="yinsh">Rules</button>
       </div>
-      <p class="skim">Win: remove 3 rings (row of 5 markers).</p>
-      <p class="skim"><a href="./yinsh-pixi/">Yinsh (Pixi)</a> — alternate web client.</p>
+      <p class="skim">Win: remove 3 rings (row of 5 markers). <a href="./yinsh-pixi/">Pixi client</a>.</p>
     </li>
     <li>
       <div class="game-title">
         <a href="./gomoku/">Gomoku</a><span class="sep">·</span><button type="button" class="rules" data-game="gomoku">Rules</button>
       </div>
-      <p class="skim">Win: exactly five in a row.</p>
+      <p class="skim">Win: exactly five in a row. <a href="./gomoku-pixi/">Pixi client</a>.</p>
     </li>
     <li>
       <div class="game-title">
         <a href="./boop/">Boop</a><span class="sep">·</span><button type="button" class="rules" data-game="boop">Rules</button>
       </div>
-      <p class="skim">Win: 3 cats in a row (or all 8 cats on the bed).</p>
+      <p class="skim">Win: 3 cats in a row (or all 8 cats on the bed). <a href="./boop-pixi/">Pixi client</a>.</p>
     </li>
     <li>
       <div class="game-title">
         <a href="./tak/">Tak</a><span class="sep">·</span><button type="button" class="rules" data-game="tak">Rules</button>
       </div>
-      <p class="skim">Win: road connecting opposite edges.</p>
+      <p class="skim">Win: road connecting opposite edges. <a href="./tak-pixi/">Pixi client</a>.</p>
     </li>
     <li>
       <div class="game-title">
         <a href="./tzaar/">Tzaar</a><span class="sep">·</span><button type="button" class="rules" data-game="tzaar">Rules</button>
       </div>
-      <p class="skim">Win: wipe one opponent piece type, or leave them unable to capture.</p>
+      <p class="skim">Win: wipe one opponent piece type, or leave them unable to capture. <a href="./tzaar-pixi/">Pixi client</a>.</p>
     </li>
   </ul>
-  <p class="note">Run <code>./scripts/build_web.sh</code> to generate WASM assets before hosting.</p>
+  <p class="note">Run <code>./scripts/build_web.sh</code> for Bevy WASM, or <code>./scripts/build_web_pixi.sh</code> for all Pixi clients under <code>web/*-pixi/</code>.</p>
 
   <div id="rules-overlay" class="rules-overlay" hidden>
     <div class="rules-backdrop" data-rules-dismiss aria-hidden="true"></div>
