@@ -43,13 +43,13 @@ export function buildLineClearAssist(markerCells: readonly number[]): BoardAssis
 
 /** Keep graduated line pieces visible on the bed while rules state already cleared them. */
 export function viewHoldingLineOnBed(
-  before: GameView,
+  baselineBoard: GameView['board'],
   after: GameView,
   line: readonly [number, number][],
 ): GameView {
   const board = after.board.map(row => row.map(cell => (cell ? { ...cell } : null)));
   for (const [x, y] of line) {
-    board[y]![x] = before.board[y]?.[x] ?? null;
+    board[y]![x] = baselineBoard[y]?.[x] ?? null;
   }
   return { ...after, board, effects: { ...after.effects } };
 }

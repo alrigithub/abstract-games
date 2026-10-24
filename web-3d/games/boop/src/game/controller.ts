@@ -25,6 +25,12 @@ import {
 import { BOOP_ANIM } from './animation';
 import { BOOP_GRID as GRID, BOOP_OUTSIDE as OUTSIDE } from './boop-grid';
 import { poolKindAtCell, primaryPoolCellIndex, type PoolCounts } from './boop-pool-layout';
+import {
+  boardBeforeGraduationClear,
+  poolsDuringMoveAnimation,
+  viewAfterPlacementStep,
+  viewDuringMechanicalEffects,
+} from './boop-push-board';
 import { applyParallelBoopPushEffects } from './boop-push-schedule';
 import { exportDualAdjacentBoopSetup } from './boop-push-fixture';
 import { PieceTracker } from './piece-tracker';
@@ -297,9 +303,9 @@ export class BoopController {
     return 'kitten';
   }
 
-  private publishSnapshot() {
+  private publishSnapshot(options?: { durationMs?: number }) {
     this.tracker.syncBoard(this.view);
-    this.scene.setSnapshot(this.tracker.buildSnapshot(this.view));
+    this.scene.setSnapshot(this.tracker.buildSnapshot(this.view), options);
     const board = document.querySelector<HTMLElement>('[data-testid="board"]');
     if (board) board.dataset.restingCount = String(this.tracker.restingCount());
   }
@@ -396,17 +402,17 @@ export class BoopController {
       if (taken?.from === 'resting') {
         this.tracker.addResting(taken.id, actor, move.piece, taken.restRow!, taken.restCol!);
         this.view = before;
-        this.publishSnapshot();
+        this.publishSnapshot({ durationMs: step });
         await sleep(step);
         this.tracker.removeRestingById(taken.id);
         this.tracker.placeOnBoard(move.x, move.y, taken.id);
-        this.view = cloneBoardView(before, after, move.x, move.y);
-        this.publishSnapshot();
+        this.view = viewAfterPlacementStep(before, after, move, actor);
+        this.publishSnapshot({ durationMs: step });
         await sleep(step);
       } else if (taken) {
         this.tracker.placeOnBoard(move.x, move.y, taken.id);
-        this.view = cloneBoardView(before, after, move.x, move.y);
-        this.publishSnapshot();
+        this.view = viewAfterPlacementStep(before, after, move, actor);
+        this.publishSnapshot({ durationMs: step });
         await sleep(step);
       }
     }
@@ -418,8 +424,8 @@ export class BoopController {
     const hasBoopPush = effects.displacements.length > 0 || effects.off_board.length > 0;
     if (hasBoopPush) {
       applyParallelBoopPushEffects(this.tracker, effects);
-      this.view = after;
-      this.publishSnapshot();
+      this.view = viewDuringMechanicalEffects(before, after, move, actor);
+      this.publishSnapshot({ durationMs: step });
       await sleep(step);
     }
 
@@ -427,11 +433,11 @@ export class BoopController {
 
     const line = lineCellsFromHighlight(effects.line_highlight);
     if (lineClearNeedsSequence(effects.line_highlight, effects.graduated_cells)) {
-      await this.animateLineClear(before, after, line!, effects.graduated_cells);
+      await this.animateLineClear(before, after, move, actor, line!, effects.graduated_cells);
     } else if (effects.graduated_cells) {
       for (const [x, y] of effects.graduated_cells) this.tracker.removeFromBoard(x, y);
       this.view = after;
-      this.publishSnapshot();
+      this.publishSnapshot({ durationMs: step });
       await sleep(step);
     }
 
@@ -442,12 +448,16 @@ export class BoopController {
   private async animateLineClear(
     before: GameView,
     after: GameView,
+    move: MoveJson,
+    actor: PlayerId,
     line: [number, number][],
     graduated: [number, number][] | null,
   ) {
+    const baselineBoard = boardBeforeGraduationClear(before, move, actor, after.effects);
+    const stagedPools = () => poolsDuringMoveAnimation(before, after, move, actor);
     const markerCells = bedCellIndices(line);
     this.scene.setBoardAssist?.(buildLineClearAssist(markerCells));
-    this.view = viewHoldingLineOnBed(before, after, line);
+    this.view = { ...viewHoldingLineOnBed(baselineBoard, after, line), pools: stagedPools() };
     this.publishSnapshot();
     await sleep(BOOP_LINE_CLEAR.GLOW_HOLD_MS);
 
@@ -456,12 +466,15 @@ export class BoopController {
       const perPiece = Math.max(120, Math.floor(removeMs / graduated.length));
       for (const [x, y] of graduated) {
         this.tracker.removeFromBoard(x, y);
-        this.view = viewHoldingLineOnBed(
-          before,
-          after,
-          line.filter(c => !(c[0] === x && c[1] === y)),
-        );
-        this.publishSnapshot();
+        this.view = {
+          ...viewHoldingLineOnBed(
+            baselineBoard,
+            after,
+            line.filter(c => !(c[0] === x && c[1] === y)),
+          ),
+          pools: stagedPools(),
+        };
+        this.publishSnapshot({ durationMs: perPiece });
         await sleep(perPiece);
       }
     } else {
@@ -668,11 +681,5 @@ export class BoopController {
     void this.playMoveJson(mv, { scheduleAi: false });
     return true;
   }
-}
-
-function cloneBoardView(before: GameView, after: GameView, x: number, y: number): GameView {
-  const board = before.board.map(row => row.map(c => (c ? { ...c } : null)));
-  board[y]![x] = after.board[y]![x] ? { ...after.board[y]![x]! } : null;
-  return { ...before, board, pools: after.pools, effects: { ...after.effects, displacements: [], off_board: [] } };
 }
 
