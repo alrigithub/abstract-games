@@ -15,7 +15,7 @@ import {
 import { loadTzaarPieceGeometrySet } from './tzaar-piece-models';
 import { quickLegalMove } from './game/ai';
 import { gameToSnapshot, indexToCoord } from './game/snapshot';
-import { GameState, type Coord, type Move, type Player } from './game/state';
+import { GameState, serializeForAiWorker, type Coord, type Move, type Player } from './game/state';
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 let theme: ThemeId = readInitialTheme();
@@ -150,7 +150,7 @@ async function runAiTurn() {
     postMessage: (worker, id) =>
       worker.postMessage({
         id,
-        game,
+        state: serializeForAiWorker(game),
         maxDepth: search.maxDepth,
         maxNodes: search.maxNodes,
         timeBudgetMs: search.maxTimeMs,
