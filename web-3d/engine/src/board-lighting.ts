@@ -18,6 +18,8 @@ export interface BoardLightingHandle {
 const LIGHT_DIR = new THREE.Vector3(-1, Math.SQRT2, 1).normalize();
 
 const BOX_CORNERS = Array.from({ length: 8 }, () => new THREE.Vector3());
+const PLAYFIELD_CATCHER_NAME = '__playfieldShadowCatcher';
+const playfieldBounds = new THREE.Box3();
 
 function chooseShadowMapSize(): number {
   if (typeof window === 'undefined') return 2048;
@@ -159,17 +161,12 @@ export function setMeshShadowFlags(
   });
 }
 
-/** Playfield receives; thin grid lines and decals do not. */
 /** Drop-shadow strength on unlit (MeshBasic) boards. */
 export const PIECE_DROP_SHADOW_OPACITY = 0.38;
 
-/** MeshBasicMaterial ignores shadow maps; overlay a ShadowMaterial catcher so pieces drop visible shadows. */
-function addShadowCatcher(node: THREE.Mesh) {
-  if (node.userData.shadowCatcherAdded || node.userData.isShadowCatcher) return;
-  if (!(node.material instanceof THREE.MeshBasicMaterial)) return;
-  node.userData.shadowCatcherAdded = true;
+function createPlayfieldShadowCatcher(): THREE.Mesh {
   const catcher = new THREE.Mesh(
-    node.geometry,
+    new THREE.PlaneGeometry(1, 1),
     new THREE.ShadowMaterial({
       opacity: PIECE_DROP_SHADOW_OPACITY,
       transparent: true,
@@ -179,36 +176,47 @@ function addShadowCatcher(node: THREE.Mesh) {
       polygonOffsetUnits: -2,
     }),
   );
+  catcher.name = PLAYFIELD_CATCHER_NAME;
+  catcher.rotation.x = -Math.PI / 2;
   catcher.userData.isShadowCatcher = true;
   catcher.receiveShadow = true;
   catcher.castShadow = false;
-  catcher.renderOrder = 1;
+  catcher.renderOrder = 0;
   catcher.raycast = () => {};
-  node.add(catcher);
+  return catcher;
 }
 
-export function tagPlayfieldForShadows(boardRoot: THREE.Object3D) {
-  setMeshShadowFlags(boardRoot, { cast: false, receive: false });
-  const receivers: THREE.Mesh[] = [];
-  boardRoot.traverse(node => {
-    if (
-      node instanceof THREE.Mesh &&
-      !node.userData.boardGridLine &&
-      !node.userData.isShadowCatcher &&
-      (node.geometry instanceof THREE.PlaneGeometry || node.geometry instanceof THREE.ShapeGeometry)
-    ) receivers.push(node);
-  });
-  for (const r of receivers) addShadowCatcher(r);
+function syncPlayfieldShadowCatcher(boardRoot: THREE.Object3D) {
+  boardRoot.updateMatrixWorld(true);
+  playfieldBounds.makeEmpty();
   boardRoot.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;
-    if (node.userData.boardGridLine) return;
-    if (node.material && 'map' in node.material && (node.material as THREE.MeshBasicMaterial).map) {
-      node.receiveShadow = true;
-      return;
-    }
-    if (node.geometry instanceof THREE.PlaneGeometry || node.geometry instanceof THREE.ShapeGeometry) {
-      node.receiveShadow = true;
-    }
+    if (node.userData.isShadowCatcher) return;
+    playfieldBounds.expandByObject(node);
+  });
+  if (playfieldBounds.isEmpty()) return;
+
+  let catcher = boardRoot.getObjectByName(PLAYFIELD_CATCHER_NAME) as THREE.Mesh | undefined;
+  if (!catcher) {
+    catcher = createPlayfieldShadowCatcher();
+    boardRoot.add(catcher);
+  }
+
+  const center = playfieldBounds.getCenter(new THREE.Vector3());
+  const size = playfieldBounds.getSize(new THREE.Vector3());
+  const pad = 0.12;
+  catcher.position.set(center.x, BOARD.PLAYFIELD_SURFACE_Y + 0.0008, center.z);
+  catcher.scale.set(Math.max(size.x, 0.5) + pad * 2, Math.max(size.z, 0.5) + pad * 2, 1);
+}
+
+/** Playfield receives directional shadows; thin grid lines and decals do not. */
+export function tagPlayfieldForShadows(boardRoot: THREE.Object3D) {
+  setMeshShadowFlags(boardRoot, { cast: false, receive: false });
+  syncPlayfieldShadowCatcher(boardRoot);
+  boardRoot.traverse(node => {
+    if (!(node instanceof THREE.Mesh)) return;
+    if (node.userData.boardGridLine || node.userData.isShadowCatcher) return;
+    node.receiveShadow = false;
   });
 }
 

@@ -21,6 +21,7 @@ import {
   gomokuStoneRestCenterY,
   gomokuThemeMaterials,
   makePieceShadow,
+  syncPieceGroundShadowPosition,
   playPiecePlaceSound,
   initPlaceSfx,
   type CameraViewController,
@@ -74,8 +75,6 @@ export async function createGomokuScene(
   const size = GOMOKU_DIMS.GRID;
   const restY = gomokuStoneRestCenterY();
   const dropLift = stoneAssets.stoneHeight * 2;
-  const shadowY = 0.003;
-
   const scene = new THREE.Scene();
   scene.background = materials.table.clone();
 
@@ -158,7 +157,7 @@ export async function createGomokuScene(
   rebuildBoardMesh();
 
   function makeShadow(rotationY: number) {
-    const shadow = makePieceShadow(stoneAssets.shadowGeometry, materials.stoneShadow, shadowsGroup);
+    const shadow = makePieceShadow(stoneAssets.shadowGeometry, shadowsGroup);
     shadow.rotation.y = rotationY;
     return shadow;
   }
@@ -179,7 +178,7 @@ export async function createGomokuScene(
     mesh.rotation.y = yaw;
     (mesh.userData.shadow as THREE.Mesh).rotation.y = yaw;
     mesh.position.set(p.x, y, p.z);
-    (mesh.userData.shadow as THREE.Mesh).position.set(p.x, shadowY, p.z);
+    syncPieceGroundShadowPosition(mesh.userData.shadow as THREE.Mesh, mesh, stoneAssets.stoneHeight / 2);
     return mesh;
   }
 
@@ -362,7 +361,6 @@ export async function createGomokuScene(
       materials.star.dispose();
       materials.stoneA.dispose();
       materials.stoneB.dispose();
-      materials.stoneShadow.dispose();
       materials = gomokuThemeMaterials(themeId);
       scene.background = materials.table.clone();
       rebuildBoardMesh();
@@ -394,7 +392,7 @@ export async function createGomokuScene(
           const t = easeOutCubic(Math.min(1, (now - start) / DROP_MS));
           const y = THREE.MathUtils.lerp(restY + dropLift, restY, t);
           mesh.position.y = y;
-          shadow.position.y = shadowY;
+          syncPieceGroundShadowPosition(shadow, mesh, stoneAssets.stoneHeight / 2);
           requestRender();
           if (t < 1) requestAnimationFrame(tick);
           else {
