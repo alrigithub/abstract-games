@@ -3,6 +3,7 @@ import {
   cellCoordinates,
   cellIndex,
   endBoopPushLandSounds,
+  playBoopSound,
   type BoardSnapshot,
   AiWorkerSession,
   recordAiThinkMetrics,
@@ -10,6 +11,7 @@ import {
   type SceneApi,
   type Selection,
 } from '@abstract/three-engine';
+import { playBoopUpgradeSound } from './boop-extra-sfx';
 import { BoopGame } from './engine';
 import './ai';
 import { exportHumanGraduationSetup } from './boop-graduation-fixture';
@@ -408,12 +410,14 @@ export class BoopController {
         this.view = before;
         this.publishSnapshot({ durationMs: step });
         await sleep(step);
+        playBoopSound();
         this.tracker.removeRestingById(taken.id);
         this.tracker.placeOnBoard(move.x, move.y, taken.id);
         this.view = viewAfterPlacementStep(before, after, move, actor);
         this.publishSnapshot({ durationMs: step });
         await sleep(step);
       } else if (taken) {
+        playBoopSound();
         this.tracker.placeOnBoard(move.x, move.y, taken.id);
         this.view = viewAfterPlacementStep(before, after, move, actor);
         this.publishSnapshot({ durationMs: step });
@@ -468,7 +472,17 @@ export class BoopController {
     if (graduated?.length) {
       const removeMs = lineClearRemovalMs();
       const perPiece = Math.max(120, Math.floor(removeMs / graduated.length));
+      let upgradeSoundStarted = false;
       for (const [x, y] of graduated) {
+        const kind = baselineBoard[y]?.[x]?.kind;
+        if (kind === 'kitten') {
+          if (!upgradeSoundStarted) {
+            playBoopUpgradeSound();
+            upgradeSoundStarted = true;
+          }
+        } else if (kind === 'cat') {
+          playBoopSound();
+        }
         this.tracker.removeFromBoard(x, y);
         this.view = {
           ...viewHoldingLineOnBed(
