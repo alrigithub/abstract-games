@@ -14,6 +14,25 @@ export function createGame(size = 5): GameState {
 export function reservePieces(game: GameState, color: Color, kind?: PieceKind): Piece[] {
   return game.board.cells.slice(game.board.size ** 2).flat().filter(piece => piece.color === color && (!kind || piece.kind === kind));
 }
+
+export function ownedFromTop(cells: Piece[], color: Color): number {
+  let count = 0;
+  for (let i = cells.length - 1; i >= 0; i--) {
+    if (cells[i]!.color !== color) break;
+    count++;
+  }
+  return count;
+}
+
+export function carryLimit(size: number): number {
+  return size;
+}
+
+function flatScoringTriggered(game: GameState): boolean {
+  const playable = game.board.size ** 2;
+  if (game.board.cells.slice(0, playable).every(stack => stack.length)) return true;
+  return reservePieces(game, 'ivory', 'stone').length === 0 || reservePieces(game, 'charcoal', 'stone').length === 0;
+}
 export function step(size: number, cell: number, direction: Direction): number | null {
   const row = Math.floor(cell / size), col = cell % size;
   const [dr, dc] = ({ north: [-1, 0], east: [0, 1], south: [1, 0], west: [0, -1] } as const)[direction] ?? [NaN, NaN];
@@ -28,9 +47,10 @@ export function isLegalMove(game: GameState, move: Move): boolean {
     (move.kind === 'stone' || move.kind === 'capstone') && (move.orientation === 'flat' || move.orientation === 'standing') &&
     (move.kind !== 'capstone' || move.orientation === 'flat') &&
     (game.ply >= 2 || (move.kind === 'stone' && move.orientation === 'flat')) && reservePieces(game, placementColor(game), move.kind).length > 0;
-  if (move.type !== 'spread' || game.ply < 2 || !onBoard(move.from) || !Array.isArray(move.drops) || !move.drops.length || move.drops.length > size || move.drops.some(n => !Number.isInteger(n) || n <= 0)) return false;
+  if (move.type !== 'spread' || game.ply < 2 || !onBoard(move.from) || !Array.isArray(move.drops) || !move.drops.length || move.drops.length > carryLimit(size) || move.drops.some(n => !Number.isInteger(n) || n <= 0)) return false;
   const stack = cells[move.from]!, top = stack.at(-1), count = move.drops.reduce((a, b) => a + b, 0);
-  if (!top || top.color !== game.toMove || count > size || count > stack.length) return false;
+  const owned = ownedFromTop(stack, game.toMove);
+  if (!top || top.color !== game.toMove || count > carryLimit(size) || count > owned) return false;
   let target = move.from, remaining = count;
   for (const drop of move.drops) {
     const next = step(size, target, move.direction);
@@ -65,7 +85,7 @@ export function flatCounts(board: BoardState): Record<Color, number> {
 export function adjudicate(game: GameState, mover: Color): GameResult | null {
   const flats = flatCounts(game.board);
   for (const color of [mover, opposite(mover)]) if (hasRoad(game.board, color)) return { winner: color, reason: 'road', flats };
-  if (game.board.cells.slice(0, game.board.size ** 2).every(stack => stack.length) || !reservePieces(game, 'ivory').length || !reservePieces(game, 'charcoal').length)
+  if (flatScoringTriggered(game))
     return { winner: flats.ivory === flats.charcoal ? null : flats.ivory > flats.charcoal ? 'ivory' : 'charcoal', reason: 'flats', flats };
   return null;
 }
@@ -110,7 +130,8 @@ export function legalMoves(game: GameState): Move[] {
   if (game.ply < 2) return moves;
   for (let from = 0; from < size ** 2; from++) {
     const stack = game.board.cells[from]!;
-    if (stack.at(-1)?.color !== game.toMove) continue;
+    const owned = ownedFromTop(stack, game.toMove);
+    if (!owned) continue;
     for (const direction of ['north', 'east', 'south', 'west'] as const) {
       const extend = (remaining: number, drops: number[], at: number) => {
         const target = step(size, at, direction); if (target === null) return;
@@ -126,7 +147,7 @@ export function legalMoves(game: GameState): Move[] {
           else extend(remaining - drop, next, target);
         }
       };
-      for (let count = 1; count <= Math.min(size, stack.length); count++) extend(count, [], from);
+      for (let count = 1; count <= Math.min(carryLimit(size), owned); count++) extend(count, [], from);
     }
   }
   return moves;

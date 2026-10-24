@@ -156,3 +156,6 @@ export function createAiStrengthControl(options: CreateAiStrengthControlOptions)
 
 /** Suggested storage key for Gomoku web-3d (other games should use their own). */
 export const GOMOKU_AI_STRENGTH_STORAGE_KEY = 'abstract-gomoku-ai-strength';
+
+/** Suggested storage key for Tak web-3d. */
+export const TAK_AI_STRENGTH_STORAGE_KEY = 'abstract-tak-ai-strength';
