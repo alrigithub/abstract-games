@@ -21,6 +21,15 @@ export const YINSH_RING_OUTER_DIAMETER_M = 0.032;
 /** Single uniform scale for every Yinsh stone GLB (meters → world units). */
 export const YINSH_GLB_WORLD_SCALE = YINSH_RING_TARGET_OUTER_DIAMETER / YINSH_RING_OUTER_DIAMETER_M;
 
+/** Authored marker diameter in meters (README). */
+export const YINSH_MARKER_OUTER_DIAMETER_M = 0.0206;
+
+/** World-space marker radius after {@link YINSH_GLB_WORLD_SCALE}. */
+export const YINSH_MARKER_WORLD_RADIUS = (YINSH_MARKER_OUTER_DIAMETER_M / 2) * YINSH_GLB_WORLD_SCALE;
+
+/** Move-assist destination dots (~35% of marker diameter). */
+export const YINSH_ASSIST_DOT_RADIUS = YINSH_MARKER_WORLD_RADIUS * 0.35;
+
 const MODEL = {
   ringWhite: 'assets/yinsh-ring-white.glb',
   ringBlack: 'assets/yinsh-ring-black.glb',
