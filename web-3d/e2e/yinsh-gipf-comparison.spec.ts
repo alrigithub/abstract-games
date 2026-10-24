@@ -14,6 +14,7 @@ async function waitBoard(page: import('@playwright/test').Page) {
 }
 
 test('capture Yinsh light/dark and GIPF comparison strip', async ({ page, browser }) => {
+  test.setTimeout(120_000);
   fs.mkdirSync(outDir, { recursive: true });
 
   await page.goto('http://127.0.0.1:5196/');

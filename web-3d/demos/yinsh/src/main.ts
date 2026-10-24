@@ -1,11 +1,12 @@
 import {
   YINSH_COORDS,
   createBoardScene,
+  createGameButtons,
   createYinshMarkerGeometry,
   createYinshRingGeometry,
   createYinshTopology,
   readStoredTheme,
-  storeTheme,
+  THEME_STORAGE_KEY,
   yinshIndex,
   yinshPieceGeometrySet,
   yinshRackPosition,
@@ -31,45 +32,49 @@ function at(x: number, y: number): number {
   return index;
 }
 
-const cells: EnginePiece[][] = Array.from({ length: cellCount }, () => []);
+function buildDemoSnapshot(): BoardSnapshot {
+  const cells: EnginePiece[][] = Array.from({ length: cellCount }, () => []);
 
-cells[at(-2, 1)] = cell(
-  { id: 'ring-w0', player: 'A', shape: 'ring' },
-  { id: 'marker-center', player: 'A', shape: 'marker' },
-);
-cells[at(-1, 1)] = cell({ id: 'ring-b0', player: 'B', shape: 'ring' });
-cells[at(0, 1)] = cell(
-  { id: 'ring-w1', player: 'A', shape: 'ring' },
-  { id: 'marker-flip-a', player: 'A', shape: 'marker' },
-);
-cells[at(1, 1)] = cell(
-  { id: 'ring-b1', player: 'B', shape: 'ring' },
-  { id: 'marker-flip-b', player: 'B', shape: 'marker' },
-);
-cells[at(2, 1)] = cell(
-  { id: 'ring-w2', player: 'A', shape: 'ring' },
-  { id: 'marker-flip-c', player: 'A', shape: 'marker' },
-);
-cells[at(0, 0)] = cell({ id: 'ring-solo', player: 'B', shape: 'ring' });
-cells[at(-1, 0)] = cell({ id: 'ring-a-solo', player: 'A', shape: 'ring' });
+  cells[at(-2, 1)] = cell(
+    { id: 'ring-w0', player: 'A', shape: 'ring' },
+    { id: 'marker-center', player: 'A', shape: 'marker' },
+  );
+  cells[at(-1, 1)] = cell({ id: 'ring-b0', player: 'B', shape: 'ring' });
+  cells[at(0, 1)] = cell(
+    { id: 'ring-w1', player: 'A', shape: 'ring' },
+    { id: 'marker-flip-a', player: 'A', shape: 'marker' },
+  );
+  cells[at(1, 1)] = cell(
+    { id: 'ring-b1', player: 'B', shape: 'ring' },
+    { id: 'marker-flip-b', player: 'B', shape: 'marker' },
+  );
+  cells[at(2, 1)] = cell(
+    { id: 'ring-w2', player: 'A', shape: 'ring' },
+    { id: 'marker-flip-c', player: 'A', shape: 'marker' },
+  );
+  cells[at(0, 0)] = cell({ id: 'ring-solo', player: 'B', shape: 'ring' });
+  cells[at(-1, 0)] = cell({ id: 'ring-a-solo', player: 'A', shape: 'ring' });
 
-const reserves: BoardSnapshot['reserves'] = [];
-for (const player of ['A', 'B'] as const) {
-  for (let slot = 0; slot < 3; slot++) {
-    const pos = yinshRackPosition(player, slot);
-    const scored = slot < (player === 'A' ? 2 : 1);
-    reserves.push({
-      id: `rack-${player}-${slot}`,
-      player,
-      shape: 'ring',
-      pile: slot,
-      position: pos,
-      count: scored ? 1 : 0,
-    });
+  const reserves: BoardSnapshot['reserves'] = [];
+  for (const player of ['A', 'B'] as const) {
+    for (let slot = 0; slot < 3; slot++) {
+      const pos = yinshRackPosition(player, slot);
+      const scored = slot < (player === 'A' ? 2 : 1);
+      reserves.push({
+        id: `rack-${player}-${slot}`,
+        player,
+        shape: 'ring',
+        pile: slot,
+        position: pos,
+        count: scored ? 1 : 0,
+      });
+    }
   }
+
+  return { playableCells: cellCount, cellCount, cells, reserves };
 }
 
-let snapshot: BoardSnapshot = { playableCells: cellCount, cellCount, cells, reserves };
+let snapshot: BoardSnapshot = buildDemoSnapshot();
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 let theme: ThemeId = readStoredTheme();
@@ -86,13 +91,43 @@ scene.setSnapshot(snapshot);
 function applyTheme(next: ThemeId) {
   theme = next;
   document.documentElement.dataset.theme = theme;
-  storeTheme(theme);
   scene.setTheme(theme);
 }
 
-document.querySelector('#theme-toggle')!.addEventListener('click', () => {
-  applyTheme(theme === 'light' ? 'dark' : 'light');
+try {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    try {
+      if (localStorage.getItem(THEME_STORAGE_KEY) === null) applyTheme(readStoredTheme());
+    } catch {
+      /* ignore */
+    }
+  });
+} catch {
+  /* ignore */
+}
+
+function renderStatus(extra?: string) {
+  gameButtons.setStatus(extra ?? 'Piece showcase — rings, GIPF chips, scored racks (no 3D AI yet)');
+}
+
+const gameButtons = createGameButtons({
+  mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  lobbyHref: '/web/index.html',
+  onThemeChange: applyTheme,
+  onNewGameReset: () => {
+    snapshot = buildDemoSnapshot();
+    scene.setSnapshot(snapshot);
+    renderStatus('Demo layout reset');
+  },
 });
+
+const flipBtn = document.createElement('button');
+flipBtn.type = 'button';
+flipBtn.dataset.testid = 'flip-demo';
+flipBtn.textContent = 'Flip run';
+gameButtons.root.querySelector('.game-button-row')!.append(flipBtn);
+
+renderStatus();
 
 function toggleMarkerOwner(id: string) {
   for (const stack of snapshot.cells) {
@@ -104,11 +139,12 @@ function toggleMarkerOwner(id: string) {
   }
 }
 
-document.querySelector('#flip-demo')!.addEventListener('click', async () => {
+flipBtn.addEventListener('click', async () => {
   const ids = ['marker-flip-a', 'marker-flip-b', 'marker-flip-c'];
   await scene.flipPieces(ids, 90);
   for (const id of ids) toggleMarkerOwner(id);
   scene.setSnapshot(snapshot);
+  renderStatus('Markers flipped');
 });
 
 export { scene, applyTheme, snapshot };

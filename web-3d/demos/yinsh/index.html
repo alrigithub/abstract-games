@@ -3,28 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Yinsh rings &amp; markers demo</title>
-    <style>
-      html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; font-family: system-ui, sans-serif; }
-      #app { display: grid; grid-template-rows: auto 1fr; }
-      header {
-        display: flex; gap: 0.75rem; align-items: center; padding: 0.5rem 0.75rem;
-        background: rgba(255,255,255,0.92); border-bottom: 1px solid #ccc; z-index: 2;
-      }
-      html[data-theme='dark'] header { background: rgba(22,23,26,0.92); border-color: #333; color: #eee; }
-      #board { width: 100%; height: 100%; touch-action: none; }
-      button { cursor: pointer; padding: 0.35rem 0.65rem; border-radius: 6px; border: 1px solid #888; background: #fff; }
-      html[data-theme='dark'] button { background: #2a2c32; border-color: #555; color: #eee; }
-    </style>
+    <title>Yinsh pieces demo</title>
+    <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
     <div id="app">
-      <header>
-        <strong>Yinsh pieces</strong>
-        <button type="button" id="theme-toggle" data-testid="theme-toggle">Theme</button>
-        <button type="button" id="flip-demo" data-testid="flip-demo">Flip run</button>
-      </header>
-      <div id="board" data-testid="board"></div>
+      <div id="game-buttons-mount"></div>
+      <div class="viewport">
+        <div id="board" data-testid="board" aria-label="Yinsh board"></div>
+      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

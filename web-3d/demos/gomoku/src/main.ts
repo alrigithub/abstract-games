@@ -34,6 +34,7 @@ const gameButtons = createGameButtons({
   lobbyHref: DEFAULT_LOBBY_HREF,
   aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
   onAiStrengthChange: level => renderStatus(undefined, level.label),
+  onThemeChange: applyTheme,
   onFirstPlayerSelected: color => startGame(color),
 });
 
