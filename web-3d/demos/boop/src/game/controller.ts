@@ -10,7 +10,8 @@ import {
   type SceneApi,
   type Selection,
 } from '@abstract/three-engine';
-import init, { BoopGame } from '../../wasm/boop_wasm.js';
+import { BoopGame } from './engine';
+import './ai';
 import { exportHumanGraduationSetup } from './boop-graduation-fixture';
 import { BOOP_ANIM } from './animation';
 import { BOOP_GRID as GRID, BOOP_OUTSIDE as OUTSIDE } from './boop-grid';
@@ -136,7 +137,6 @@ export class BoopController {
   }
 
   async init() {
-    await init();
     this.newGame();
     this.onReady?.();
   }

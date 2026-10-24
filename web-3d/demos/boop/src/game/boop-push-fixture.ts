@@ -1,4 +1,4 @@
-import type { BoopGame } from '../../wasm/boop_wasm.js';
+import type { BoopGame } from './engine';
 
 /** Black kittens at (1,0) and (0,1); white to place at (0,0) — two simultaneous boop pushes. */
 export function exportDualAdjacentBoopSetup(base: BoopGame): string {
