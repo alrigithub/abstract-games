@@ -3,43 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gomoku — Abstract 3D Sandbox</title>
-    <script type="module" crossorigin src="./assets/index-Bw6Pzyep.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-BDkX07Td.css">
+    <title>Gomoku stones demo</title>
+    <style>
+      html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+      #board { width: 100%; height: 100%; touch-action: none; }
+    </style>
+    <script type="module" crossorigin src="./assets/index-D-IfL410.js"></script>
   </head>
   <body>
-    <div id="app">
-      <header class="sandbox-header">
-        <div class="sandbox-title">Abstract 3D Sandbox</div>
-        <nav class="game-tabs" aria-label="Games">
-          <a href="../../tak/index.html">Tak</a>
-          <a href="./index.html" aria-current="page">Gomoku</a>
-          <a href="../boop/index.html">Boop</a>
-        </nav>
-        <div class="header-meta">
-          <span>Astra B&amp;W · flat 10mm · baked contact</span>
-          <button class="icon-button" id="theme-toggle" data-testid="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">◐</button>
-        </div>
-      </header>
-      <p id="game-status" class="game-status" role="status" aria-live="polite" data-testid="game-status"></p>
-      <div class="toolbar">
-        <button type="button" id="new-game" data-testid="new-game">New game</button>
-        <div id="ai-strength-mount" class="ai-strength-mount"></div>
-      </div>
-      <div class="viewport">
-        <div id="board" data-testid="board" aria-label="Gomoku board"></div>
-      </div>
-      <dialog id="first-player" class="first-player-dialog" data-testid="first-player-dialog">
-        <form method="dialog" class="dialog-form">
-          <h2>Who goes first?</h2>
-          <p>You play against the AI. Choose your color.</p>
-          <div class="dialog-actions">
-            <button type="button" data-first="black" data-testid="first-black">You · Black</button>
-            <button type="button" data-first="white" data-testid="first-white">You · White</button>
-            <button type="button" class="secondary" data-cancel>Cancel</button>
-          </div>
-        </form>
-      </dialog>
-    </div>
+    <div id="app"><div id="board" data-testid="board"></div></div>
   </body>
 </html>
