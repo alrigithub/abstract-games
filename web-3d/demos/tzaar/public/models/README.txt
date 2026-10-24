@@ -5,6 +5,7 @@ Ten separate GLB 2.0 assets using the same generated black and ivory stone sourc
 YINSH: ring-black, ring-white, marker-black, marker-white.
 The ring opening clears the marker. Markers are separate color-state meshes, not a single reversible two-color mesh.
 TZAAR: tzaar-black/white (double concentric raised bands), tzarra-black/white (single ring), tott-black/white (solid recessed center).
+These six files are the stone-mixed-final set (same filenames).
 The three TZAAR types use the same outer diameter and nominal thickness for stacking.
 
 Each GLB contains one mesh, standard PBR stone material, embedded 1024px color texture and tangent-space normal map. No decoder extension required.
