@@ -14,8 +14,8 @@ const PIECE_LIGHT = {
 } as const;
 
 /** Canonical light palette; dark theme is always derived via {@link invertThemeTokens}. */
-/** Warm off-white arena tiles in light mode (matches {@link CLAY.ENV}). */
-export const LIGHT_ARENA_SURFACE = CLAY.ENV;
+/** Neutral light-grey for clay-retinted arenas (Gomoku sage keeps authored albedo). */
+export const LIGHT_ARENA_SURFACE = '#f0f0f0';
 
 /** Cool mid-grey for dark-mode environment (matches {@link CLAY.ENV_DARK}). */
 export const DARK_ARENA_SURFACE = CLAY.ENV_DARK;

@@ -181,11 +181,40 @@ function startGame(color: Player) {
 function applyDemoShot() {
   if (typeof window === 'undefined') return;
   const params = new URLSearchParams(window.location.search);
-  if (params.get('shot') !== 'win-glow') return;
+  const shot = params.get('shot');
+  if (shot !== 'win-glow' && shot !== 'mid-stones') return;
 
   stopAi();
   humanColor = 'black';
   game = createGame();
+
+  if (shot === 'mid-stones') {
+    const placements: [number, number, Player][] = [
+      [7, 7, 'black'],
+      [7, 8, 'white'],
+      [8, 7, 'white'],
+      [8, 8, 'black'],
+      [6, 7, 'white'],
+      [7, 6, 'black'],
+      [8, 6, 'white'],
+      [6, 8, 'black'],
+      [9, 7, 'white'],
+      [7, 9, 'black'],
+      [6, 6, 'black'],
+      [8, 9, 'white'],
+    ];
+    for (const [row, col, player] of placements) {
+      game.cells[coordIndex({ x: col, y: row })] = player;
+    }
+    game.toMove = 'white';
+    game.moveCount = placements.length;
+    scene.setInputEnabled(false);
+    syncBoard();
+    renderStatus('Mid-game');
+    document.body.dataset.demoShot = 'mid-stones';
+    return;
+  }
+
   const row = 7;
   for (let col = 5; col <= 9; col++) {
     game.cells[coordIndex({ x: col, y: row })] = 'black';
@@ -209,6 +238,9 @@ if (typeof window !== 'undefined' && new URLSearchParams(window.location.search)
   };
 }
 
-if (!new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('shot')) {
+const demoShot = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get(
+  'shot',
+);
+if (!demoShot) {
   startGame('black');
 }

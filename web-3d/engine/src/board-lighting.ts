@@ -127,11 +127,18 @@ export function applyBoardLighting(
   function syncThemeAmbientFill(themeId: ThemeId) {
     if (!hemisphere) return;
     const tokens = themeTokens(themeId);
-    const sky = new THREE.Color(CLAY.ENV);
+    if (themeId === 'light') {
+      // Neutral fill — avoids warm double-tint on authored sage PBR tiles.
+      hemisphere.color.set('#ffffff');
+      hemisphere.groundColor.set('#dcdcdc');
+      hemisphere.intensity = 0.34;
+      return;
+    }
+    const sky = new THREE.Color(CLAY.ENV_DARK);
     const ground = new THREE.Color(CLAY.BACKDROP);
     hemisphere.color.copy(sky);
     hemisphere.groundColor.copy(ground);
-    hemisphere.intensity = themeId === 'light' ? 0.54 : 0.36;
+    hemisphere.intensity = 0.36;
   }
   syncThemeAmbientFill('light');
 
