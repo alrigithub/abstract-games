@@ -148,6 +148,8 @@ export interface BoardAssistState {
   };
   /** Destination dot radius in world units (~35% of marker radius for Yinsh). */
   destinationDotRadius?: number;
+  /** Flat marker preview (no piece lift) during Yinsh marker placement hover. */
+  markerGhost?: { cell: number; player: string; radius: number };
   flipPieceIds?: readonly string[];
 }
 

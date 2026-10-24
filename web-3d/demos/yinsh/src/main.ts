@@ -181,6 +181,7 @@ function stopAi() {
 
 async function performMove(move: Move, fromAi = false): Promise<void> {
   if (!movesInclude(possibleMoves(game), move)) return;
+  clearPieceInteraction();
   if (move.tag !== 'Wait') lastAiMoveHighlight = null;
 
   if (moveNeedsFlip(move) && move.tag === 'MoveRing') {
@@ -265,51 +266,35 @@ function maybeAiTurn() {
   void runAiTurn();
 }
 
+function clearPieceInteraction(pointer: { x: number; y: number } | null = null) {
+  scene.setInteraction({
+    selection: null,
+    dragging: false,
+    pointer,
+    origin: null,
+    target: pointer ? scene.hitTest(pointer.x, pointer.y) : null,
+    progress: 0,
+  });
+}
+
 async function humanMove(move: Move) {
   if (!humanTurn()) return;
+  clearPieceInteraction();
   await scene.enqueueAnimation(async () => {
+    clearPieceInteraction();
     await performMove(move);
+    clearPieceInteraction();
     renderStatus();
     maybeAiTurn();
   });
 }
 
+/** Yinsh previews use board assist only — never lift rings/markers via selection. */
 function syncYinshInteractionPreview(clientX?: number, clientY?: number) {
   refreshMoveHints(clientX, clientY);
-  if (!humanTurn()) {
-    scene.setInteraction({ selection: null, dragging: false, pointer: null, origin: null, target: null, progress: 0 });
-    return;
-  }
-  const pointer = clientX !== undefined && clientY !== undefined ? { x: clientX, y: clientY } : null;
-  const target = pointer ? scene.hitTest(pointer.x, pointer.y) : null;
-  const moveStart = activeRingMoveStart();
-  if (moveStart && game.turnMode.tag === 'RingMovement') {
-    scene.setInteraction({
-      selection: { source: coordToIndex(moveStart), count: 1 },
-      dragging: false,
-      pointer,
-      origin: null,
-      target,
-      progress: 0,
-    });
-    return;
-  }
-  if (target !== null && game.turnMode.tag === 'MarkerPlacement') {
-    const coord = indexToCoord(target);
-    const pickable = [...game.board.markerMoves(game.activePlayer)];
-    if (pickable.some(c => coordEq(c, coord))) {
-      scene.setInteraction({
-        selection: { source: target, count: 1 },
-        dragging: false,
-        pointer,
-        origin: null,
-        target,
-        progress: 0,
-      });
-      return;
-    }
-  }
-  scene.setInteraction({ selection: null, dragging: false, pointer, origin: null, target, progress: 0 });
+  const pointer =
+    clientX !== undefined && clientY !== undefined && humanTurn() ? { x: clientX, y: clientY } : null;
+  clearPieceInteraction(pointer);
 }
 
 async function handleYinshTap(clientX: number, clientY: number) {
@@ -342,7 +327,7 @@ async function handleYinshTap(clientX: number, clientY: number) {
     return;
   }
   if (mode === 'RingMovement' && game.turnMode.tag === 'RingMovement') {
-    const start = activeRingMoveStart() ?? game.turnMode.start;
+    const start = game.turnMode.start;
     void humanMove({ tag: 'MoveRing', start, end: coord });
   }
 }
@@ -550,6 +535,62 @@ function finishGameEngine(maxSteps = 5000): Player | undefined {
   return game.winner();
 }
 
+function moveTapCellIndex(move: Move): number | null {
+  switch (move.tag) {
+    case 'PlaceRing':
+    case 'PlaceMarker':
+    case 'RemoveRun':
+    case 'RemoveRing':
+      return coordToIndex(move.coord);
+    case 'MoveRing':
+      return coordToIndex(move.end);
+    default:
+      return null;
+  }
+}
+
+function simulateBoardTap(clientX: number, clientY: number) {
+  const canvas = document.querySelector<HTMLCanvasElement>('[data-testid="board"] canvas');
+  if (!canvas) throw new Error('board canvas missing');
+  const common: PointerEventInit = {
+    clientX,
+    clientY,
+    button: 0,
+    bubbles: true,
+    cancelable: true,
+    pointerId: 1,
+    pointerType: 'mouse',
+    isPrimary: true,
+  };
+  canvas.dispatchEvent(new PointerEvent('pointerdown', common));
+  canvas.dispatchEvent(new PointerEvent('pointerup', common));
+}
+
+async function clickSuggestMove(): Promise<string | null> {
+  const move = suggestHumanMove();
+  if (!move) return null;
+  if (move.tag === 'Wait') {
+    await humanMove(move);
+    await waitForSettled();
+    return move.tag;
+  }
+  const index = moveTapCellIndex(move);
+  if (index === null) {
+    await humanMove(move);
+    await waitForSettled();
+    return move.tag;
+  }
+  const pt = scene.cellScreen(index);
+  simulateBoardTap(pt.x, pt.y);
+  await waitForSettled();
+  return move.tag;
+}
+
+function simulateHoverAtCell(index: number) {
+  const pt = scene.cellScreen(index);
+  syncYinshInteractionPreview(pt.x, pt.y);
+}
+
 if (urlParams.has('e2e')) {
   startGame('A');
   (window as unknown as { __yinshE2e?: Record<string, unknown> }).__yinshE2e = {
@@ -559,10 +600,17 @@ if (urlParams.has('e2e')) {
     turnMode: () => game.turnMode.tag,
     suggestMove: () => suggestHumanMove(),
     applyMove: (move: Move) => humanMove(move),
+    clickSuggestMove,
     waitForSettled,
     finishGameEngine,
     pointsA: () => game.pointsA,
     pointsB: () => game.pointsB,
+    cellScreen: (index: number) => scene.cellScreen(index),
+    getPieceWorldPosition: (id: string) => scene.getPieceWorldPosition(id),
+    ringPieceId,
+    coordToIndex,
+    simulateHoverAtCell,
+    getStackBottomBaseYs: () => scene.getStackBottomBaseYs(),
     setHoverCell: (index: number | null) => {
       hoverCellIndex = index;
       refreshMoveHints();

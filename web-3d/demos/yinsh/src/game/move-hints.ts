@@ -7,7 +7,7 @@ import type { GameState } from './state';
 import type { Player } from './player';
 import { ringDestinationCoords, ringPathCoords } from './ring-destinations';
 import { coordToIndex, indexToCoord } from './cells';
-import { YINSH_ASSIST_DOT_RADIUS } from '../yinsh-piece-models';
+import { YINSH_ASSIST_DOT_RADIUS, YINSH_MARKER_WORLD_RADIUS } from '../yinsh-piece-models';
 
 export type { AiMoveHighlight };
 
@@ -68,6 +68,16 @@ export function buildYinshAssist(
     case 'MarkerPlacement': {
       const pickable = [...board.markerMoves(state.activePlayer)];
       assist.pickableCells = indices(pickable);
+      if (options.hoverCell !== null) {
+        const hover = indexToCoord(options.hoverCell);
+        if (pickable.some(c => coordEq(c, hover))) {
+          assist.markerGhost = {
+            cell: options.hoverCell,
+            player: state.activePlayer,
+            radius: YINSH_MARKER_WORLD_RADIUS * 0.92,
+          };
+        }
+      }
       break;
     }
 
