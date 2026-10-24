@@ -26,6 +26,7 @@ import {
   configurePlaceSfxPools,
   consumeBoopPushLandingSound,
   initPlaceSfx,
+  isBoopPushLandingBatchActive,
   playPiecePlaceSound,
   type PlaceSoundKind,
   type PlaceSfxPools,
@@ -441,9 +442,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     item.duration = duration;
     if (!immediate && !reducedMotion.matches && !item.selected) {
       const dy = target.y - item.from.y;
+      const xzMoved = Math.hypot(target.x - item.restX, target.z - item.restZ) > 0.08;
       if (dy < -0.008) {
-        const xzMoved = Math.hypot(target.x - item.restX, target.z - item.restZ) > 0.08;
         item.landOnComplete = xzMoved ? 'place' : 'cancel';
+      } else if (xzMoved && isBoopPushLandingBatchActive()) {
+        item.landOnComplete = 'place';
       }
     }
     if (immediate || reducedMotion.matches) {
