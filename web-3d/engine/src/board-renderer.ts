@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 
-/** WebGL defaults shared by {@link createBoardScene} (Tak) and other board demos. */
+/**
+ * Shared unlit board rendering: sRGB output, no tone mapping, pixel ratio 1.
+ * {@link createBoardScene} and demos use MeshBasic materials only — no scene lights.
+ */
 export function createBoardWebGLRenderer(): THREE.WebGLRenderer {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
   configureBoardWebGLRenderer(renderer);

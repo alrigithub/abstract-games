@@ -4,6 +4,7 @@ import {
   BOARD,
   CAMERA,
   GIPF_CHIP,
+  createBoardWebGLRenderer,
   createCameraViewController,
   createGameButtons,
   createGipfChipGeometry,
@@ -33,12 +34,7 @@ const STACKS: Record<string, number> = {
 
 const boardEl = document.querySelector<HTMLDivElement>('#board')!;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
-renderer.setPixelRatio(1);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.NoToneMapping;
-renderer.domElement.setAttribute('aria-hidden', 'true');
-renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none;';
+const renderer = createBoardWebGLRenderer();
 boardEl.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -162,9 +158,10 @@ function applyTheme(id: ThemeId) {
   const shadowMat = new THREE.MeshBasicMaterial({
     color: tokens.shadow,
     transparent: true,
-    opacity: 0.28,
+    opacity: 0.09,
     depthWrite: false,
     side: THREE.DoubleSide,
+    toneMapped: false,
   });
   const surface = BOARD.PLAYFIELD_SURFACE_Y;
   for (const piece of start) {

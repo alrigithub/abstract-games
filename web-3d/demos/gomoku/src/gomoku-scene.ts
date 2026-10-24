@@ -4,7 +4,7 @@ import {
   BOARD,
   CAMERA,
   GOMOKU_DIMS,
-  configureBoardWebGLRenderer,
+  createBoardWebGLRenderer,
   createCameraViewController,
   createContactShadowBlob,
   createGomokuStoneGeometry,
@@ -61,9 +61,7 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
   const scene = new THREE.Scene();
   scene.background = materials.table.clone();
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
-  configureBoardWebGLRenderer(renderer);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, CAMERA.maxPixelRatio));
+  const renderer = createBoardWebGLRenderer();
   container.appendChild(renderer.domElement);
 
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
