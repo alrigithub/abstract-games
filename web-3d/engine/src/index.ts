@@ -1,5 +1,6 @@
 export * from './animation-queue';
 export * from './board-scene';
+export * from './camera-views';
 export * from './constants';
 export * from './interaction';
 export * from './stack';

@@ -1,4 +1,5 @@
 import type * as THREE from 'three';
+import type { CameraViewController } from './camera-views';
 
 export type PlayerId = string;
 
@@ -120,6 +121,8 @@ export interface SceneApi {
   setSnapshot(snapshot: BoardSnapshot): void;
   setInteraction(view: InteractionView): void;
   setTheme(theme: ThemeId): void;
+  /** Shared top / axo camera presets (Back-to-Lobby bar Camera button). */
+  createCameraViews(options?: { getBounds?: () => THREE.Vector3[] }): CameraViewController;
   setCameraMode(mode: 'pan' | 'orbit'): void;
   hitTest(clientX: number, clientY: number): number | null;
   hitReserve(clientX: number, clientY: number): ReservePick | null;

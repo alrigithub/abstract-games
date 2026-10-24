@@ -4,6 +4,7 @@ import {
   type AiStrengthLevel,
   DEFAULT_AI_STRENGTH_LEVELS,
 } from './ai-strength';
+import type { CameraViewController } from '../camera-views';
 import { bindThemeToggle, type ThemeId } from '../theme';
 import { ensureBasePageStyles } from './page-styles';
 
@@ -181,6 +182,8 @@ export interface CreateGameButtonsOptions {
   applyTheme?: (theme: ThemeId) => void;
   /** Alias for {@link applyTheme}. */
   onThemeChange?: (theme: ThemeId) => void;
+  /** Shared top / ¾ camera presets; adds the Camera button when set. */
+  cameraViews?: CameraViewController;
   fullscreenElement?: HTMLElement;
 }
 
@@ -226,6 +229,20 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
     unbindTheme = bindThemeToggle(themeBtn, themeApply);
   }
 
+  const cameraBtn = document.createElement('button');
+  cameraBtn.type = 'button';
+  cameraBtn.className = 'game-button-icon';
+  cameraBtn.dataset.testid = 'camera-toggle';
+  cameraBtn.setAttribute('aria-label', 'Toggle camera view');
+  cameraBtn.title = 'Camera: top view and ¾ view';
+  cameraBtn.textContent = '⌖';
+  let unbindCamera: (() => void) | undefined;
+  if (options.cameraViews) {
+    const onCamera = () => options.cameraViews!.toggle();
+    cameraBtn.addEventListener('click', onCamera);
+    unbindCamera = () => cameraBtn.removeEventListener('click', onCamera);
+  }
+
   const newGameBtn = document.createElement('button');
   newGameBtn.type = 'button';
   newGameBtn.dataset.testid = 'new-game';
@@ -251,7 +268,15 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
     return btn;
   });
 
-  row.append(fullscreenBtn, ...(themeApply ? [themeBtn] : []), newGameBtn, aiSlot, lobby, ...extras);
+  row.append(
+    fullscreenBtn,
+    ...(options.cameraViews ? [cameraBtn] : []),
+    ...(themeApply ? [themeBtn] : []),
+    newGameBtn,
+    aiSlot,
+    lobby,
+    ...extras,
+  );
 
   const status = document.createElement('p');
   status.className = 'game-button-status';
@@ -351,6 +376,8 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
       document.removeEventListener('fullscreenchange', syncFullscreenLabel);
       document.removeEventListener('click', onDocClick);
       unbindTheme?.();
+      unbindCamera?.();
+      options.cameraViews?.dispose();
       aiStrength?.destroy();
       root.remove();
     },

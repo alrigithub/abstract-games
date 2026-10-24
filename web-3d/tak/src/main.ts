@@ -52,8 +52,11 @@ function applyTheme(id: ThemeId) {
   scene.setTheme(id);
 }
 
+const cameraViews = scene.createCameraViews();
+
 const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  cameraViews,
   aiStrengthStorageKey: TAK_AI_STRENGTH_STORAGE_KEY,
   applyTheme,
   firstPlayer: {

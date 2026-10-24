@@ -26,14 +26,6 @@ let aiPending = false;
 let aiGeneration = 0;
 let aiWorker: Worker | null = null;
 
-const gameButtons = createGameButtons({
-  mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
-  aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
-  onAiStrengthChange: level => renderStatus(undefined, level.label),
-  applyTheme,
-  onFirstPlayerSelected: color => startGame(color),
-});
-
 function applyTheme(id: ThemeId) {
   theme = id;
   scene.setTheme(id);
@@ -144,6 +136,17 @@ const scene = createGomokuScene(board, {
   onCellClick: (row, col) => void playMove(col, row, true),
   canInteract: () => !aiPending && !game.winner && game.toMove === humanColor,
   hoverPlayer: () => (game.winner || game.toMove !== humanColor ? null : toScenePlayer(humanColor)),
+});
+
+const cameraViews = scene.createCameraViews();
+
+const gameButtons = createGameButtons({
+  mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  cameraViews,
+  aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
+  onAiStrengthChange: level => renderStatus(undefined, level.label),
+  applyTheme,
+  onFirstPlayerSelected: color => startGame(color),
 });
 
 function startGame(color: Player) {

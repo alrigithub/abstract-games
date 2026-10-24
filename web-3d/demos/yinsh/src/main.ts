@@ -96,8 +96,11 @@ function renderStatus(extra?: string) {
   gameButtons.setStatus(extra ?? 'Piece showcase — rings, GIPF chips, scored racks (no 3D AI yet)');
 }
 
+const cameraViews = scene.createCameraViews();
+
 const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  cameraViews,
   applyTheme,
   onNewGameReset: () => {
     snapshot = buildDemoSnapshot();
