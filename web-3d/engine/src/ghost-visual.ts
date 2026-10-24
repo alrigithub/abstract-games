@@ -25,11 +25,16 @@ export function ensureOpaquePieceMaterials(root: THREE.Object3D): void {
   });
 }
 
+/** Set on a piece visual template after opaque GLB materials are configured once. */
+export const PIECE_OPAQUE_MATERIALS_READY_USER_DATA = 'pieceOpaqueMaterialsReady';
+
 /** Clone template hierarchy; clay GLBs keep shared materials via userData roles. */
 export function clonePieceVisualTemplate(template: THREE.Object3D): THREE.Object3D {
   const root = template.clone(true);
   rebindClayMaterialsFromUserData(root);
-  ensureOpaquePieceMaterials(root);
+  if (!template.userData[PIECE_OPAQUE_MATERIALS_READY_USER_DATA]) {
+    ensureOpaquePieceMaterials(root);
+  }
   return root;
 }
 

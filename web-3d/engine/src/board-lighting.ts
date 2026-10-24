@@ -309,9 +309,16 @@ export function tagPlayfieldForShadows(boardRoot: THREE.Object3D) {
   });
 }
 
+/** Visible GLB meshes that use a separate low-poly shadow caster (see Boop vases). */
+export const PIECE_SKIP_CAST_SHADOW_USER_DATA = 'pieceSkipCastShadow';
+
 export function tagPieceForShadows(root: THREE.Object3D, _receiveInStack?: boolean) {
   void _receiveInStack;
-  setMeshShadowFlags(root, { cast: true, receive: true });
+  setMeshShadowFlags(
+    root,
+    { cast: true, receive: true },
+    mesh => !mesh.userData[PIECE_SKIP_CAST_SHADOW_USER_DATA],
+  );
   root.traverse(node => {
     if (node instanceof THREE.LineSegments) {
       node.castShadow = false;
