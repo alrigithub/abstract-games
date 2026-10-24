@@ -4,12 +4,13 @@ import {
   BOARD,
   CAMERA,
   GIPF_CHIP,
-  bindThemeToggle,
+  createGameButtons,
   createGipfChipGeometry,
   createGipfHexBoard,
   createTzaarHexTopology,
   createTzaarPieceMesh,
   gipfLayoutFrameCorners,
+  readStoredTheme,
   tzaarFixedStart,
   tzaarLayout,
   tzaarPlayableCells,
@@ -162,7 +163,11 @@ function fit(reframe = false) {
   requestRender();
 }
 
+let theme: ThemeId = requested === 'light' || requested === 'dark' ? requested : readStoredTheme();
+document.documentElement.dataset.theme = theme;
+
 function applyTheme(id: ThemeId) {
+  theme = id;
   document.documentElement.dataset.theme = id;
   const tokens = themeTokens(id);
   scene.background = new THREE.Color(tokens.table);
@@ -216,10 +221,22 @@ function applyTheme(id: ThemeId) {
   requestRender();
 }
 
-const initial: ThemeId = requested === 'light' || requested === 'dark' ? requested : 'light';
-applyTheme(initial);
-bindThemeToggle(document.querySelector('#theme-toggle')!, applyTheme);
+function renderStatus(extra?: string) {
+  gameButtons.setStatus(extra ?? 'Tzaar piece demo · official start (no 3D AI yet)');
+}
+
+const gameButtons = createGameButtons({
+  mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  applyTheme,
+  onNewGameReset: () => {
+    applyTheme(theme);
+    renderStatus('Demo layout reset');
+  },
+});
+
 if (requested === 'light' || requested === 'dark') applyTheme(requested);
+else applyTheme(theme);
+renderStatus();
 fit();
 
 const resize = new ResizeObserver(() => fit());
