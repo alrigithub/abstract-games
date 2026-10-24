@@ -6,8 +6,8 @@ const flat = (id: string): EnginePiece => ({ id, player: 'A', shape: 'flat' });
 
 describe('stack layout grounding', () => {
   const measure = {
-    heightOf: () => 0.18,
-    offsetOf: () => 0,
+    heightOf: (_p: EnginePiece) => 0.18,
+    offsetOf: (_p: EnginePiece, _i: number, _s: EnginePiece[]) => 0,
   };
 
   it('bottom piece base equals playfield surface', () => {
