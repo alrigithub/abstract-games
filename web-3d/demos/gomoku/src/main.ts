@@ -1,10 +1,8 @@
 import {
   createGameButtons,
-  DEFAULT_LOBBY_HREF,
   GOMOKU_AI_STRENGTH_STORAGE_KEY,
   levelToSearchOptions,
-  readStoredTheme,
-  THEME_STORAGE_KEY,
+  readInitialTheme,
   type ThemeId,
 } from '@abstract/three-engine';
 import { createGomokuScene, type ScenePlayer, type StoneRecord } from './gomoku-scene';
@@ -20,8 +18,7 @@ import {
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 
-let theme: ThemeId = readStoredTheme();
-document.documentElement.dataset.theme = theme;
+let theme: ThemeId = readInitialTheme();
 
 let humanColor: Player = 'black';
 let game: GameState = createGame();
@@ -29,33 +26,12 @@ let aiPending = false;
 let aiGeneration = 0;
 let aiWorker: Worker | null = null;
 
-const gameButtons = createGameButtons({
-  mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
-  lobbyHref: DEFAULT_LOBBY_HREF,
-  aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
-  onAiStrengthChange: level => renderStatus(undefined, level.label),
-  applyTheme,
-  onFirstPlayerSelected: color => startGame(color),
-});
-
 function applyTheme(id: ThemeId) {
   theme = id;
-  document.documentElement.dataset.theme = id;
   scene.setTheme(id);
   syncBoard();
 }
 
-try {
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    try {
-      if (localStorage.getItem(THEME_STORAGE_KEY) === null) applyTheme(readStoredTheme());
-    } catch {
-      /* ignore */
-    }
-  });
-} catch {
-  /* ignore */
-}
 
 function toScenePlayer(player: Player): ScenePlayer {
   return player === 'white' ? 'A' : 'B';
@@ -160,6 +136,17 @@ const scene = createGomokuScene(board, {
   onCellClick: (row, col) => void playMove(col, row, true),
   canInteract: () => !aiPending && !game.winner && game.toMove === humanColor,
   hoverPlayer: () => (game.winner || game.toMove !== humanColor ? null : toScenePlayer(humanColor)),
+});
+
+const cameraViews = scene.createCameraViews();
+
+const gameButtons = createGameButtons({
+  mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  cameraViews,
+  aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
+  onAiStrengthChange: level => renderStatus(undefined, level.label),
+  applyTheme,
+  onFirstPlayerSelected: color => startGame(color),
 });
 
 function startGame(color: Player) {

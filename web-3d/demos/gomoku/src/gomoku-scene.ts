@@ -3,12 +3,14 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
   CAMERA,
   GOMOKU_DIMS,
+  createCameraViewController,
   createContactShadowBlob,
   createGomokuStoneGeometry,
   gomokuCellWorld,
   gomokuHoshiPoints,
   gomokuStoneCenterY,
   gomokuThemeMaterials,
+  type CameraViewController,
   type ThemeId,
 } from '@abstract/three-engine';
 
@@ -36,6 +38,7 @@ export interface GomokuSceneApi {
   setHover(row: number | null, col: number | null, player: ScenePlayer | null): void;
   animateDrop(stone: StoneRecord): Promise<void>;
   setInputEnabled(enabled: boolean): void;
+  createCameraViews(): CameraViewController;
   dispose(): void;
 }
 
@@ -66,6 +69,7 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
   camera.position.set(...CAMERA.position);
   camera.lookAt(0, 0, 0);
+  const orbitTarget = new THREE.Vector3(0, 0, 0);
 
   const boardGroup = new THREE.Group();
   const stonesGroup = new THREE.Group();
@@ -291,6 +295,7 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
   renderer.domElement.addEventListener('pointerup', onPointerUp);
 
   const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.copy(orbitTarget);
   controls.enableDamping = false;
   controls.enablePan = true;
   controls.rotateSpeed = CAMERA.rotateSpeed;
@@ -304,12 +309,37 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
   controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
   controls.addEventListener('change', requestRender);
 
-  function fit() {
+  let viewportW = 1;
+  let viewportH = 1;
+  let cameraViewsRef: CameraViewController | null = null;
+
+  function gomokuFramePoints(): THREE.Vector3[] {
+    const half = size / 2 + GOMOKU_DIMS.MARGIN * 0.65;
+    const yTop = restY + 0.08;
+    return [
+      new THREE.Vector3(-half, 0, -half),
+      new THREE.Vector3(half, 0, half),
+      new THREE.Vector3(-half, yTop, half),
+      new THREE.Vector3(half, yTop, -half),
+    ];
+  }
+
+  function syncViewport() {
     const bounds = container.getBoundingClientRect();
-    const w = Math.max(1, bounds.width);
-    const h = Math.max(1, bounds.height);
-    renderer.setSize(w, h, false);
-    const aspect = w / h;
+    viewportW = Math.max(1, bounds.width);
+    viewportH = Math.max(1, bounds.height);
+    renderer.setSize(viewportW, viewportH, false);
+    return viewportW / viewportH;
+  }
+
+  function fit() {
+    syncViewport();
+    if (cameraViewsRef) {
+      cameraViewsRef.refit();
+      render();
+      return;
+    }
+    const aspect = viewportW / viewportH;
     const half = size / 2 + GOMOKU_DIMS.MARGIN * 0.65;
     const halfHeight = half * 1.08;
     camera.left = -halfHeight * aspect;
@@ -376,7 +406,22 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
       inputEnabled = enabled;
       if (!enabled) updateGhost(null, null, null);
     },
+    createCameraViews() {
+      cameraViewsRef?.dispose();
+      cameraViewsRef = createCameraViewController({
+        camera,
+        controls,
+        getBounds: gomokuFramePoints,
+        getAspect: () => {
+          syncViewport();
+          return viewportW / viewportH;
+        },
+        onUpdate: requestRender,
+      });
+      return cameraViewsRef;
+    },
     dispose() {
+      cameraViewsRef?.dispose();
       disposed = true;
       ro.disconnect();
       controls.dispose();

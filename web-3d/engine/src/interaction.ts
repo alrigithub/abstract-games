@@ -27,20 +27,26 @@ export function createInteraction(options: InteractionOptions): InteractionApi {
     frame = null;
   };
   const stopHoldTimer = () => {
-    if (holdTimer !== null) clearInterval(holdTimer);
+    if (holdTimer !== null) clearTimeout(holdTimer);
     holdTimer = null;
   };
   const startHoldTimer = () => {
     stopHoldTimer();
-    holdTimer = setInterval(() => {
-      if (!press?.holding || disposed) {
-        stopHoldTimer();
-        return;
-      }
-      updateHold(performance.now());
-      emit();
-      if (view.selection && press && view.selection.count >= press.height) stopHoldTimer();
-    }, 50);
+    // Fire exactly on each HOLD_INTERVAL boundary (370 ms isn't a multiple of a fixed poll).
+    const schedule = () => {
+      if (!press?.holding || disposed) return;
+      const elapsed = Math.max(0, performance.now() - press.startedAt);
+      const delay = press.interval - (elapsed % press.interval);
+      holdTimer = setTimeout(() => {
+        holdTimer = null;
+        if (!press?.holding || disposed) return;
+        updateHold(performance.now());
+        emit();
+        if (view.selection && press && view.selection.count >= press.height) return;
+        schedule();
+      }, delay) as unknown as ReturnType<typeof setInterval>;
+    };
+    schedule();
   };
   const updateHold = (now: number) => {
     if (!press?.holding || !view.selection) return;
