@@ -40,6 +40,12 @@ export const GIPF_SPACING = 1;
 const SQRT3_2 = Math.sqrt(3) / 2;
 const YINSH_RADIUS_SQ = 4.6 * 4.6;
 
+export function isYinshPlayfieldAxial(q: number, r: number): boolean {
+  const x = SQRT3_2 * q;
+  const z = 0.5 * q - r;
+  return x * x + z * z <= YINSH_RADIUS_SQ + 1e-9;
+}
+
 /** Axial steps that are true neighbours of {@link gipfWorldPoint}. */
 export const GIPF_AXIAL_STEPS = [
   [1, 0],
@@ -108,9 +114,7 @@ export function yinshLayout(spacing: number = GIPF_SPACING): GipfHexLayout {
   const points: GipfPoint[] = [];
   for (let q = -5; q <= 5; q++) {
     for (let r = -5; r <= 5; r++) {
-      const x = SQRT3_2 * q;
-      const z = 0.5 * q - r;
-      if (x * x + z * z > YINSH_RADIUS_SQ) continue;
+      if (!isYinshPlayfieldAxial(q, r)) continue;
       points.push(pointAt(q, r, spacing));
     }
   }

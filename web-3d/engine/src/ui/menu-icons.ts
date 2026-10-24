@@ -13,7 +13,9 @@ export type MenuIconName =
   | 'sun'
   | 'moon'
   | 'arrow-left'
-  | 'flip-vertical';
+  | 'flip-vertical'
+  | 'volume-2'
+  | 'volume-x';
 
 const PATHS: Record<MenuIconName, string> = {
   plus: '<path d="M12 5v14M5 12h14"/>',
@@ -29,6 +31,10 @@ const PATHS: Record<MenuIconName, string> = {
   'arrow-left': '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
   'flip-vertical':
     '<path d="M21 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v3"/><path d="M21 16v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3"/><path d="m4 12 4-4 4 4"/><path d="m16 12-4 4-4-4"/>',
+  'volume-2':
+    '<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>',
+  'volume-x':
+    '<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/>',
 };
 
 function createSvg(options: {

@@ -13,6 +13,8 @@ import {
   gomokuStoneRestCenterY,
   gomokuThemeMaterials,
   makePieceShadow,
+  playPiecePlaceSound,
+  initPlaceSfx,
   type CameraViewController,
   type ThemeId,
 } from '@abstract/three-engine';
@@ -49,6 +51,7 @@ const DROP_MS = 180;
 const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
 
 export function createGomokuScene(container: HTMLElement, options: GomokuSceneOptions = {}): GomokuSceneApi {
+  initPlaceSfx();
   let themeId: ThemeId = options.theme ?? 'light';
   let materials = gomokuThemeMaterials(themeId);
   let inputEnabled = true;
@@ -380,7 +383,10 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
           shadow.position.y = shadowY;
           requestRender();
           if (t < 1) requestAnimationFrame(tick);
-          else resolve();
+          else {
+            playPiecePlaceSound();
+            resolve();
+          }
         };
         requestAnimationFrame(tick);
       });

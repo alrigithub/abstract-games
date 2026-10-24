@@ -1,6 +1,8 @@
 import {
+  beginBoopPushLandSounds,
   cellCoordinates,
   cellIndex,
+  endBoopPushLandSounds,
   type BoardSnapshot,
   type SceneApi,
   type Selection,
@@ -289,6 +291,10 @@ export class BoopController {
       }
     }
 
+    const pushFromPlacement =
+      move.type === 'place' && (effects.displacements.length > 0 || effects.off_board.length > 0);
+    if (pushFromPlacement) beginBoopPushLandSounds();
+
     for (const d of effects.displacements) {
       this.tracker.moveBoardId(d.from, d.to);
       this.view = after;
@@ -308,6 +314,8 @@ export class BoopController {
       this.publishSnapshot();
       await sleep(step);
     }
+
+    if (pushFromPlacement) endBoopPushLandSounds();
 
     if (effects.graduated_cells) {
       for (const [x, y] of effects.graduated_cells) this.tracker.removeFromBoard(x, y);
