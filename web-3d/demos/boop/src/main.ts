@@ -4,20 +4,27 @@ import {
   createBoardScene,
   createBoopCatGeometry,
   createBoopKittenGeometry,
+  createGameButtons,
   createSquareTopology,
-  bindThemeToggle,
+  DEFAULT_LOBBY_HREF,
+  GOMOKU_AI_STRENGTH_STORAGE_KEY,
   readStoredTheme,
+  bindThemeToggle,
   storeTheme,
+  THEME_STORAGE_KEY,
   type BoardSnapshot,
   type EnginePiece,
   type SceneApi,
   type ThemeId,
 } from '@abstract/three-engine';
 
+const STATUS = 'Boop — piece preview (rules & AI coming)';
+
 const size = 6;
-/** Exterior ring columns for side pools (framed via Topology.frameCorners on the base engine). */
 const OUTSIDE_ROWS = 2;
 const cellTotal = (size + OUTSIDE_ROWS * 2) ** 2;
+const KITTENS_PER_PLAYER = 8;
+const CATS_PER_PLAYER = 3;
 
 const cat = createBoopCatGeometry();
 const kitten = createBoopKittenGeometry();
@@ -40,18 +47,17 @@ function pushStack(
   }
 }
 
-/** Side pools on exterior cells (left = A, right = B). */
-function sidePoolStacks(cells: EnginePiece[][]) {
+function fullSidePools(cells: EnginePiece[][]) {
   const leftCol = -2;
   const rightCol = size + 1;
-  pushStack(cells, 3, leftCol, 'A', 'kitten', 4, 'pool-a-k');
-  pushStack(cells, 5, leftCol, 'A', 'cat', 2, 'pool-a-c');
-  pushStack(cells, 3, rightCol, 'B', 'kitten', 4, 'pool-b-k');
-  pushStack(cells, 5, rightCol, 'B', 'cat', 2, 'pool-b-c');
+  pushStack(cells, 3, leftCol, 'A', 'kitten', KITTENS_PER_PLAYER, 'pool-a-k');
+  pushStack(cells, 5, leftCol, 'A', 'cat', CATS_PER_PLAYER, 'pool-a-c');
+  pushStack(cells, 3, rightCol, 'B', 'kitten', KITTENS_PER_PLAYER, 'pool-b-k');
+  pushStack(cells, 5, rightCol, 'B', 'cat', CATS_PER_PLAYER, 'pool-b-c');
 }
 
-/** Midgame layout loosely matching the Astra B&W Boop mockup. */
-function mockupPieces(cells: EnginePiece[][]) {
+/** Midgame layout for piece preview (initial view). */
+function mockupOnBoard(cells: EnginePiece[][]) {
   const at = (row: number, col: number, piece: EnginePiece) => {
     cells[row * size + col]!.push(piece);
   };
@@ -64,10 +70,10 @@ function mockupPieces(cells: EnginePiece[][]) {
   at(4, 3, { id: 'w-kitten-2', player: 'A', shape: 'kitten' });
 }
 
-function buildSnapshot(): BoardSnapshot {
+function buildSnapshot(emptyBoard: boolean): BoardSnapshot {
   const cells: EnginePiece[][] = Array.from({ length: cellTotal }, () => []);
-  mockupPieces(cells);
-  sidePoolStacks(cells);
+  if (!emptyBoard) mockupOnBoard(cells);
+  fullSidePools(cells);
   return {
     playableCells: size * size,
     cellCount: cellTotal,
@@ -75,18 +81,70 @@ function buildSnapshot(): BoardSnapshot {
   };
 }
 
-const snapshot = buildSnapshot();
 const board = document.querySelector<HTMLDivElement>('#board')!;
+let theme: ThemeId = readStoredTheme();
+document.documentElement.dataset.theme = theme;
 
 const scene = await createBoardScene(board, {
   gridSize: size,
   topology,
   pieces,
-  initialTheme: readStoredTheme(),
+  initialTheme: theme,
 });
-scene.setSnapshot(snapshot);
 
-bindThemeToggle(document.querySelector('#theme-toggle')!, t => scene.setTheme(t));
+function applyTheme(id: ThemeId) {
+  theme = id;
+  scene.setTheme(id);
+}
+
+const gameButtons = createGameButtons({
+  mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  lobbyHref: DEFAULT_LOBBY_HREF,
+  aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
+  onFirstPlayerSelected: () => {},
+});
+
+gameButtons.root.querySelector('[data-testid="first-player-popover"]')?.remove();
+gameButtons.aiStrength.destroy();
+
+const row = gameButtons.root.querySelector('.game-button-row')!;
+const themeBtn = document.createElement('button');
+themeBtn.type = 'button';
+themeBtn.dataset.testid = 'theme-toggle';
+themeBtn.setAttribute('aria-label', 'Toggle theme');
+themeBtn.textContent = '◐';
+row.insertBefore(themeBtn, row.querySelector('.game-button-ai-slot'));
+
+bindThemeToggle(themeBtn, applyTheme);
+
+const newGameBtn = row.querySelector<HTMLButtonElement>('[data-testid="new-game"]')!;
+const newGame = newGameBtn.cloneNode(true) as HTMLButtonElement;
+newGameBtn.replaceWith(newGame);
+newGame.addEventListener('click', () => resetBoard());
+
+function resetBoard() {
+  scene.setSnapshot(buildSnapshot(true));
+  gameButtons.setStatus(STATUS);
+}
+
+function loadPreview() {
+  scene.setSnapshot(buildSnapshot(false));
+  gameButtons.setStatus(STATUS);
+}
+
+loadPreview();
+
+try {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    try {
+      if (localStorage.getItem(THEME_STORAGE_KEY) === null) applyTheme(readStoredTheme());
+    } catch {
+      /* ignore */
+    }
+  });
+} catch {
+  /* ignore */
+}
 
 declare global {
   interface Window {
@@ -96,10 +154,9 @@ declare global {
 }
 
 window.__boopScene = scene;
-window.__boopSetTheme = (theme: ThemeId) => {
-  storeTheme(theme);
-  scene.setTheme(theme);
-  document.documentElement.dataset.theme = theme;
+window.__boopSetTheme = (id: ThemeId) => {
+  storeTheme(id);
+  applyTheme(id);
 };
 
 const params = new URLSearchParams(location.search);
