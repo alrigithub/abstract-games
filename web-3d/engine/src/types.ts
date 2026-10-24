@@ -294,7 +294,7 @@ export interface SceneApi {
   /** World Y of the top of the built-in board slab (playfield surface). */
   getBoardTopY(): number;
   /** World Y of the bottom piece base in each cell stack and reserve pile. */
-  getStackBottomBaseYs(): number[];
+  getStackBottomBaseYs(relativeToCellSurface?: boolean): number[];
   dispose(): void;
 }
 

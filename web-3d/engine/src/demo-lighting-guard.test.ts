@@ -33,36 +33,36 @@ function collectDemoSources(): string[] {
   return DEMO_SOURCE_ROOTS.flatMap(root => walkSourceFiles(root));
 }
 
+// Sources do not change within a test run. Read once so repeated filesystem
+// scans (especially Windows antivirus checks) cannot dominate each assertion.
+const demoSources = collectDemoSources().map(file => ({ file, text: readFileSync(file, 'utf8') }));
+
 describe('demo lighting guard', () => {
   it('demos do not instantiate Three.js lights', () => {
     const lightPattern =
       /new\s+THREE\.(?:Hemisphere|Directional|Ambient|Point|Spot|RectArea)Light\b/;
-    for (const file of collectDemoSources()) {
-      const text = readFileSync(file, 'utf8');
+    for (const { file, text } of demoSources) {
       expect(text, file).not.toMatch(lightPattern);
     }
   });
 
   it('demos do not set environment maps or RoomEnvironment locally', () => {
     const envPattern = /RoomEnvironment|PMREMGenerator|\.environment\s*=|\.environmentIntensity\s*=/;
-    for (const file of collectDemoSources()) {
-      const text = readFileSync(file, 'utf8');
+    for (const { file, text } of demoSources) {
       expect(text, file).not.toMatch(envPattern);
     }
   });
 
   it('demos do not configure renderer tone mapping locally', () => {
     const tonePattern = /\.toneMapping\s*=|ACESFilmicToneMapping|toneMappingExposure/;
-    for (const file of collectDemoSources()) {
-      const text = readFileSync(file, 'utf8');
+    for (const { file, text } of demoSources) {
       expect(text, file).not.toMatch(tonePattern);
     }
   });
 
   it('custom WebGLRenderer usage goes through shared board renderer helpers', () => {
     const rendererPattern = /new\s+THREE\.WebGLRenderer\b/;
-    for (const file of collectDemoSources()) {
-      const text = readFileSync(file, 'utf8');
+    for (const { file, text } of demoSources) {
       if (!rendererPattern.test(text)) continue;
       const usesShared =
         text.includes('createBoardWebGLRenderer') ||

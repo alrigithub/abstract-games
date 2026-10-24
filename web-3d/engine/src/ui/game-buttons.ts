@@ -470,7 +470,7 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   fullscreenBtn.dataset.testid = 'fullscreen-toggle';
   fullscreenBtn.setAttribute('aria-label', 'Enter full screen');
 
-  toolbar.append(menuTrigger, cameraBtn, fullscreenBtn, status);
+  toolbar.append(menuTrigger, ...(options.cameraViews ? [cameraBtn] : []), fullscreenBtn, status);
 
   const menu = document.createElement('div');
   menu.className = 'game-menu-dropdown';

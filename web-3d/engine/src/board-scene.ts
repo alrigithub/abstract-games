@@ -30,6 +30,7 @@ import { clayEnvMaterial, clayMaterialForPlayer, syncClayMaterialTheme } from '.
 import { applyBoardEnvironment, createBoardWebGLRenderer, measureBoardFrameMs } from './board-renderer';
 import { BoardAssistLayer, type AssistGhostPieceRenderer } from './board-assist';
 import { WIN_ACCENT } from './theme';
+import { createPrerenderedArena, fitPrerenderedCamera, type PrerenderedArena } from './prerendered-arena';
 
 const FLIP_HALO_NAME = 'flip-preview-halo';
 import {
@@ -95,6 +96,8 @@ interface DepartingObject {
 }
 
 export interface BoardSceneOptions {
+  /** Fixed orthographic plate with live 3D pieces and occluders. */
+  prerenderedArena?: PrerenderedArena;
   /** Playable grid extent (cells per side). */
   gridSize: number;
   /** Exterior sandbox ring (Tak reserve rows on the board). */
@@ -143,6 +146,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
 
   const scene = new THREE.Scene();
   applyPlayfieldBackdrop(scene, tokens.table);
+  const prerendered = options.prerenderedArena ? createPrerenderedArena(scene, options.prerenderedArena, themeId) : null;
   const renderer = createBoardWebGLRenderer();
   const disposeEnvironment = applyBoardEnvironment(scene, renderer);
   const boardLighting = applyBoardLighting(scene, renderer, { ambientFill: true });
@@ -214,6 +218,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     if (!surface || !playfieldGroundMaterial) return;
     playfieldGroundMaterial.color.set(surface);
     applyPlayfieldBackdrop(scene, surface);
+    prerendered?.setTheme(themeId);
   }
 
   function ensurePlayfieldGroundMaterial(): THREE.MeshStandardMaterial | THREE.MeshBasicMaterial {
@@ -226,6 +231,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         metalness: 0,
         side: THREE.DoubleSide,
       });
+      if (prerendered) playfieldGroundMaterial.colorWrite = false;
     }
     return playfieldGroundMaterial;
   }
@@ -289,7 +295,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     }));
     const pieceIndex = stack.length - 1;
     const piece = stack[pieceIndex]!;
-    const centers = layoutStackCenters(stack, stackMeasure, playfieldY);
+    const centers = layoutStackCenters(stack, stackMeasure, playfieldY + cellPosition(hint.cell).y);
     return meshYFromStackCenter(centers[pieceIndex]!, piece);
   }
 
@@ -607,7 +613,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     if (!projectPointer({ x: clientX, y: clientY })) return null;
     scene.updateMatrixWorld(true);
     const meshes = [...piecesGroup.children, ...pilesGroup.children, ...board.children.filter(c => c instanceof THREE.Mesh)].filter(m => m.visible);
-    return raycaster.intersectObjects(meshes, true)[0] ?? null;
+    return raycaster.intersectObjects(meshes, true).find(hit => !hit.object.userData.excludeFromPicking) ?? null;
   }
 
   function pickSurface(clientX: number, clientY: number) {
@@ -617,7 +623,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   function cellAtPointer(clientX: number, clientY: number): number | null {
     const point = projectPointer({ x: clientX, y: clientY });
     if (!point) return null;
-    return options.topology.cellAtWorld(point.x, point.z, snapshot);
+    const candidate = options.topology.cellAtWorld(point.x, point.z, snapshot);
+    if (candidate === null) return null;
+    const elevation = playfieldY + cellPosition(candidate).y;
+    if (!elevation) return candidate;
+    const surface = projectPointer({ x: clientX, y: clientY }, elevation);
+    return surface ? options.topology.cellAtWorld(surface.x, surface.z, snapshot) : null;
   }
 
   function pickableAtPointer(clientX: number, clientY: number): boolean {
@@ -632,7 +643,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   }
 
   function updateControlsEnabled() {
-    controls.enabled = touches.size > 1 || (!view.selection && !pressBlocksCamera);
+    controls.enabled = !prerendered && (touches.size > 1 || (!view.selection && !pressBlocksCamera));
   }
 
   function onPileBlur() {
@@ -650,7 +661,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     if (touches.size > 1) {
       container.dataset.cameraGesture = 'true';
       pressBlocksCamera = false;
-      controls.enabled = true;
+      controls.enabled = !prerendered;
       container.dispatchEvent(new CustomEvent('camera-gesture', { detail: { active: true } }));
       const first = [...touches.values()].find(t => t.pointerId !== event.pointerId);
       if (first && blockedTouchId === first.pointerId) {
@@ -707,6 +718,10 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
   controls.touches.ONE = THREE.TOUCH.PAN;
   controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+  if (prerendered) {
+    controls.enableRotate = controls.enablePan = controls.enableZoom = false;
+    controls.enabled = false;
+  }
   function syncBoardGridLines() {
     applyBoardGridLineScreenScale(board, boardGridLineScreenScale(camera, viewportHeight));
   }
@@ -771,6 +786,13 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
 
   function fit(reframe = false) {
     const aspect = syncRendererSize();
+    if (options.prerenderedArena) {
+      fitPrerenderedCamera(camera, options.prerenderedArena.camera, aspect);
+      syncBoardGridLines();
+      syncShadowFrustum();
+      requestRender();
+      return;
+    }
     if (cameraViewsRef) {
       cameraViewsRef.refit();
       requestRender();
@@ -917,7 +939,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     const sourcePosition = typeof selection?.source === 'number' ? cellPosition(selection.source) : null;
     const selectedBottom =
       selected.length && typeof selection?.source === 'number'
-        ? stackExtent(snapshot.cells[selection.source]?.slice(0, -selected.length) ?? [], stackMeasure, playfieldY)
+        ? stackExtent(snapshot.cells[selection.source]?.slice(0, -selected.length) ?? [], stackMeasure, playfieldY + (sourcePosition?.y ?? 0))
         : 0;
     const support =
       view.target === null
@@ -935,7 +957,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         : stackExtent(
             (snapshot.cells[view.target] ?? []).filter(p => !selectedIds.has(p.id)),
             stackMeasure,
-            playfieldY,
+            playfieldY + (targetCell?.y ?? 0),
           );
     for (const item of objects.values()) {
       const isSelected = selectedIds.has(item.pieceId);
@@ -1055,7 +1077,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     const present = new Set<string>();
     snapshot.cells.forEach((stack, index) => {
       const position = cellPosition(index);
-      const centers = layoutStackCenters(stack, stackMeasure, playfieldY);
+      const centers = layoutStackCenters(stack, stackMeasure, playfieldY + position.y);
       stack.forEach((piece, stackIndex) => {
         present.add(piece.id);
         const h = height(piece as never);
@@ -1221,6 +1243,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const api: SceneApi = {
     setSnapshot,
     createCameraViews(cameraOptions: { getBounds?: () => THREE.Vector3[] } = {}) {
+      if (prerendered) return { preset: 'axo', toggle() {}, setPreset() {}, refit() { fit(); }, dispose() {} };
       cameraViewsRef?.dispose();
       const getBounds = cameraOptions.getBounds ?? collectFramePoints;
       cameraViewsRef = createCameraViewController({
@@ -1243,6 +1266,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     setTheme(id) {
       themeId = id;
       rebuildMaterials();
+      syncPlayfieldGroundAppearance();
       boardLighting.syncThemeAmbientFill(id);
       options.pieces.onThemeChange?.(id);
       refreshPieceVisuals();
@@ -1306,17 +1330,17 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     getBoardTopY() {
       return playfieldY;
     },
-    getStackBottomBaseYs() {
+    getStackBottomBaseYs(relativeToCellSurface = false) {
       const ys: number[] = [];
       const baseY = (object: THREE.Object3D) => {
         object.updateMatrixWorld(true);
         shadowBounds.setFromObject(object);
         return shadowBounds.min.y;
       };
-      snapshot.cells.forEach(stack => {
+      snapshot.cells.forEach((stack, index) => {
         if (!stack.length) return;
         const item = objects.get(stack[0]!.id);
-        if (item && Number.isFinite(baseY(item.mesh))) ys.push(baseY(item.mesh));
+        if (item && Number.isFinite(baseY(item.mesh))) ys.push(baseY(item.mesh) - (relativeToCellSurface ? cellPosition(index).y : 0));
       });
       for (const slot of snapshot.reserves ?? []) {
         if (slot.count <= 0) continue;
@@ -1399,6 +1423,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       flipHaloMaterial.dispose();
       playfieldGroundMaterial?.dispose();
       backdropShadowMaterial?.dispose();
+      prerendered?.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },
