@@ -32,6 +32,7 @@ function createClayMat(hex: string): THREE.MeshStandardMaterial {
 
 bank.env.side = THREE.DoubleSide;
 bank.env.depthWrite = true;
+bank.env.roughness = CLAY.ENV_MATERIAL_ROUGHNESS;
 
 function envHexForTheme(themeId: ThemeId): string {
   return themeId === 'dark' ? CLAY.ENV_DARK : CLAY.ENV;

@@ -16,7 +16,8 @@ describe('clay materials', () => {
     const env = getClayMaterial('env');
     const light = getClayMaterial('piece_light');
     const dark = getClayMaterial('piece_dark');
-    expect(env.roughness).toBe(CLAY.MATERIAL_ROUGHNESS);
+    expect(env.roughness).toBe(CLAY.ENV_MATERIAL_ROUGHNESS);
+    expect(light.roughness).toBe(CLAY.MATERIAL_ROUGHNESS);
     expect(env.metalness).toBe(0);
     expect(env).toBe(getClayMaterial('env'));
     expect(light).not.toBe(dark);

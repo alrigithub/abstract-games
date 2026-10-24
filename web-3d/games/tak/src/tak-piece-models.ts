@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import {
   BOARD,
   createTakPieceGeometries,
@@ -9,6 +8,7 @@ import {
   type EnginePiece,
   applyClayPieceMaterials,
   clonePieceVisualTemplate,
+  loadGltfAsync,
   pieceGlbSideForPlayer,
   type PieceGeometrySet,
   type ThemeId,
@@ -71,8 +71,7 @@ function measureHeight(template: THREE.Object3D): number {
 }
 
 async function loadScene(url: string): Promise<THREE.Object3D> {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(url);
+  const gltf = await loadGltfAsync(url);
   return gltf.scene;
 }
 

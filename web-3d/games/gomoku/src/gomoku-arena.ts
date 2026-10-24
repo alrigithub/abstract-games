@@ -3,14 +3,13 @@ import {
   GOMOKU_DIMS,
   applyArenaGlbThemeMaterials,
   gomokuCellWorld,
+  loadGltfAsync,
   tagArenaGlbForShadows,
   tagExcludeFromBounds,
   type ThemeId,
 } from '@abstract/three-engine';
 import * as THREE from 'three';
 import { PropertyBinding } from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 /** Verified SHA-256 of the arena GLB in `public/models/`. */
 export const GOMOKU_ARENA_GLB_SHA256 =
@@ -123,10 +122,7 @@ export function gomokuArenaPlacementError(row: number, col: number): number {
 }
 
 export async function loadGomokuArenaLayout(initialTheme: ThemeId = 'light'): Promise<GomokuArenaLayout> {
-  await MeshoptDecoder.ready;
-  const loader = new GLTFLoader();
-  loader.setMeshoptDecoder(MeshoptDecoder);
-  const gltf = await loader.loadAsync(arenaAssetUrl());
+  const gltf = await loadGltfAsync(arenaAssetUrl());
   const root = prepareArenaScene(gltf.scene, initialTheme);
   root.name = 'gomoku-arena-15x15';
   applyArenaTransform(root);

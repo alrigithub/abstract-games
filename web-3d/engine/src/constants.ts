@@ -63,14 +63,14 @@ export const BOARD = {
 
 /** Central tuning for the shared clay / maquette look (tone map, AO, key light). */
 export const CLAY = {
-  TONE_MAPPING_EXPOSURE: 1.04,
+  TONE_MAPPING_EXPOSURE: 0.98,
   AO_ENABLED: true,
   AO_QUALITY: 'Performance' as const,
   AO_HALF_RES: true,
   AO_INTENSITY: 2.0,
   AO_RADIUS: 2.05,
   AO_DISTANCE_FALLOFF: 1.0,
-  KEY_LIGHT_INTENSITY: 0.9,
+  KEY_LIGHT_INTENSITY: 0.82,
   /** Soft cool daylight (not warm studio). */
   KEY_LIGHT_COLOR: 0xf4f6f3,
   /** Playfield / board / arena GLB albedo (light airy grey-green). */
@@ -82,6 +82,8 @@ export const CLAY = {
   PIECE_LIGHT: '#e8e4dc',
   PIECE_DARK: '#4a4a48',
   MATERIAL_ROUGHNESS: 0.88,
+  /** Slightly rougher ENV clay to avoid hot specular edges on large arena GLBs. */
+  ENV_MATERIAL_ROUGHNESS: 0.93,
   /** Full-scene ShadowMaterial plane (PBR arenas use mesh receiveShadow instead). */
   USE_SCENE_SHADOW_CATCHER: false,
 } as const;

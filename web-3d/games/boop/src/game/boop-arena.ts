@@ -1,20 +1,20 @@
 import {
   BOARD,
   createSquareTopology,
+  loadGltfAsync,
   tagBoardGridLine,
   tagExcludeFromBounds,
   type BoardBuildContext,
   type BoardSnapshot,
+  type SquareGridOptions,
   type Topology,
 } from '@abstract/three-engine';
-import type { SquareGridOptions } from '@abstract/three-engine';
 import * as THREE from 'three';
 import { PropertyBinding } from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /** Verified SHA-256 of Alex's arena GLB (see `public/assets/overgrown-arena-two-depressions2-white.glb`). */
 export const BOOP_ARENA_GLB_SHA256 =
-  '9121e2a1946ae4e780b23ef357362177eb49f12ced6a66e48afafe10e3169093';
+  '458520dc233381c85ae630a0407b4ae7365a36abbec5f3296f8196e9cfe60408';
 export const BOOP_ARENA_GLB_FILE = 'overgrown-arena-two-depressions2-white.glb';
 
 /**
@@ -127,11 +127,8 @@ function prepareArenaScene(scene: THREE.Group): THREE.Group {
 }
 
 export async function loadBoopArenaTemplate(): Promise<THREE.Group> {
-  const loader = new GLTFLoader();
-  const gltf = await new Promise<{ scene: THREE.Group }>((resolve, reject) => {
-    loader.load(arenaAssetUrl(), resolve, undefined, reject);
-  });
-  return prepareArenaScene(gltf.scene);
+  const gltf = await loadGltfAsync(arenaAssetUrl());
+  return prepareArenaScene(gltf.scene as THREE.Group);
 }
 
 /** Same grid lines as the engine default square bed (Alex: keep the line). */

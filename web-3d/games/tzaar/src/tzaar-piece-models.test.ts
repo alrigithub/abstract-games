@@ -2,7 +2,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { NodeIO } from '@gltf-transform/core';
+import { EXTMeshoptCompression, EXTTextureWebP, KHRMeshQuantization } from '@gltf-transform/extensions';
+import { dequantize, getBounds } from '@gltf-transform/functions';
+import { MeshoptDecoder } from 'meshoptimizer';
+import { beforeAll, describe, expect, it } from 'vitest';
 import {
   TZAAR_GLB_DIAMETER_M,
   TZAAR_GLB_HEIGHT_M,
@@ -13,6 +17,31 @@ import { CLAY, applyClayPieceMaterials, getClayMaterial } from '@abstract/three-
 import { TZAAR_MODEL, tzaarKindOf, tzaarModelRelPath } from './tzaar-piece-models';
 
 const modelsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public/models');
+
+let gltfIo: NodeIO;
+
+beforeAll(async () => {
+  await MeshoptDecoder.ready;
+  gltfIo = new NodeIO()
+    .registerDependencies({ 'meshopt.decoder': MeshoptDecoder })
+    .registerExtensions([EXTMeshoptCompression, KHRMeshQuantization, EXTTextureWebP]);
+});
+
+async function readMeshWorldBounds(filename: string): Promise<{
+  baseY: number;
+  height: number;
+  diameter: number;
+}> {
+  const doc = await gltfIo.read(path.join(modelsDir, filename));
+  await doc.transform(dequantize());
+  const scene = doc.getRoot().listScenes()[0]!;
+  const { min, max } = getBounds(scene);
+  return {
+    baseY: min[1]!,
+    height: max[1]! - min[1]!,
+    diameter: max[0]! - min[0]!,
+  };
+}
 
 function readGlbJson(filename: string): Record<string, unknown> {
   const data = readFileSync(path.join(modelsDir, filename));
@@ -47,28 +76,20 @@ describe('tzaar GLB mapping', () => {
     }
   });
 
-  it('keeps one authored height and ~28 mm diameter so stacks stay flush', () => {
-    const bounds = (['tzaar', 'tzarra', 'tott'] as const).flatMap(kind =>
-      (['A', 'B'] as const).map(side => {
-        const filename = path.basename(tzaarModelRelPath(kind, side));
-        const gltf = readGlbJson(filename);
-        const mesh = (gltf.meshes as { primitives: { attributes: { POSITION: number } }[] }[])[0]!;
-        const accessors = gltf.accessors as { min?: number[]; max?: number[] }[];
-        const acc = accessors[mesh.primitives[0]!.attributes.POSITION]!;
-        const min = acc.min!;
-        const max = acc.max!;
-        return {
-          filename,
-          height: max[1]! - min[1]!,
-          diameter: max[0]! - min[0]!,
-          baseY: min[1]!,
-        };
-      }),
+  it('keeps one authored height and ~28 mm diameter so stacks stay flush', async () => {
+    const bounds = await Promise.all(
+      (['tzaar', 'tzarra', 'tott'] as const).flatMap(kind =>
+        (['A', 'B'] as const).map(async side => {
+          const filename = path.basename(tzaarModelRelPath(kind, side));
+          const { baseY, height, diameter } = await readMeshWorldBounds(filename);
+          return { filename, height, diameter, baseY };
+        }),
+      ),
     );
     const height = bounds[0]!.height;
     for (const piece of bounds) {
-      expect(piece.baseY, piece.filename).toBeCloseTo(0, 6);
-      expect(piece.height, piece.filename).toBeCloseTo(height, 6);
+      expect(piece.baseY, piece.filename).toBeCloseTo(0, 5);
+      expect(piece.height, piece.filename).toBeCloseTo(height, 5);
       expect(piece.height, piece.filename).toBeCloseTo(TZAAR_GLB_HEIGHT_M, 3);
       expect(piece.diameter, piece.filename).toBeCloseTo(TZAAR_GLB_DIAMETER_M, 2);
     }

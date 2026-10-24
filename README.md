@@ -1,43 +1,55 @@
 # Abstract Games
 
-Abstract board games with human-vs-AI play in the browser. Built with TypeScript, Vite, and three.js.
+Five abstract board games you can play against AI in the browser. Built with TypeScript, Vite, and three.js in the `web-3d` npm workspace.
 
-The Yinsh rules and AI approach trace to [sharkdp/yinsh](https://github.com/sharkdp/yinsh) by David Peter and contributors. Gomoku, Boop, Tak, and Tzaar are implemented in the shared `web-3d` workspace.
+Yinsh rules and AI approach trace to [sharkdp/yinsh](https://github.com/sharkdp/yinsh). Gomoku, Boop, Tak, and Tzaar share the same engine and hosting layout.
 
-Agent and contributor guidance: [AGENTS.md](./AGENTS.md).
+Coding agents: see [AGENTS.md](./AGENTS.md) (canonical). Claude: [CLAUDE.md](./CLAUDE.md).
 
 ## Games
 
-| Game | Path |
-|------|------|
-| Yinsh | `web-3d/games/yinsh` |
-| Gomoku | `web-3d/games/gomoku` |
-| Boop | `web-3d/games/boop` |
-| Tak | `web-3d/games/tak` |
-| Tzaar | `web-3d/games/tzaar` |
+| Game | Package | Dev port |
+|------|---------|----------|
+| Yinsh | `@abstract/yinsh` | 5196 |
+| Gomoku | `@abstract/gomoku` | 5192 |
+| Boop | `@abstract/boop` | 5194 |
+| Tak | `@abstract/tak` | 5190 |
+| Tzaar | `@abstract/tzaar` | 5199 |
 
-## Development
+## Quick start
 
 ```bash
 cd web-3d
 npm ci
+npm run dev -w @abstract/tak   # pick any game package
 npm test
 npm run build
-npx playwright test
+npm run test:e2e
 ```
 
-Serve a single game locally (example — Tak):
+## Repository layout
 
-```bash
-cd web-3d/games/tak && npm run dev
+```
+web-3d/
+  engine/           @abstract/three-engine
+  games/<game>/     @abstract/<game> — rules, worker AI, Vite entry
+  hub/              lobby page linked from staging root
+  e2e/              Playwright smoke tests (one spec per game)
+  scripts/          GLB compression, etc.
+scripts/
+  stage_web3d_hosting.sh
 ```
 
-Stage all games plus the lobby hub for static hosting:
+## Deploy
+
+Build and assemble a static tree:
 
 ```bash
 ./scripts/stage_web3d_hosting.sh
 ```
 
-## Attribution
+Upload **`hosting-staging/`** as a whole directory to Firebase Hosting site **bimsavage-games** (`/` → hub, `/tak`, `/gomoku`, … → each game’s `dist`).
 
-See [NOTICE](./NOTICE). Licensed under **MIT OR Apache-2.0** ([LICENSE-MIT](./LICENSE-MIT), [LICENSE-APACHE](./LICENSE-APACHE)).
+## License
+
+**MIT OR Apache-2.0** — [LICENSE-MIT](./LICENSE-MIT), [LICENSE-APACHE](./LICENSE-APACHE). Third-party notes: [NOTICE](./NOTICE).

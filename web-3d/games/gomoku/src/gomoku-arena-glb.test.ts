@@ -14,7 +14,9 @@ import { createHash } from 'node:crypto';
 const glbPath = join(dirname(fileURLToPath(import.meta.url)), '../public/models/arena-15x15-white-150mm.glb');
 
 function patchGltfUrlForNode(): void {
-  globalThis.self ??= globalThis;
+  if (typeof (globalThis as { self?: unknown }).self === 'undefined') {
+    Object.defineProperty(globalThis, 'self', { value: globalThis, configurable: true });
+  }
   const NativeURL = globalThis.URL;
   class PatchedURL extends NativeURL {
     static createObjectURL() {

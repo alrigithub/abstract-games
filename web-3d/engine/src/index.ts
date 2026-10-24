@@ -4,6 +4,7 @@ export * from './board-render-pipeline';
 export * from './clay-materials';
 export * from './board-lighting';
 export * from './board-arena-glb';
+export * from './gltf-loader';
 export * from './board-grid-lines'; // zoom-stable grid line helpers
 export * from './board-assist';
 export * from './board-scene';
