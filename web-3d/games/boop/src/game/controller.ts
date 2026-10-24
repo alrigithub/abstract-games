@@ -186,7 +186,8 @@ export class BoopController {
   }
 
   canInteract() {
-    return this.isReady() && this.inputEnabled && !this.view!.winner && this.view!.to_move === HUMAN;
+    if (!this.isReady() || !this.inputEnabled || this.view!.winner) return false;
+    return parseGameView(this.game.view_json()).to_move === HUMAN;
   }
 
   allowsPointerInteraction() {
@@ -349,8 +350,9 @@ export class BoopController {
   }
 
   async handleCellClick(cellIndexHit: number) {
+    await this.inflightMove;
     if (!this.inputEnabled || this.view.winner) return;
-    if (this.view.to_move !== HUMAN) return;
+    if (parseGameView(this.game.view_json()).to_move !== HUMAN) return;
     if (this.isPlaceMode()) return;
     const { row, col } = cellCoordinates(GRID, cellIndexHit, OUTSIDE);
     const onBed = row >= 0 && row < GRID && col >= 0 && col < GRID;
@@ -367,11 +369,13 @@ export class BoopController {
     moveJson: string,
     options?: { scheduleAi?: boolean; preferredPlacementId?: string },
   ) {
+    await this.inflightMove;
     const scheduleAi = options?.scheduleAi ?? true;
     if (options?.preferredPlacementId) {
       this.pendingPlacementPieceId = options.preferredPlacementId;
     }
     const actor = this.view.to_move;
+    this.inputEnabled = false;
     const task = this.scene.enqueueAnimation(async () => {
       const before = parseGameView(this.game.view_json());
       this.game.apply_move_json(moveJson);
