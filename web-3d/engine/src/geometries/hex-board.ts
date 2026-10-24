@@ -5,7 +5,9 @@ import {
   GIPF_BOARD,
   createGipfHexBoard,
   createGipfLineGeometry,
+  createGipfRegularHexSlabGeometry,
   gipfLayoutExtent,
+  gipfLayoutFrameCorners,
   gipfPrintColors,
   gipfWorldPoint,
   tzaarLayout,
@@ -145,12 +147,9 @@ export function createTzaarBoardLineGeometry(lineW = TZAAR_LINE_W): THREE.Buffer
   return createGipfLineGeometry(tzaarLayout(), lineW);
 }
 
-/** Square cream slab; top face at the playfield surface so discs sit flush. */
+/** Regular hex slab centred on the point centroid; top face at the playfield surface. */
 export function createTzaarBoardSlabGeometry(slab = BOARD.SLAB): THREE.BufferGeometry {
-  const geo = new THREE.BoxGeometry(TZAAR_BOARD_SIDE, slab, TZAAR_BOARD_SIDE);
-  geo.translate(0, -slab / 2, 0);
-  geo.computeBoundingBox();
-  return geo;
+  return createGipfRegularHexSlabGeometry(tzaarLayout(), slab);
 }
 
 export const tzaarPrintColors = gipfPrintColors;
@@ -198,13 +197,7 @@ export function createTzaarHexTopology(): Topology {
       return true;
     },
     frameCorners(_snapshot: BoardSnapshot) {
-      const half = TZAAR_BOARD_SIDE / 2;
-      return [
-        new THREE.Vector3(-half, 0, -half),
-        new THREE.Vector3(half, 0, -half),
-        new THREE.Vector3(-half, 0, half),
-        new THREE.Vector3(half, 0, half),
-      ];
+      return gipfLayoutFrameCorners(tzaarLayout());
     },
   };
 }

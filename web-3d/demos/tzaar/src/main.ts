@@ -67,7 +67,13 @@ interface StackLabel {
   world: THREE.Vector3;
 }
 
+const labelCenter = new THREE.Vector3();
+const labelRim = new THREE.Vector3();
+/** Extra pixels beyond the projected chip radius, up-right of the top centre. */
+const LABEL_CLEAR_PX = 16;
+
 const labels: StackLabel[] = [];
+let cameraReady = false;
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0, 0);
@@ -86,18 +92,29 @@ controls.touches.ONE = THREE.TOUCH.PAN;
 controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
 
 let frame = 0;
-let framed = false;
 let viewportW = 1;
 let viewportH = 1;
 function requestRender() {
   if (!document.hidden && !frame) frame = requestAnimationFrame(render);
 }
 function projectLabels() {
+  if (!cameraReady) return;
+  camera.updateMatrixWorld();
   const bounds = boardEl.getBoundingClientRect();
+  const w = bounds.width;
+  const h = bounds.height;
+  if (w < 2 || h < 2) return;
+  const radius = GIPF_CHIP.RADIUS;
   for (const label of labels) {
-    const p = label.world.clone().project(camera);
-    label.el.style.left = `${(p.x * 0.5 + 0.5) * bounds.width}px`;
-    label.el.style.top = `${(-p.y * 0.5 + 0.5) * bounds.height}px`;
+    labelCenter.copy(label.world).project(camera);
+    const cx = (labelCenter.x * 0.5 + 0.5) * w;
+    const cy = (-labelCenter.y * 0.5 + 0.5) * h;
+    labelRim.set(label.world.x + radius, label.world.y, label.world.z).project(camera);
+    const radiusPx = Math.hypot((labelRim.x * 0.5 + 0.5) * w - cx, (-labelRim.y * 0.5 + 0.5) * h - cy);
+    const dist = radiusPx + LABEL_CLEAR_PX;
+    const along = dist * Math.SQRT1_2;
+    label.el.style.left = `${cx + along}px`;
+    label.el.style.top = `${cy - along}px`;
   }
 }
 function render() {
@@ -120,7 +137,6 @@ const cameraViews = createCameraViewController({
   getAspect: () => viewportW / viewportH,
   onUpdate: requestRender,
 });
-framed = true;
 
 function fit() {
   const bounds = boardEl.getBoundingClientRect();
@@ -128,6 +144,8 @@ function fit() {
   viewportH = Math.max(1, Math.round(bounds.height));
   renderer.setSize(viewportW, viewportH, true);
   cameraViews.refit();
+  cameraReady = true;
+  projectLabels();
   requestRender();
 }
 
@@ -144,7 +162,7 @@ function applyTheme(id: ThemeId) {
   const shadowMat = new THREE.MeshBasicMaterial({
     color: tokens.shadow,
     transparent: true,
-    opacity: 0.09,
+    opacity: 0.28,
     depthWrite: false,
     side: THREE.DoubleSide,
   });
@@ -168,7 +186,7 @@ function applyTheme(id: ThemeId) {
       y += GIPF_CHIP.HEIGHT;
     }
     const shadow = new THREE.Mesh(discGeo, shadowMat);
-    shadow.scale.set(BOARD.SHADOW_SCALE, 0.001, BOARD.SHADOW_SCALE);
+    shadow.scale.set(1, 0.001, 1);
     shadow.position.set(pos.x, surface + BOARD.SHADOW_CONTACT_EPSILON, pos.z);
     shadow.renderOrder = 1;
     shadowsRoot.add(shadow);
@@ -178,22 +196,31 @@ function applyTheme(id: ThemeId) {
       el.textContent = String(height);
       el.dataset.testid = `stack-height-${piece.x}-${piece.y}`;
       boardEl.appendChild(el);
-      labels.push({ el, world: new THREE.Vector3(pos.x, y + 0.02, pos.z) });
+      labels.push({ el, world: new THREE.Vector3(pos.x, y, pos.z) });
     }
   }
   requestRender();
+  if (cameraReady) projectLabels();
 }
 
 const initial: ThemeId = readInitialTheme();
 applyTheme(initial);
 
-createGameButtons({
+function renderStatus(extra?: string) {
+  gameButtons.setStatus(extra ?? 'Tzaar piece demo · official start (no 3D AI yet)');
+}
+
+const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
   cameraViews,
   applyTheme,
-  onNewGameReset: () => applyTheme(initial),
+  onNewGameReset: () => {
+    applyTheme(initial);
+    renderStatus('Demo layout reset');
+  },
 });
 
+renderStatus();
 fit();
 
 const resize = new ResizeObserver(() => fit());

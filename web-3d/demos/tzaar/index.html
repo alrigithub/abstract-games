@@ -5,21 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tzaar pieces demo</title>
     <style>
-      #board { position: relative; }
       .stack-height {
-        position: absolute; transform: translate(-50%, -130%);
-        min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
-        font: 700 12px/18px ui-sans-serif, system-ui, sans-serif; text-align: center;
-        pointer-events: none; border: 1px solid currentColor;
+        position: absolute; transform: translate(-50%, -50%); z-index: 3;
+        min-width: 14px; height: 14px; padding: 0 4px; border-radius: 7px;
+        font: 700 10px/14px ui-sans-serif, system-ui, sans-serif; text-align: center;
+        pointer-events: none; border: 1px solid #111; box-sizing: border-box;
+        background: #f5f5f5; color: #111; box-shadow: 0 1px 2px rgba(0,0,0,0.28);
       }
-      [data-theme='light'] .stack-height { background: #ffffff; color: #000000; }
-      [data-theme='dark'] .stack-height { background: #111111; color: #f5f5f5; }
     </style>
   </head>
   <body>
     <div id="app">
       <div id="game-buttons-mount"></div>
-      <div id="board" data-testid="board"></div>
+      <div class="viewport">
+        <div id="board" data-testid="board" aria-label="Tzaar board"></div>
+      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
