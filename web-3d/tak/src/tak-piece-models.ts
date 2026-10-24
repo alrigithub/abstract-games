@@ -22,6 +22,7 @@ export const TAK_GLB_WORLD_SCALE = TAK_FLAT_TARGET_WIDTH / TAK_GLB_FLAT_WIDTH_M;
 const MODEL = {
   flatWhite: 'models/tak-flat-white.glb',
   flatBlack: 'models/tak-flat-black.glb',
+  uprightWhite: 'models/tak-upright-white.glb',
   capWhite: 'models/tak-capstone-white.glb',
   capBlack: 'models/tak-capstone-black.glb',
 } as const;
@@ -79,15 +80,17 @@ async function loadScene(url: string): Promise<THREE.Object3D> {
 }
 
 async function buildTemplates(): Promise<TakTemplates> {
-  const [flatWhite, flatBlack, capWhite, capBlack] = await Promise.all([
+  const [flatWhite, flatBlack, uprightWhite, capWhite, capBlack] = await Promise.all([
     loadScene(modelUrl(MODEL.flatWhite)),
     loadScene(modelUrl(MODEL.flatBlack)),
+    loadScene(modelUrl(MODEL.uprightWhite)),
     loadScene(modelUrl(MODEL.capWhite)),
     loadScene(modelUrl(MODEL.capBlack)),
   ]);
   const flat = { A: prepareTemplate(flatWhite), B: prepareTemplate(flatBlack) };
   const capstone = { A: prepareTemplate(capWhite), B: prepareTemplate(capBlack) };
-  const standing = { A: standingFromFlat(flat.A), B: standingFromFlat(flat.B) };
+  // No tak-upright-black.glb in Alex's set — keep flat-rotated wall for black.
+  const standing = { A: prepareTemplate(uprightWhite), B: standingFromFlat(flat.B) };
   return {
     flat,
     standing,
