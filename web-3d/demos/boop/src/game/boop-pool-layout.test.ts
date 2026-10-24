@@ -4,6 +4,7 @@ import { BOOP_GRID, BOOP_OUTSIDE } from './boop-grid';
 import {
   BOOP_START_POOL_COUNTS,
   kittenHandColumn,
+  POOL_GAP_CELLS_FROM_BED,
   poolOccupiedCells,
   poolSlots,
   primaryPoolCellIndex,
@@ -22,17 +23,26 @@ describe('boop pool layout', () => {
     }
   });
 
-  it('starts with small vases in the front hand depression (no empty big-vase gap)', () => {
+  it('leaves two empty columns between the bed and the nearest pool stack', () => {
+    for (const player of ['A', 'B'] as const) {
+      const frontCol = poolSlots(player, 'cat_hand')[0]!.col;
+      const bedEdge = player === 'A' ? 0 : BOOP_GRID - 1;
+      const gap = player === 'A' ? bedEdge - frontCol - 1 : frontCol - bedEdge - 1;
+      expect(gap).toBe(POOL_GAP_CELLS_FROM_BED);
+    }
+  });
+
+  it('starts with small vases in the front hand column (no empty big-vase gap)', () => {
     for (const player of ['A', 'B'] as const) {
       expect(kittenHandColumn(player, BOOP_START_POOL_COUNTS)).toBe('cat_hand');
       const front = poolSlots(player, 'cat_hand')[0]!;
       const primary = primaryPoolCellIndex(player, 'kitten', BOOP_START_POOL_COUNTS);
       expect(primary).toBe(cellIndex(BOOP_GRID, front.row, front.col, BOOP_OUTSIDE));
     }
-    const startHand = poolOccupiedCells('A', BOOP_START_POOL_COUNTS).filter(c => c.col === -1);
+    const startHand = poolOccupiedCells('A', BOOP_START_POOL_COUNTS).filter(c => c.col === -3);
     expect(startHand.length).toBe(BOOP_START_POOL_COUNTS.kittens_in_hand);
-    expect(startHand.every(c => c.col === -1)).toBe(true);
-    expect(startHand.some(c => c.col === -4)).toBe(false);
+    expect(startHand.every(c => c.col === -3)).toBe(true);
+    expect(startHand.some(c => c.col === -6)).toBe(false);
   });
 
   it('moves kittens to the rear column once hand cats exist after graduation', () => {
@@ -44,18 +54,18 @@ describe('boop pool layout', () => {
     expect(kittenHandColumn('A', afterGrad)).toBe('kitten');
     const occupied = poolOccupiedCells('A', afterGrad);
     const cols = new Set(occupied.map(c => c.col));
-    expect(cols.has(-1)).toBe(true);
+    expect(cols.has(-3)).toBe(true);
+    expect(cols.has(-6)).toBe(true);
     expect(cols.has(-4)).toBe(true);
-    expect(cols.has(-2)).toBe(true);
   });
 
   it('keeps hand, reserve, and resting columns disjoint for each player after graduation', () => {
     const a = poolOccupiedCells('A', { kittens_in_hand: 8, cats_in_hand: 3, cats_in_reserve: 5 });
     const cols = new Set(a.map(c => c.col));
     expect(cols.size).toBe(3);
-    expect(cols.has(-2)).toBe(true);
     expect(cols.has(-4)).toBe(true);
-    expect(cols.has(-1)).toBe(true);
+    expect(cols.has(-6)).toBe(true);
+    expect(cols.has(-3)).toBe(true);
     for (const slot of a) {
       expect(cellIndex(BOOP_GRID, slot.row, slot.col, BOOP_OUTSIDE)).not.toBeNull();
     }
