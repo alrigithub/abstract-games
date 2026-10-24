@@ -26,8 +26,10 @@ export const INTERACTION = {
 } as const;
 
 export const BOARD = {
-  /** Thin visual slab (grid lines sit on y≈0). */
+  /** Default visual slab for demos (grid lines sit on y≈0). */
   SLAB: 0.06,
+  /** Tak board: much thinner slab than default demos. */
+  TAK_SLAB: 0.018,
   LINE_W: 0.018,
   RADIAL_SEGMENTS: 32,
   EDGE_THRESHOLD_TAK: 20,

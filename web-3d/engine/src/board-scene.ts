@@ -48,10 +48,13 @@ export interface BoardSceneOptions {
   /** Players used for materials (default A/B). */
   players?: string[];
   initialTheme?: ThemeId;
+  /** Board slab thickness in world units (default {@link BOARD.SLAB}). */
+  boardSlab?: number;
 }
 
 export async function createBoardScene(container: HTMLElement, options: BoardSceneOptions): Promise<SceneApi> {
   const players = options.players ?? ['A', 'B'];
+  const boardSlab = options.boardSlab ?? BOARD.SLAB;
   let themeId: ThemeId = options.initialTheme ?? 'light';
   let tokens = themeTokens(themeId);
 
@@ -432,12 +435,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       requestRender();
       return;
     }
-    const slab = new THREE.BoxGeometry(size, BOARD.SLAB, size);
+    const slab = new THREE.BoxGeometry(size, boardSlab, size);
     boardGeometries.push(slab);
     const slabMesh = new THREE.Mesh(slab, boardMaterial);
-    slabMesh.position.y = -BOARD.SLAB / 2;
+    slabMesh.position.y = -boardSlab / 2;
     board.add(slabMesh);
-    board.add(createContactShadowBlob(size));
+    board.add(createContactShadowBlob(size, boardSlab));
     const half = size / 2;
     const lineWidth = BOARD.LINE_W;
     for (let i = 0; i <= size; i++) {

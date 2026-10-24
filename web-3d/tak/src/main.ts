@@ -4,6 +4,7 @@ import {
   createInteraction,
   createSquareTopology,
   createTakPieceGeometries,
+  BOARD,
   INTERACTION,
   readStoredTheme,
   storeTheme,
@@ -13,8 +14,9 @@ import {
 } from '@abstract/three-engine';
 import { toEngineSnapshot, toTakSelection } from './bridge';
 import { createGameUi } from './game-ui';
+import { stackPickLimit } from './pick-height';
 import { createSandboxState, moveSelection, rotateSelection } from './state';
-import type { BoardState } from './types';
+import type { BoardState, Color } from './types';
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 const selectionInfo = document.querySelector<HTMLDivElement>('#selection-info')!;
@@ -34,7 +36,13 @@ const history: BoardState[] = [];
 let sandbox = true;
 let lastView: InteractionView | null = null;
 
-const scene = await createBoardScene(board, { gridSize: boardSize, topology, pieces, initialTheme: theme });
+const scene = await createBoardScene(board, {
+  gridSize: boardSize,
+  topology,
+  pieces,
+  initialTheme: theme,
+  boardSlab: BOARD.TAK_SLAB,
+});
 const stage = board.querySelector('canvas') ?? board;
 
 function refresh() {
@@ -66,6 +74,16 @@ const controller = createInteraction({
   getSnapshot: () => toEngineSnapshot(state),
   canInteract: () => canUseBoardInteraction(),
   getHoldInterval: () => INTERACTION.HOLD_INTERVAL,
+  getPickHeight(cell) {
+    const stack = state.cells[cell] ?? [];
+    if (!stack.length) return 0;
+    const playable = boardSize * boardSize;
+    if (canEditSandbox()) return stack.length;
+    if (cell >= playable) return 1;
+    if (!gameUi.isActive() || !gameUi.humanTurn()) return stack.length;
+    const mover: Color = gameUi.getGame().toMove;
+    return stackPickLimit(stack, mover, true, boardSize);
+  },
   hitTest: (x, y) => (canUseBoardInteraction() ? scene.hitTest(x, y) : null),
   hitReserve: (x, y) => (canEditSandbox() ? scene.hitReserve(x, y) : null),
   onView: view => {
