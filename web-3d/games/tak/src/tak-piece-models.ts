@@ -6,10 +6,11 @@ import {
   heightFromBoundingBox,
   takPieceGeometrySet,
   type EnginePiece,
-  applyClayPieceMaterials,
   clonePieceVisualTemplate,
   loadGltfAsync,
   pieceGlbSideForPlayer,
+  pieceUrl,
+  prepareAuthoredPieceGlb,
   type PieceGeometrySet,
   type ThemeId,
 } from '@abstract/three-engine';
@@ -24,12 +25,12 @@ export const TAK_GLB_FLAT_WIDTH_M = 0.028;
 export const TAK_GLB_WORLD_SCALE = TAK_FLAT_TARGET_WIDTH / TAK_GLB_FLAT_WIDTH_M;
 
 const MODEL = {
-  flatWhite: 'models/tak-flat-white.glb',
-  flatBlack: 'models/tak-flat-black.glb',
-  uprightWhite: 'models/tak-upright-white.glb',
-  uprightBlack: 'models/tak-upright-black.glb',
-  capWhite: 'models/tak-capstone-white.glb',
-  capBlack: 'models/tak-capstone-black.glb',
+  flatWhite: 'tak-flat-white.glb',
+  flatBlack: 'tak-flat-black.glb',
+  uprightWhite: 'tak-upright-white.glb',
+  uprightBlack: 'tak-upright-black.glb',
+  capWhite: 'tak-capstone-white.glb',
+  capBlack: 'tak-capstone-black.glb',
 } as const;
 
 type ShapeKey = 'flat' | 'standing' | 'capstone';
@@ -43,12 +44,6 @@ interface TakTemplates {
 
 const _box = new THREE.Box3();
 
-function modelUrl(path: string): string {
-  const base = import.meta.env.BASE_URL ?? './';
-  const prefix = base.endsWith('/') ? base : `${base}/`;
-  const origin = globalThis.location?.href ?? 'http://127.0.0.1/';
-  return new URL(`${prefix}${path}`, origin).href;
-}
 
 function anchorObjectBaseToY0(object: THREE.Object3D): void {
   object.updateMatrixWorld(true);
@@ -77,15 +72,16 @@ async function loadScene(url: string): Promise<THREE.Object3D> {
 
 async function buildTemplates(): Promise<TakTemplates> {
   const [flatWhite, flatBlack, uprightWhite, uprightBlack, capWhite, capBlack] = await Promise.all([
-    loadScene(modelUrl(MODEL.flatWhite)),
-    loadScene(modelUrl(MODEL.flatBlack)),
-    loadScene(modelUrl(MODEL.uprightWhite)),
-    loadScene(modelUrl(MODEL.uprightBlack)),
-    loadScene(modelUrl(MODEL.capWhite)),
-    loadScene(modelUrl(MODEL.capBlack)),
+    loadScene(pieceUrl(MODEL.flatWhite)),
+    loadScene(pieceUrl(MODEL.flatBlack)),
+    loadScene(pieceUrl(MODEL.uprightWhite)),
+    loadScene(pieceUrl(MODEL.uprightBlack)),
+    loadScene(pieceUrl(MODEL.capWhite)),
+    loadScene(pieceUrl(MODEL.capBlack)),
   ]);
-  for (const scene of [flatWhite, uprightWhite, capWhite]) applyClayPieceMaterials(scene, 'light');
-  for (const scene of [flatBlack, uprightBlack, capBlack]) applyClayPieceMaterials(scene, 'dark');
+  for (const scene of [flatWhite, flatBlack, uprightWhite, uprightBlack, capWhite, capBlack]) {
+    prepareAuthoredPieceGlb(scene);
+  }
   const flat = { A: prepareTemplate(flatWhite), B: prepareTemplate(flatBlack) };
   const capstone = { A: prepareTemplate(capWhite), B: prepareTemplate(capBlack) };
   const standing = { A: prepareTemplate(uprightWhite), B: prepareTemplate(uprightBlack) };

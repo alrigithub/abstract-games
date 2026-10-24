@@ -10,7 +10,7 @@ import {
 } from './gomoku-arena';
 import { createHash } from 'node:crypto';
 
-const glbPath = join(dirname(fileURLToPath(import.meta.url)), '../public/models/ari-arena-visible-sage.glb');
+const glbPath = join(dirname(fileURLToPath(import.meta.url)), '../../../lib/maps/go-map.glb');
 
 function patchGltfUrlForNode(): void {
   if (typeof (globalThis as { self?: unknown }).self === 'undefined') {

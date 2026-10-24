@@ -13,10 +13,10 @@ import {
   TZAAR_GLB_WORLD_SCALE,
   layoutStackCenters,
 } from '@abstract/three-engine';
-import { CLAY, applyClayPieceMaterials, getClayMaterial } from '@abstract/three-engine';
+import { prepareAuthoredPieceGlb } from '@abstract/three-engine';
 import { TZAAR_MODEL, tzaarKindOf, tzaarModelRelPath } from './tzaar-piece-models';
 
-const modelsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public/models');
+const modelsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../lib/pieces');
 
 let gltfIo: NodeIO;
 
@@ -123,16 +123,16 @@ describe('tzaar GLB mapping', () => {
   });
 });
 
-describe('tzaar stone clay materials', () => {
-  it('overrides authored GLB materials with shared clay piece colors', () => {
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0xff00ff }));
+describe('tzaar authored piece GLBs', () => {
+  it('keeps loaded mesh materials after prepareAuthoredPieceGlb', () => {
+    const source = new THREE.MeshStandardMaterial({ color: 0xff00ff, name: 'authored' });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), source);
     const root = new THREE.Group();
     root.add(mesh);
-    applyClayPieceMaterials(root, 'light');
-    expect(mesh.material).toBe(getClayMaterial('piece_light'));
-    expect(`#${(mesh.material as THREE.MeshStandardMaterial).color.getHexString()}`).toBe(CLAY.PIECE_LIGHT);
-    applyClayPieceMaterials(root, 'dark');
-    expect(mesh.material).toBe(getClayMaterial('piece_dark'));
-    expect(`#${(mesh.material as THREE.MeshStandardMaterial).color.getHexString()}`).toBe(CLAY.PIECE_DARK);
+    prepareAuthoredPieceGlb(root);
+    expect(mesh.material).not.toBe(source);
+    expect((mesh.material as THREE.MeshStandardMaterial).color.getHex()).toBe(0xff00ff);
+    expect(mesh.castShadow).toBe(true);
+    expect(mesh.receiveShadow).toBe(true);
   });
 });

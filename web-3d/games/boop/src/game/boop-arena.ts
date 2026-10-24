@@ -2,6 +2,7 @@ import {
   BOARD,
   createSquareTopology,
   loadGltfAsync,
+  mapUrl,
   tagArenaGlbForShadows,
   tagBoardGridLine,
   tagExcludeFromBounds,
@@ -12,10 +13,10 @@ import {
 import * as THREE from 'three';
 import { PropertyBinding } from 'three';
 
-/** Documented SHA-256 of Alex's arena GLB (see `public/assets/overgrown-arena-two-depressions2-white.glb`). */
+/** Documented SHA-256 of the committed arena in `web-3d/lib/maps/boop-map.glb`. */
 export const BOOP_ARENA_GLB_SHA256 =
   '458520dc233381c85ae630a0407b4ae7365a36abbec5f3296f8196e9cfe60408';
-export const BOOP_ARENA_GLB_FILE = 'overgrown-arena-two-depressions2-white.glb';
+export const BOOP_ARENA_GLB_FILE = 'boop-map.glb';
 
 /**
  * Fine-tunes the authored GLB so 6×6 cell centres line up with {@link createSquareTopology}.
@@ -90,7 +91,7 @@ function whitenMeshMaterials(mesh: THREE.Mesh): void {
 }
 
 function arenaAssetUrl(): string {
-  return new URL(`assets/${BOOP_ARENA_GLB_FILE}`, document.baseURI).toString();
+  return mapUrl(BOOP_ARENA_GLB_FILE);
 }
 
 function prepareArenaScene(scene: THREE.Group): THREE.Group {

@@ -4,6 +4,7 @@ import {
   applyArenaGlbAuthoredMaterials,
   gomokuCellWorld,
   loadGltfAsync,
+  mapUrl,
   tagArenaGlbForShadows,
   tagExcludeFromBounds,
   type ThemeId,
@@ -11,10 +12,10 @@ import {
 import * as THREE from 'three';
 import { PropertyBinding } from 'three';
 
-/** Documented SHA-256 of the committed arena in `public/models/` (any encoding). */
+/** Documented SHA-256 of the committed arena in `web-3d/lib/maps/go-map.glb`. */
 export const GOMOKU_ARENA_GLB_SHA256 =
   '7cfd339c4ada7e530c80980dd263e759825579d812574e9a3e73727db37dddf5';
-export const GOMOKU_ARENA_GLB_FILE = 'ari-arena-visible-sage.glb';
+export const GOMOKU_ARENA_GLB_FILE = 'go-map.glb';
 
 /** Real-world tile pitch (150 mm) mapped to one world unit per intersection. */
 export const GOMOKU_ARENA_TILE_PITCH_M = 0.15;
@@ -42,10 +43,7 @@ export interface GomokuArenaLayout {
 }
 
 function arenaAssetUrl(): string {
-  const base = import.meta.env.BASE_URL ?? './';
-  const prefix = base.endsWith('/') ? base : `${base}/`;
-  const origin = globalThis.location?.href ?? 'http://127.0.0.1/';
-  return new URL(`${prefix}models/${GOMOKU_ARENA_GLB_FILE}`, origin).href;
+  return mapUrl(GOMOKU_ARENA_GLB_FILE);
 }
 
 function isInfiniteGroundNode(obj: THREE.Object3D): boolean {

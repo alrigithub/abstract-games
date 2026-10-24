@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { getClayMaterial } from './clay-materials';
-import { applyGhostOpacity, clonePieceVisualTemplate } from './ghost-visual';
+import { applyGhostOpacity, cloneMeshMaterials, clonePieceVisualTemplate } from './ghost-visual';
 
 describe('ghost-visual material isolation', () => {
   it('live clay clones share bank materials; ghosts clone before tinting', () => {
@@ -13,7 +13,7 @@ describe('ghost-visual material isolation', () => {
 
     const live = clonePieceVisualTemplate(template);
     const ghost = clonePieceVisualTemplate(template);
-    applyGhostOpacity(ghost, 0.24);
+    applyGhostOpacity(ghost, 0.5);
 
     live.traverse(node => {
       if (!(node instanceof THREE.Mesh)) return;
@@ -25,9 +25,25 @@ describe('ghost-visual material isolation', () => {
       if (!(node instanceof THREE.Mesh)) return;
       const mat = node.material as THREE.MeshStandardMaterial;
       expect(mat).not.toBe(shared);
-      expect(mat.opacity).toBe(0.24);
+      expect(mat.opacity).toBe(0.5);
       expect(mat.transparent).toBe(true);
       expect(mat.depthWrite).toBe(false);
+    });
+  });
+
+  it('authored GLB ghosts use 50% opacity without mutating the template', () => {
+    const template = new THREE.Group();
+    const shared = new THREE.MeshStandardMaterial({ color: 0x336699, opacity: 1, transparent: false });
+    template.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), shared));
+    cloneMeshMaterials(template);
+
+    const ghost = clonePieceVisualTemplate(template);
+    applyGhostOpacity(ghost, 0.5);
+
+    expect(shared.opacity).toBe(1);
+    ghost.traverse(node => {
+      if (!(node instanceof THREE.Mesh)) return;
+      expect((node.material as THREE.MeshStandardMaterial).opacity).toBe(0.5);
     });
   });
 

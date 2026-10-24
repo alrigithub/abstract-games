@@ -1,11 +1,12 @@
 import {
   BOARD,
   CAMERA,
-  applyClayPieceMaterials,
   clonePieceVisualTemplate,
   ensureMeshoptDecoderReady,
   createMeshoptGltfLoader,
   pieceGlbSideForPlayer,
+  pieceUrl,
+  prepareAuthoredPieceGlb,
   type EnginePiece,
   type PieceGeometrySet,
   type ThemeId,
@@ -23,7 +24,7 @@ export const BOOP_STONE_CAT_YAW =
   Math.atan2(CAMERA.position[0], CAMERA.position[2]) - Math.PI / 2;
 
 function vaseAssetUrl(file: string): string {
-  return new URL(`assets/vases/${file}`, document.baseURI).toString();
+  return pieceUrl(file);
 }
 
 export type StoneCatVariant = BoopVaseVariant;
@@ -147,12 +148,12 @@ async function loadVariantTemplate(
 ): Promise<StoneTemplate> {
   const file = boopVaseGlbFor(player, variant);
   const scene = await loadGltfScene(vaseAssetUrl(file));
-  applyClayPieceMaterials(scene, player === 'B' ? 'dark' : 'light');
+  prepareAuthoredPieceGlb(scene);
   return prepareVisualTemplate(scene, scale);
 }
 
 async function loadTemplates(): Promise<Record<BoopVasePlayerId, Record<StoneCatVariant, StoneTemplate>>> {
-  const largeScene = await loadGltfScene(vaseAssetUrl('vase-large-white.glb'));
+  const largeScene = await loadGltfScene(vaseAssetUrl('boop-vase-large-white.glb'));
   const scale = LARGE_VASE_TILE_FOOTPRINT / xzExtent(largeScene);
 
   const players = ['A', 'B'] as const;

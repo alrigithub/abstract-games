@@ -5,6 +5,7 @@ import {
   applyArenaGlbThemeMaterials,
   createYinshTopology,
   loadGltfAsync,
+  mapUrl,
   tagArenaGlbForShadows,
   tagExcludeFromBounds,
   yinshBoardExtents,
@@ -17,10 +18,10 @@ import {
 import * as THREE from 'three';
 import { PropertyBinding } from 'three';
 
-/** Documented SHA-256 of the committed arena in `public/models/` (any encoding). */
+/** Documented SHA-256 of the committed arena in `web-3d/lib/maps/yinsh-map.glb`. */
 export const YINSH_ARENA_GLB_SHA256 =
   'acbd4dfafa8eea1860efbe2c013a146832e17b18cff0b9a40530169e620837da';
-export const YINSH_ARENA_GLB_FILE = 'yinsh-white-epic.glb';
+export const YINSH_ARENA_GLB_FILE = 'yinsh-map.glb';
 
 const INFINITE_GROUND_RAW = 'White infinity floor';
 const INFINITE_GROUND_SANITIZED = PropertyBinding.sanitizeNodeName(INFINITE_GROUND_RAW);
@@ -34,10 +35,7 @@ const _down = new THREE.Vector3(0, -1, 0);
 const _origin = new THREE.Vector3();
 
 function arenaAssetUrl(): string {
-  const base = import.meta.env.BASE_URL ?? './';
-  const prefix = base.endsWith('/') ? base : `${base}/`;
-  const origin = globalThis.location?.href ?? 'http://127.0.0.1/';
-  return new URL(`${prefix}models/${YINSH_ARENA_GLB_FILE}`, origin).href;
+  return mapUrl(YINSH_ARENA_GLB_FILE);
 }
 
 function isInfiniteGroundNode(obj: THREE.Object3D): boolean {
