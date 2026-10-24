@@ -14,7 +14,7 @@ import {
   type ThemeId,
 } from '@abstract/three-engine';
 import { applyBoopAnimationPacing, BOOP_ANIM } from './game/animation';
-import { cellAt, poolCellIndex, wireBoopInteraction } from './game/boop-interaction';
+import { cellAt, poolCellIndex, wireBoopInteraction, type BoopInteractionHandle } from './game/boop-interaction';
 import { boardPlayfieldTopY, createGroundedBoopPieces } from './game/boop-grounding';
 import { BoopController } from './game/controller';
 
@@ -50,6 +50,7 @@ function applyTheme(id: ThemeId) {
 const cameraViews = scene.createCameraViews();
 
 let controller!: BoopController;
+let interaction!: BoopInteractionHandle;
 
 const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
@@ -73,9 +74,10 @@ controller = new BoopController({
   onReady: () => {
     board.dataset.ready = 'true';
   },
+  aiPlaceDrag: (from, to) => interaction.dragCellToCell(from, to, { ai: true }),
 });
 
-const interaction = wireBoopInteraction(stage as HTMLElement, board, scene, () => controller);
+interaction = wireBoopInteraction(stage as HTMLElement, board, scene, () => controller);
 
 await controller.init();
 

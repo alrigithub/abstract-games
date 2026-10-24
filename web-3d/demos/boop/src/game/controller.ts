@@ -1,5 +1,6 @@
 import {
   cellCoordinates,
+  cellIndex,
   type BoardSnapshot,
   type SceneApi,
   type Selection,
@@ -23,6 +24,8 @@ export interface BoopControllerOptions {
   setStatus: (text: string) => void;
   getAiDepth: () => number;
   onReady?: () => void;
+  /** Programmatic Tak-style drag for AI place moves (pool/resting → bed). */
+  aiPlaceDrag?: (fromIndex: number, toIndex: number) => Promise<void>;
 }
 
 export class BoopController {
@@ -31,16 +34,20 @@ export class BoopController {
   private view!: GameView;
   private aiGeneration = 0;
   private inputEnabled = true;
+  private aiDragMode = false;
+  private inflightMove: Promise<void> = Promise.resolve();
   private readonly scene: SceneApi;
   private readonly setStatus: (text: string) => void;
   private readonly getAiDepth: () => number;
   private readonly onReady?: () => void;
+  private readonly aiPlaceDrag?: (fromIndex: number, toIndex: number) => Promise<void>;
 
   constructor(options: BoopControllerOptions) {
     this.scene = options.scene;
     this.setStatus = options.setStatus;
     this.getAiDepth = options.getAiDepth;
     this.onReady = options.onReady;
+    this.aiPlaceDrag = options.aiPlaceDrag;
   }
 
   async init() {
@@ -71,21 +78,45 @@ export class BoopController {
     return this.inputEnabled && !this.view.winner && this.view.to_move === HUMAN;
   }
 
+  allowsPointerInteraction() {
+    return this.canInteract() || this.aiDragMode;
+  }
+
+  setAiDragMode(active: boolean) {
+    this.aiDragMode = active;
+  }
+
+  async waitForInflightMove() {
+    await this.inflightMove;
+  }
+
+  countOnBed(player: PlayerId): number {
+    let n = 0;
+    for (let y = 0; y < GRID; y++) {
+      for (let x = 0; x < GRID; x++) {
+        if (this.view.board[y]?.[x]?.player === player) n++;
+      }
+    }
+    return n;
+  }
+
   pickHeightForCell(cell: number, snap: BoardSnapshot): number {
-    if (!this.canInteract()) return 0;
+    if (!this.allowsPointerInteraction()) return 0;
     const { row, col } = cellCoordinates(GRID, cell, OUTSIDE);
     const stack = snap.cells[cell] ?? [];
     if (!stack.length) return 0;
+    const actor = this.aiDragMode ? AI : HUMAN;
 
     if (this.view.turn_mode.kind === 'place') {
-      if (this.isHumanPoolCell(row, col)) return 1;
-      if (this.isOffBedCell(row, col) && this.isHumanRestingStack(stack)) return 1;
+      if (actor === HUMAN && this.isHumanPoolCell(row, col)) return 1;
+      if (actor === AI && this.isAiPoolCell(row, col)) return 1;
+      if (this.isOffBedCell(row, col) && this.isRestingStackFor(stack, actor)) return 1;
       return 0;
     }
     if (this.view.turn_mode.kind === 'alternate_graduation') {
       if (row < 0 || row >= GRID || col < 0 || col >= GRID) return 0;
       const p = this.view.board[row]?.[col];
-      if (p?.player === HUMAN) return 1;
+      if (p?.player === actor) return 1;
     }
     return 0;
   }
@@ -96,17 +127,40 @@ export class BoopController {
     return false;
   }
 
+  private isAiPoolCell(row: number, col: number) {
+    if (col === GRID + 1 && row === 3) return this.view.pools[1]!.kittens_in_hand > 0;
+    if (col === GRID + 1 && row === 5) return this.view.pools[1]!.cats_in_hand > 0;
+    return false;
+  }
+
   private isOffBedCell(row: number, col: number) {
     return row < 0 || row >= GRID || col < 0 || col >= GRID;
   }
 
-  private isHumanRestingStack(stack: BoardSnapshot['cells'][number]) {
+  private isRestingStackFor(stack: BoardSnapshot['cells'][number], player: PlayerId) {
     const top = stack.at(-1);
-    return top?.player === HUMAN && (top.shape === 'kitten' || top.shape === 'cat');
+    return top?.player === player && (top.shape === 'kitten' || top.shape === 'cat');
+  }
+
+  private sourceCellForPlacement(player: PlayerId, kind: PieceKind): number {
+    const snap = this.getSnapshot();
+    for (let idx = 0; idx < snap.cellCount; idx++) {
+      const { row, col } = cellCoordinates(GRID, idx, OUTSIDE);
+      if (!this.isOffBedCell(row, col)) continue;
+      const stack = snap.cells[idx] ?? [];
+      const top = stack.at(-1);
+      if (top?.player === player && top.shape === kind) return idx;
+    }
+    if (player === HUMAN) {
+      return kind === 'kitten' ? cellIndex(GRID, 3, -2, OUTSIDE)! : cellIndex(GRID, 5, -2, OUTSIDE)!;
+    }
+    return kind === 'kitten' ? cellIndex(GRID, 3, GRID + 1, OUTSIDE)! : cellIndex(GRID, 5, GRID + 1, OUTSIDE)!;
   }
 
   async commitPlacement(selection: Selection, targetIndex: number) {
-    if (!this.canInteract() || !this.isPlaceMode()) return;
+    const humanPlace = this.canInteract() && this.isPlaceMode();
+    const aiPlace = this.aiDragMode && this.view.to_move === AI && this.isPlaceMode();
+    if (!humanPlace && !aiPlace) return;
     if (selection.count !== 1 || typeof selection.source !== 'number') return;
     const { row, col } = cellCoordinates(GRID, targetIndex, OUTSIDE);
     if (row < 0 || row >= GRID || col < 0 || col >= GRID) return;
@@ -114,7 +168,8 @@ export class BoopController {
 
     const kind = this.inferKindFromSource(selection.source);
     if (!kind) return;
-    const moveJson = this.game.move_for_interaction_json(HUMAN, col, row, kind);
+    const player = this.view.to_move;
+    const moveJson = this.game.move_for_interaction_json(player, col, row, kind);
     if (!moveJson) return;
     await this.playMoveJson(moveJson);
   }
@@ -126,6 +181,8 @@ export class BoopController {
     const { row, col } = cellCoordinates(GRID, sourceIndex, OUTSIDE);
     if (col === -2 && row === 5) return 'cat';
     if (col === -2 && row === 3) return 'kitten';
+    if (col === GRID + 1 && row === 5) return 'cat';
+    if (col === GRID + 1 && row === 3) return 'kitten';
     return 'kitten';
   }
 
@@ -188,7 +245,7 @@ export class BoopController {
   async playMoveJson(moveJson: string, options?: { scheduleAi?: boolean }) {
     const scheduleAi = options?.scheduleAi ?? true;
     const actor = this.view.to_move;
-    await this.scene.enqueueAnimation(async () => {
+    const task = this.scene.enqueueAnimation(async () => {
       const before = parseGameView(this.game.view_json());
       this.game.apply_move_json(moveJson);
       const after = parseGameView(this.game.view_json());
@@ -197,9 +254,14 @@ export class BoopController {
       this.view = after;
       this.highlightWin();
       this.renderStatus();
-      if (scheduleAi && !this.view.winner && this.view.to_move === AI) await this.runAiTurn();
-      else this.inputEnabled = !this.view.winner && this.view.to_move === HUMAN;
+      if (scheduleAi && !this.view.winner && this.view.to_move === AI) {
+        void this.runAiTurn();
+      } else {
+        this.inputEnabled = !this.view.winner && this.view.to_move === HUMAN;
+      }
     });
+    this.inflightMove = task;
+    await task;
   }
 
   private async animateMove(before: GameView, after: GameView, move: MoveJson, actor: PlayerId) {
@@ -265,6 +327,13 @@ export class BoopController {
     if (!moveJson) {
       this.inputEnabled = true;
       this.renderStatus('AI stuck');
+      return;
+    }
+    const move = JSON.parse(moveJson) as MoveJson;
+    if (move.type === 'place' && this.aiPlaceDrag) {
+      const from = this.sourceCellForPlacement(AI, move.piece);
+      const to = cellIndex(GRID, move.y, move.x, OUTSIDE)!;
+      await this.aiPlaceDrag(from, to);
       return;
     }
     await this.playMoveJson(moveJson);
