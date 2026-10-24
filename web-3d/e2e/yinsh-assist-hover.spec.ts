@@ -90,7 +90,6 @@ test('Yinsh assist shadows/ghosts per phase — no piece lift, assist clears aft
         hoverStats,
         cleared,
         liftDelta,
-        pathSegments: hoverStats.pathSegmentCount,
         skipped: false as const,
       };
     });
@@ -98,12 +97,13 @@ test('Yinsh assist shadows/ghosts per phase — no piece lift, assist clears aft
     if (result.skipped) continue;
 
     expect(result.hoverStats!.visibleMeshCount).toBeGreaterThan(0);
+    expect(result.hoverStats!.pathSegmentCount).toBe(0);
     expect(result.liftDelta!).toBeLessThan(0.001);
     expect(result.cleared!.pathSegmentCount).toBe(0);
 
     if (result.mode === 'RingPlacement') seen.RingPlacement = true;
     if (result.mode === 'MarkerPlacement') seen.MarkerPlacement = true;
-    if (result.mode === 'RingMovement' && (result.pathSegments ?? 0) > 0) seen.RingMovement = true;
+    if (result.mode === 'RingMovement' && result.hoverStats!.visibleMeshCount > 2) seen.RingMovement = true;
 
     if (seen.RingPlacement && seen.MarkerPlacement && seen.RingMovement) break;
 

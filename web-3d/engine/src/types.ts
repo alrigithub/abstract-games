@@ -186,18 +186,31 @@ export interface BoardAssistState {
   shadows?: readonly AssistShadowHint[];
   /** Ghosted piece silhouettes (past positions / marker fill previews). */
   ghosts?: readonly AssistGhostHint[];
-  /** Glowing halos under scoring-row markers plus line ribbons. */
+  /** Warm celebratory halos under the five scoring markers (no path ribbons). */
   runGlows?: readonly AssistRunRowGlow[];
+  runGlowStyle?: AssistRunGlowStyle;
+  /** Marker preview disc radius for ring-centre ghosts (world units). */
+  markerGhostRadius?: number;
   /** Ring-removal step: halos under removable rings. */
   ringPickGlows?: readonly AssistRingPickGlow[];
   flipPieceIds?: readonly string[];
 }
 
-/** Accent halos for five-in-a-row (and longer rows as selectable options). */
+/** Warm halos under exactly five markers in a scoring row. */
 export interface AssistRunRowGlow {
+  /** The five markers that form (or will form) the scored run. */
   markerCells: readonly number[];
-  lineCells: readonly number[];
+  /** Brighter subset when hovering one run option among several. */
+  highlightCells?: readonly number[];
   strength: 'announce' | 'option' | 'hover';
+}
+
+/** World-space sizing for row halos (game-specific marker radius). */
+export interface AssistRunGlowStyle {
+  /** Seated marker radius in world units. */
+  markerRadius: number;
+  /** Halo outer radius = markerRadius × scale (default 1.4). */
+  haloScale?: number;
 }
 
 /** Ring removal pick hints (after a row is scored). */
@@ -280,6 +293,8 @@ export interface ThemeTokens {
   board: string;
   lines: string;
   win: string;
+  /** Warm gold/amber accent for five-in-a-row celebration halos. */
+  runCelebration: string;
   piece: Record<PlayerId, { fill: string; rim: string; edge: string }>;
   ghostOpacity: number;
   shadow: string;

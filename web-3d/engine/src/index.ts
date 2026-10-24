@@ -9,6 +9,7 @@ export * from './constants';
 export * from './interaction';
 export * from './tap-interaction';
 export * from './placement-ghost-footprint';
+export * from './projected-shadow-texture';
 export * from './stack';
 export * from './stack-layout';
 export * from './theme';

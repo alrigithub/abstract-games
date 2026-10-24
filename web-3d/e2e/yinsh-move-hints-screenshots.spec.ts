@@ -20,7 +20,7 @@ test.describe('Yinsh move assist screenshots', () => {
         await page.setViewportSize({ width: 1280, height: 720 });
         await page.goto(`http://127.0.0.1:5196/?shot=${slug}&theme=${theme}`);
         await page.waitForSelector('[data-testid="board"] canvas', { timeout: 90_000 });
-        await page.waitForTimeout(900);
+        await page.waitForTimeout(slug === 'assist-run-glow' ? 1200 : 900);
         const suffix = theme === 'dark' ? '-dark' : '-light';
         await page.screenshot({
           path: path.join(screenshotDir, `${file}${suffix}.png`),

@@ -17,7 +17,7 @@ import {
 import { markerIdsOnRingMove } from './visual';
 import type { GameState } from './state';
 import type { Player } from './player';
-import { ringDestinationCoords, ringPathCoords } from './ring-destinations';
+import { ringDestinationCoords } from './ring-destinations';
 import { coordToIndex, indexToCoord } from './cells';
 import {
   YINSH_ASSIST_DOT_RADIUS,
@@ -31,15 +31,15 @@ function indices(coords: Coord[]): number[] {
   return coords.map(coordToIndex);
 }
 
-function markerRadius(): number {
-  return YINSH_MARKER_WORLD_RADIUS * 0.92;
+function markerGhostRadius(): number {
+  return YINSH_MARKER_WORLD_RADIUS * 0.96;
 }
 
 function markerGhostAt(cell: number, player: Player, strong: boolean): AssistGhostHint {
   return {
     cell,
     player,
-    marker: { radius: markerRadius() },
+    marker: { radius: markerGhostRadius() },
     strength: strong ? 'strong' : 'normal',
   };
 }
@@ -61,20 +61,13 @@ function ringGhostAt(cell: number, player: Player, board: Board, coord: Coord): 
     strength: 'normal',
   };
   if (markerPlayerAt(board, coord)) {
-    ghost.marker = { radius: markerRadius() };
+    ghost.marker = { radius: markerGhostRadius() };
   }
   return ghost;
 }
 
-function aiLastMoveAssist(last: AiMoveHighlight, aiPlayer: Player): Pick<BoardAssistState, 'lastMove' | 'ghosts'> {
+function aiLastMoveAssist(last: AiMoveHighlight, aiPlayer: Player): Pick<BoardAssistState, 'ghosts'> {
   return {
-    lastMove: {
-      fromCell: last.fromCell,
-      toCell: last.toCell,
-      pathCells: last.pathCells,
-      pathWorld: last.pathWorld,
-      omitFromEndpoint: true,
-    },
     ghosts: [
       {
         cell: last.fromCell,
@@ -105,7 +98,7 @@ function runGlowRows(
       mode === 'announce' ? 'announce' : option === hoverOption ? 'hover' : 'option';
     rows.push({
       markerCells: indices(option.five),
-      lineCells: indices(option.chain),
+      highlightCells: option === hoverOption ? indices(option.five) : undefined,
       strength,
     });
   }
@@ -158,14 +151,15 @@ export function buildYinshAssist(
   if (!options.humanTurn) {
     const assist: BoardAssistState = {
       destinationDotRadius: YINSH_ASSIST_DOT_RADIUS,
+      runGlowStyle: { markerRadius: YINSH_MARKER_WORLD_RADIUS, haloScale: 1.4 },
+      markerGhostRadius: markerGhostRadius(),
       ...runGlowState,
     };
     if (options.lastAiMove) {
       const ai = aiLastMoveAssist(options.lastAiMove, options.aiPlayer);
-      assist.lastMove = ai.lastMove;
       assist.ghosts = ai.ghosts;
     }
-    if (!assist.runGlows?.length && !assist.ringPickGlows?.length && !assist.lastMove) return null;
+    if (!assist.runGlows?.length && !assist.ringPickGlows?.length && !assist.ghosts?.length) return null;
     return assist;
   }
 
@@ -173,6 +167,8 @@ export function buildYinshAssist(
   const board = state.board;
   const assist: BoardAssistState = {
     destinationDotRadius: YINSH_ASSIST_DOT_RADIUS,
+    runGlowStyle: { markerRadius: YINSH_MARKER_WORLD_RADIUS, haloScale: 1.4 },
+    markerGhostRadius: markerGhostRadius(),
     shadows: [],
     ghosts: [],
     ...runGlowState,
@@ -180,7 +176,6 @@ export function buildYinshAssist(
 
   if (options.lastAiMove) {
     const ai = aiLastMoveAssist(options.lastAiMove, options.aiPlayer);
-    assist.lastMove = ai.lastMove;
     assist.ghosts!.push(...(ai.ghosts ?? []));
   }
 
@@ -206,7 +201,6 @@ export function buildYinshAssist(
 
     case 'MarkerPlacement': {
       const pickable = [...board.markerMoves(state.activePlayer)];
-      assist.pickableCells = indices(pickable);
       for (const coord of pickable) {
         const cell = coordToIndex(coord);
         const strong =
@@ -226,14 +220,9 @@ export function buildYinshAssist(
         strength: 'strong',
       });
 
-      if (options.ringStartWorld) {
-        assist.pathFromWorld = { x: options.ringStartWorld.x, z: options.ringStartWorld.z };
-      }
-
       if (options.hoverCell !== null) {
         const hover = indexToCoord(options.hoverCell);
         if (destCoords.some(c => coordEq(c, hover))) {
-          assist.pathCells = indices(ringPathCoords(start, hover));
           assist.flipPieceIds = markerIdsOnRingMove(board, start, hover);
           shadows.push({
             cell: options.hoverCell,
