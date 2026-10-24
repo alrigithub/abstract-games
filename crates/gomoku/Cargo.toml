@@ -7,3 +7,4 @@ description = "Pure rules for Gomoku (15x15 five-in-a-row)."
 repository = "https://github.com/alrigithub/abstract-games"
 
 [dependencies]
+serde = { version = "1.0.204", features = ["derive"] }

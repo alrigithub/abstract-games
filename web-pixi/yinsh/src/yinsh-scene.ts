@@ -9,10 +9,13 @@ import {
   spacingForViewport,
   type Coord,
 } from "./coords";
-import { AnimatedBackground } from "./animated-background";
-import { ScoreEffects } from "./effects";
+import {
+  AnimatedBackground,
+  PanZoomController,
+  ScoreEffects,
+  theme,
+} from "@abstract/pixi-shared";
 import type { GameController, VisualEvent } from "./game-controller";
-import { theme } from "./theme";
 import type { Player, RenderState } from "./types";
 
 type PieceKind = "ring" | "marker";
@@ -37,11 +40,7 @@ export class YinshScene {
   private pieces = new Map<string, PieceView>();
   private spacing = 80;
   private factor = 1;
-  private panX = 0;
-  private panY = 0;
-  private zoom = 1;
-  private dragging = false;
-  private dragStart = { x: 0, y: 0, panX: 0, panY: 0 };
+  private camera = new PanZoomController();
   private hoverCoord: Coord | null = null;
   private highlightedRing: Coord | null = null;
   private ghostRing: Graphics | null = null;
@@ -87,51 +86,18 @@ export class YinshScene {
 
   private setupInput() {
     const canvas = this.app.canvas;
-    canvas.addEventListener(
-      "wheel",
-      (e) => {
-        e.preventDefault();
-        if (e.ctrlKey) {
-          const delta = e.deltaY > 0 ? 0.92 : 1.08;
-          this.zoom = Math.min(2.5, Math.max(0.45, this.zoom * delta));
-        } else {
-          this.panX -= e.deltaX;
-          this.panY -= e.deltaY;
-        }
-        this.layoutWorld();
-      },
-      { passive: false },
-    );
+    this.camera.attach(canvas, () => this.layoutWorld());
 
-    canvas.addEventListener("pointerdown", (e) => {
-      if (e.button === 1 || e.buttons === 4 || e.shiftKey) {
-        this.dragging = true;
-        this.dragStart = {
-          x: e.clientX,
-          y: e.clientY,
-          panX: this.panX,
-          panY: this.panY,
-        };
-      }
-    });
     canvas.addEventListener("pointermove", (e) => {
-      if (this.dragging) {
-        this.panX = this.dragStart.panX + (e.clientX - this.dragStart.x);
-        this.panY = this.dragStart.panY + (e.clientY - this.dragStart.y);
-        this.layoutWorld();
-        return;
-      }
+      if (this.camera.wasDragging()) return;
       this.updateHover(e.clientX, e.clientY);
-    });
-    canvas.addEventListener("pointerup", () => {
-      this.dragging = false;
     });
     canvas.addEventListener("pointerleave", () => {
       this.hoverCoord = null;
       this.drawIndicators(null);
     });
     canvas.addEventListener("click", (e) => {
-      if (this.dragging) return;
+      if (this.camera.wasDragging()) return;
       const coord = this.pickCoord(e.clientX, e.clientY);
       if (!coord) {
         void this.controller.cancelRingSelection();
@@ -235,7 +201,7 @@ export class YinshScene {
           v.player,
           v.slot,
           this.spacing,
-          (this.app.screen.width / this.zoom) * 0.5,
+          (this.app.screen.width / this.camera.zoom) * 0.5,
           this.factor,
         );
         this.tweenPieceTo(v.coord, dest, "ring", v.player, true);
@@ -403,7 +369,7 @@ export class YinshScene {
   private drawRacks(state: RenderState) {
     this.rackLayer.removeChildren();
     this.racked = [];
-    const halfW = (this.app.screen.width / this.zoom) * 0.5;
+    const halfW = (this.app.screen.width / this.camera.zoom) * 0.5;
     for (const player of ["A", "B"] as Player[]) {
       const scored = player === "A" ? state.points_a : state.points_b;
       for (let slot = 0; slot < 3; slot++) {
@@ -532,14 +498,14 @@ export class YinshScene {
 
   private layoutWorld() {
     this.spacing = spacingForViewport(
-      this.app.screen.width / this.zoom,
-      this.app.screen.height / this.zoom,
+      this.app.screen.width / this.camera.zoom,
+      this.app.screen.height / this.camera.zoom,
     );
     this.factor = this.spacing / 80;
-    this.world.scale.set(this.zoom);
-    this.world.position.set(
-      this.app.screen.width / 2 + this.panX,
-      this.app.screen.height / 2 + this.panY,
+    this.camera.applyToWorld(
+      this.world,
+      this.app.screen.width,
+      this.app.screen.height,
     );
     this.bg.resize(this.app.screen.width, this.app.screen.height);
   }
