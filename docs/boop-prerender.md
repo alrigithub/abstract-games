@@ -9,7 +9,10 @@ The existing full 3D arena is available for comparison with `?arena=3d`.
 ## Grid registration
 
 The supplied `boop_grid.blend` contains the same 36 named cell objects as
-`ari+6X6.blend`. Their source world centers match exactly (maximum error 0).
+`ari+6X6.blend`. Their horizontal source centers match exactly (maximum error 0).
+Tile heights can be edited independently in Blender; the manifest records the
+current top of each tile, clamped to the ground for buried tiles. The renderer
+checks horizontal registration and reports the largest source height change.
 The authored pitch is 1.05 Blender units; the entire scene is uniformly scaled
 by 1/1.05 to match the game's one-unit pitch. Intentional tile offsets are retained.
 Blender +Z maps to game +Y, and Blender +Y maps to game -Z. Grid row labels are

@@ -27,8 +27,12 @@ bpy.ops.wm.open_mainfile(filepath=args.arena)
 scene = bpy.context.scene
 cells = [o for o in scene.objects if o.name in reference]
 assert len(cells) == 36, 'Expected all 36 reference cells'
-errors = [(o.matrix_world.translation - Vector(reference[o.name])).length for o in cells]
-assert max(errors) < 1e-5, 'Grid and source arena differ; review alignment before rendering'
+# The supplied grid fixes the playable X/Y centers. Authored tile heights may
+# change independently; sample their current surfaces below for game placement.
+errors = [math.hypot(o.matrix_world.translation.x - reference[o.name][0],
+                     o.matrix_world.translation.y - reference[o.name][1]) for o in cells]
+height_changes = [abs(o.matrix_world.translation.z - reference[o.name][2]) for o in cells]
+assert max(errors) < 1e-5, 'Grid and source arena differ horizontally; review alignment before rendering'
 
 # The authored pitch is 1.05 m; the game's cell pitch is one world unit.
 scale = 1 / 1.05
@@ -129,6 +133,7 @@ for o in columns:
 
 report = {
     'referenceCellCount': len(cells), 'maxSourceAlignmentError': max(errors),
+    'maxSourceHeightChange': max(height_changes),
     'sourcePitch': 1.05, 'worldScale': scale, 'cells': sorted(records, key=lambda c: (c['row'], c['col'])),
     'camera': {'position': [position[0], position[2], -position[1]], 'target': [0, 0, 0], 'width': 18, 'height': 18, 'frameWidth': 14, 'frameHeight': 10},
     'liveColumns': [o.name for o in columns], 'staticMeshCount': len(meshes) - len(columns),
