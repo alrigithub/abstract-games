@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { aiWatchdogMs, DEFAULT_AI_STRENGTH_LEVELS } from '../engine/src/ui/ai-strength';
+import { aiWatchdogMs } from '../engine/src/ai-worker-client';
+import { DEFAULT_AI_STRENGTH_LEVELS } from '../engine/src/ui/ai-strength';
 
 /** One smoke per game @ Medium — worker + watchdog, no full strength matrix. */
 const medium = DEFAULT_AI_STRENGTH_LEVELS.find(l => l.id === 'medium')!;
@@ -30,17 +31,20 @@ const games: GameSpec[] = [
   },
   {
     name: 'tak',
-    baseURL: 'http://127.0.0.1:5190',
+    baseURL: 'http://127.0.0.1:5290',
     path: '/?human=ivory',
     setup: async page => {
-      const menu = page.locator('[data-testid="main-menu"]');
-      if (await menu.isVisible()) await page.click('[data-testid="mode-ai"]');
+      await page.waitForSelector('[data-testid="mode-ai"]', { timeout: 30_000 });
+      await page.click('[data-testid="mode-ai"]');
+      await expect(page.locator('[data-testid="game-status"]')).toContainText(/Round|AI|White|Black/i, {
+        timeout: 15_000,
+      });
     },
     playHuman: async page => {
       const box = await page.locator('[data-testid="board"]').boundingBox();
       expect(box).toBeTruthy();
-      await page.mouse.click(box!.x + box!.width * 0.4, box!.y + box!.height * 0.4);
-      await page.click('[data-testid="end-turn"]');
+      await page.mouse.click(box!.x + box!.width * 0.35, box!.y + box!.height * 0.35);
+      await page.mouse.click(box!.x + box!.width * 0.55, box!.y + box!.height * 0.55);
     },
     waitSettled: async page => {
       await expect(page.locator('[data-testid="game-status"]')).not.toContainText(/thinking/i, { timeout: 90_000 });
