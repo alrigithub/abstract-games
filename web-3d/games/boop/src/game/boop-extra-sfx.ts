@@ -1,5 +1,5 @@
 import { isPlaceSoundEnabled } from '@abstract/three-engine';
-import { BOOP_UPGRADE_SFX_URL } from './boop-sfx-manifest';
+import { BOOP_UPGRADE_SFX_URL, BOOP_WIN_SFX_URL } from './boop-sfx-manifest';
 
 const UPGRADE_OVERLAP_FADE_MS = 110;
 
@@ -7,6 +7,10 @@ let audioContext: AudioContext | null = null;
 let loadPromise: Promise<AudioBuffer | null> | null = null;
 let buffer: AudioBuffer | null = null;
 let activeUpgrade: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
+
+let winLoadPromise: Promise<AudioBuffer | null> | null = null;
+let winBuffer: AudioBuffer | null = null;
+let activeWin: AudioBufferSourceNode | null = null;
 
 function ensureContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -52,6 +56,57 @@ async function loadUpgradeBuffer(): Promise<AudioBuffer | null> {
   const data = await res.arrayBuffer();
   buffer = await ctx.decodeAudioData(data.slice(0));
   return buffer;
+}
+
+async function loadWinBuffer(): Promise<AudioBuffer | null> {
+  if (winBuffer) return winBuffer;
+  const ctx = ensureContext();
+  if (!ctx) return null;
+  const res = await fetch(BOOP_WIN_SFX_URL);
+  if (!res.ok) return null;
+  const data = await res.arrayBuffer();
+  winBuffer = await ctx.decodeAudioData(data.slice(0));
+  return winBuffer;
+}
+
+/** Stop the win celebration track (e.g. new game). */
+export function stopBoopWinSound(): void {
+  const source = activeWin;
+  activeWin = null;
+  if (!source) return;
+  try {
+    source.stop();
+  } catch {
+    /* already stopped */
+  }
+}
+
+/** Win jingle; plays once per game-over win while Sound is on. */
+export function playBoopWinSound(): void {
+  if (!isPlaceSoundEnabled() || typeof window === 'undefined') return;
+  const run = async () => {
+    winLoadPromise ??= loadWinBuffer();
+    const clip = await winLoadPromise;
+    const ctx = ensureContext();
+    if (!ctx || !clip) return;
+    unlockAudioContext();
+    if (ctx.state !== 'running') return;
+
+    stopBoopWinSound();
+
+    const source = ctx.createBufferSource();
+    source.buffer = clip;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.92;
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    activeWin = source;
+    source.onended = () => {
+      if (activeWin === source) activeWin = null;
+    };
+    source.start(0);
+  };
+  void run();
 }
 
 /** Graduation ding (kitten vanish); respects Sound toggle and audio unlock. Retriggers per piece. */
