@@ -1,15 +1,9 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { describe, expect, it, beforeAll } from 'vitest';
-import init, { BoopGame } from '../../wasm/boop_wasm.js';
+import { describe, expect, it } from 'vitest';
+import './ai';
+import { BoopGame } from './engine';
 import { exportHumanGraduationSetup } from './boop-graduation-fixture';
 import { PieceTracker } from './piece-tracker';
 import { parseGameView } from './types';
-
-const wasmBytes = fs.readFileSync(
-  path.join(path.dirname(fileURLToPath(import.meta.url)), '../../wasm/boop_wasm_bg.wasm'),
-);
 
 function apply(game: BoopGame, player: 'A' | 'B', x: number, y: number, piece: 'kitten' | 'cat' = 'kitten') {
   const mv = game.move_for_interaction_json(player, x, y, piece);
@@ -23,11 +17,7 @@ function playHumanFirstGraduation(game: BoopGame) {
   return staged;
 }
 
-describe('Boop graduation bookkeeping (wasm)', () => {
-  beforeAll(async () => {
-    await init(wasmBytes);
-  });
-
+describe('Boop graduation bookkeeping (engine)', () => {
   it('removes three kittens, adds three hand cats, and keeps reserve in sync', () => {
     const game = playHumanFirstGraduation(new BoopGame());
     const view = parseGameView(game.view_json());
@@ -53,8 +43,7 @@ describe('Boop graduation bookkeeping (wasm)', () => {
     snap.cells.forEach((stack, idx) => {
       stack.forEach(p => {
         if (p.player === 'A' && p.shape === 'cat') {
-          const col = idx; // coarse — detailed col check in pool-layout tests
-          handCols.add(col);
+          handCols.add(idx);
         }
       });
     });

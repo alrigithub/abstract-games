@@ -1,4 +1,4 @@
-import type { BoopGame } from '../../wasm/boop_wasm.js';
+import type { BoopGame } from './engine';
 
 /** Two white kittens on row 0 plus pool counts matching rules::graduate_three_kittens. */
 export function exportHumanGraduationSetup(base: BoopGame): string {
