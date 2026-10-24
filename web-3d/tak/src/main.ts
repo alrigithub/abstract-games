@@ -5,15 +5,14 @@ import {
   createGameButtons,
   createInteraction,
   createSquareTopology,
-  createTakPieceGeometries,
   INTERACTION,
   levelToSearchOptions,
   readInitialTheme,
   TAK_AI_STRENGTH_STORAGE_KEY,
-  takPieceGeometrySet,
   type InteractionView,
   type ThemeId,
 } from '@abstract/three-engine';
+import { loadTakPieceGeometrySet } from './tak-piece-models';
 import { toEngineSnapshot, toTakSelection } from './bridge';
 import { createGameUi } from './game-ui';
 import { stackPickLimit } from './pick-height';
@@ -28,8 +27,7 @@ const pieceActions = document.querySelector<HTMLDivElement>('#piece-actions')!;
 const menu = document.querySelector<HTMLDialogElement>('#menu')!;
 const sizeSelect = document.querySelector<HTMLSelectElement>('#size')!;
 
-const geos = createTakPieceGeometries();
-const pieces = takPieceGeometrySet(geos);
+const pieces = await loadTakPieceGeometrySet();
 let boardSize = 5;
 let topology = createSquareTopology({ size: boardSize, outsideRows: 6 });
 let theme: ThemeId = readInitialTheme();
@@ -301,6 +299,7 @@ if (location.search.includes('human=ivory')) {
       openingReservePoint(): { x: number; y: number };
       capReservePoint(color?: Color): { x: number; y: number };
       seedCapStackDemo(): void;
+      seedGlbDemo(): void;
     };
   }).__takE2e = {
     pilePoint() {
@@ -356,6 +355,34 @@ if (location.search.includes('human=ivory')) {
       if (sourceIndex >= 0) {
         state.cells[sourceIndex] = state.cells[sourceIndex]!.filter(p => p.id !== cap.id);
       }
+      refresh();
+    },
+    seedGlbDemo() {
+      cancel();
+      state = createSandboxState(boardSize);
+      const flat = (color: Color, id: string) => ({
+        id,
+        color,
+        kind: 'stone' as const,
+        orientation: 'flat' as const,
+      });
+      const wall = (color: Color, id: string) => ({
+        id,
+        color,
+        kind: 'stone' as const,
+        orientation: 'standing' as const,
+      });
+      const cap = (color: Color, id: string) => ({
+        id,
+        color,
+        kind: 'capstone' as const,
+        orientation: 'flat' as const,
+      });
+      state.cells[6] = [flat('ivory', 'demo-i-flat')];
+      state.cells[7] = [wall('charcoal', 'demo-c-wall')];
+      state.cells[8] = [cap('ivory', 'demo-i-cap')];
+      state.cells[12] = [flat('ivory', 's1'), flat('charcoal', 's2'), flat('ivory', 's3'), cap('charcoal', 's-cap')];
+      state.cells[13] = [flat('charcoal', 'd4'), wall('ivory', 'd5')];
       refresh();
     },
   };

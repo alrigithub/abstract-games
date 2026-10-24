@@ -34,6 +34,16 @@ export function createTakPieceGeometries(): {
   return { flat, standing, capstone };
 }
 
+/** Stack step from an axis-aligned bounding box (geometry or scaled model). */
+export function heightFromBoundingBox(box: THREE.Box3): number {
+  return box.max.y - box.min.y;
+}
+
+export function geometryBoundingBoxHeight(geo: THREE.BufferGeometry): number {
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  return heightFromBoundingBox(geo.boundingBox!);
+}
+
 export function takPieceGeometrySet(geos: ReturnType<typeof createTakPieceGeometries>): PieceGeometrySet {
   const map: Record<string, THREE.BufferGeometry> = {
     flat: geos.flat,
@@ -46,8 +56,7 @@ export function takPieceGeometrySet(geos: ReturnType<typeof createTakPieceGeomet
     },
     height(piece) {
       const geo = map[piece.shape] ?? geos.flat;
-      const box = geo.boundingBox!;
-      return box.max.y - box.min.y;
+      return geometryBoundingBoxHeight(geo);
     },
     edgeThreshold: BOARD.EDGE_THRESHOLD_TAK,
     yaw(id: string) {
