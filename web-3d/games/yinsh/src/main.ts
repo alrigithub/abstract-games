@@ -37,6 +37,7 @@ import { quickLegalMove } from './game/ai';
 import type { Move } from './game/state';
 import type { Player } from './game/player';
 import { loadYinshPieceGeometrySet, YINSH_RING_TARGET_OUTER_DIAMETER } from './yinsh-piece-models';
+import { createYinshArenaTopology, loadYinshArenaTemplate } from './yinsh-arena';
 
 /** Match engine tap vs drag threshold. */
 const TAP_MOVE_THRESHOLD = 8;
@@ -61,10 +62,13 @@ function yinshCloseupTopology(base: Topology, pieceSet: PieceGeometrySet): Topol
 }
 
 const pieces = await loadYinshPieceGeometrySet();
-const topology = ringCloseupShot ? yinshCloseupTopology(createYinshTopology(), pieces) : createYinshTopology();
+let theme: ThemeId = readInitialTheme();
+const yinshArena = ringCloseupShot ? null : await loadYinshArenaTemplate(theme);
+const topology = ringCloseupShot
+  ? yinshCloseupTopology(createYinshTopology(), pieces)
+  : createYinshArenaTopology(yinshArena!.root);
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
-let theme: ThemeId = readInitialTheme();
 applyDocumentTheme(theme);
 
 let humanPlayer: Player = 'A';
@@ -89,6 +93,7 @@ const stage = board.querySelector('canvas') ?? board;
 function applyTheme(next: ThemeId) {
   theme = next;
   applyDocumentTheme(theme);
+  yinshArena.setTheme(theme);
   scene.setTheme(theme);
 }
 
