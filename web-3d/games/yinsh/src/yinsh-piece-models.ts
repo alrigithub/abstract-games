@@ -5,11 +5,12 @@ import {
   createYinshRingGeometry,
   yinshPieceGeometrySet,
   type EnginePiece,
-  applyClayPieceMaterials,
   applyGhostOpacity,
   clonePieceVisualTemplate,
   loadGltfAsync,
   pieceGlbSideForPlayer,
+  pieceUrl,
+  prepareAuthoredPieceGlb,
   type AssistGhostHint,
   type PieceGeometrySet,
   type ThemeId,
@@ -57,10 +58,10 @@ export const YINSH_MARKER_FOOTPRINT = {
 };
 
 const MODEL = {
-  ringWhite: 'assets/yinsh-ring-white.glb',
-  ringBlack: 'assets/yinsh-ring-black.glb',
-  markerWhite: 'assets/yinsh-marker-white.glb',
-  markerBlack: 'assets/yinsh-marker-black.glb',
+  ringWhite: 'yinsh-ring-white.glb',
+  ringBlack: 'yinsh-ring-black.glb',
+  markerWhite: 'yinsh-marker-white.glb',
+  markerBlack: 'yinsh-marker-black.glb',
 } as const;
 
 type ShapeKey = 'ring' | 'marker';
@@ -73,12 +74,6 @@ interface YinshTemplates {
 
 const _box = new THREE.Box3();
 
-function modelUrl(path: string): string {
-  const base = import.meta.env.BASE_URL ?? './';
-  const prefix = base.endsWith('/') ? base : `${base}/`;
-  const origin = typeof document !== 'undefined' && document.baseURI ? document.baseURI : 'http://127.0.0.1/';
-  return new URL(`${prefix}${path}`, origin).href;
-}
 
 function configureStoneRenderOrder(object: THREE.Object3D, shape: ShapeKey): void {
   object.traverse(node => {
@@ -119,15 +114,14 @@ async function loadScene(url: string): Promise<THREE.Object3D> {
 
 async function buildTemplates(): Promise<YinshTemplates> {
   const [ringWhite, ringBlack, markerWhite, markerBlack] = await Promise.all([
-    loadScene(modelUrl(MODEL.ringWhite)),
-    loadScene(modelUrl(MODEL.ringBlack)),
-    loadScene(modelUrl(MODEL.markerWhite)),
-    loadScene(modelUrl(MODEL.markerBlack)),
+    loadScene(pieceUrl(MODEL.ringWhite)),
+    loadScene(pieceUrl(MODEL.ringBlack)),
+    loadScene(pieceUrl(MODEL.markerWhite)),
+    loadScene(pieceUrl(MODEL.markerBlack)),
   ]);
-  applyClayPieceMaterials(ringWhite, 'light');
-  applyClayPieceMaterials(ringBlack, 'dark');
-  applyClayPieceMaterials(markerWhite, 'light');
-  applyClayPieceMaterials(markerBlack, 'dark');
+  for (const scene of [ringWhite, ringBlack, markerWhite, markerBlack]) {
+    prepareAuthoredPieceGlb(scene);
+  }
   const ring = { A: prepareTemplate(ringWhite, 'ring'), B: prepareTemplate(ringBlack, 'ring') };
   const marker = { A: prepareTemplate(markerWhite, 'marker'), B: prepareTemplate(markerBlack, 'marker') };
   return {

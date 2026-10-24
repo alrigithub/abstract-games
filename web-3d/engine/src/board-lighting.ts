@@ -309,8 +309,9 @@ export function tagPlayfieldForShadows(boardRoot: THREE.Object3D) {
   });
 }
 
-export function tagPieceForShadows(root: THREE.Object3D, receiveInStack: boolean) {
-  setMeshShadowFlags(root, { cast: true, receive: receiveInStack });
+export function tagPieceForShadows(root: THREE.Object3D, _receiveInStack?: boolean) {
+  void _receiveInStack;
+  setMeshShadowFlags(root, { cast: true, receive: true });
   root.traverse(node => {
     if (node instanceof THREE.LineSegments) {
       node.castShadow = false;

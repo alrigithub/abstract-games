@@ -3,12 +3,13 @@ import {
   GOMOKU_DIMS,
   GOMOKU_GLB_WORLD_SCALE,
   createGomokuStoneGeometry,
-  applyClayPieceMaterials,
   applyGhostOpacity,
   clonePieceVisualTemplate,
   gomokuGlbStoneHeight,
   loadGltfAsync,
   pieceGlbSideForPlayer,
+  pieceUrl,
+  prepareAuthoredPieceGlb,
   tagGhostForShadows,
   tagPieceForShadows,
   themeTokens,
@@ -17,8 +18,8 @@ import {
 type StonePlayer = 'A' | 'B';
 
 const MODEL = {
-  white: 'models/go-stone-white.glb',
-  black: 'models/go-stone-black.glb',
+  white: 'go-stone-white.glb',
+  black: 'go-stone-black.glb',
 } as const;
 
 export interface GomokuStoneAssets {
@@ -40,12 +41,6 @@ interface StoneTemplates {
 
 const _box = new THREE.Box3();
 
-function modelUrl(path: string): string {
-  const base = import.meta.env.BASE_URL ?? './';
-  const prefix = base.endsWith('/') ? base : `${base}/`;
-  const origin = globalThis.location?.href ?? 'http://127.0.0.1/';
-  return new URL(`${prefix}${path}`, origin).href;
-}
 
 function anchorObjectBaseToY0(object: THREE.Object3D): void {
   object.updateMatrixWorld(true);
@@ -68,9 +63,12 @@ async function loadScene(url: string): Promise<THREE.Object3D> {
 }
 
 async function buildTemplates(): Promise<StoneTemplates> {
-  const [white, black] = await Promise.all([loadScene(modelUrl(MODEL.white)), loadScene(modelUrl(MODEL.black))]);
-  applyClayPieceMaterials(white, 'light');
-  applyClayPieceMaterials(black, 'dark');
+  const [white, black] = await Promise.all([
+    loadScene(pieceUrl(MODEL.white)),
+    loadScene(pieceUrl(MODEL.black)),
+  ]);
+  prepareAuthoredPieceGlb(white);
+  prepareAuthoredPieceGlb(black);
   return { A: prepareTemplate(white), B: prepareTemplate(black) };
 }
 
@@ -92,9 +90,7 @@ export function gomokuStoneYawForId(id: string): number {
   return ((hash >>> 0) % 1000) / 1000 * (Math.PI / 8);
 }
 
-function ghostOpacity(themeId: ThemeId): number {
-  return themeTokens(themeId).ghostOpacity;
-}
+const GLB_GHOST_OPACITY = 0.5;
 
 function createProceduralVisual(
   player: StonePlayer,
@@ -133,7 +129,7 @@ export async function loadGomokuStoneAssets(
       createVisual,
       createGhostVisual(player, themeId) {
         const ghost = createVisual(player);
-        applyGhostOpacity(ghost, ghostOpacity(themeId));
+        applyGhostOpacity(ghost, GLB_GHOST_OPACITY);
         tagGhostForShadows(ghost);
         return ghost;
       },
@@ -162,7 +158,7 @@ export async function loadGomokuStoneAssets(
         const mesh = createProceduralVisual(player, shadowGeometry, materials);
         const mat = (mesh.material as THREE.MeshBasicMaterial).clone();
         mat.transparent = true;
-        mat.opacity = ghostOpacity(themeId);
+        mat.opacity = themeTokens(themeId).ghostOpacity;
         mesh.material = mat;
         tagGhostForShadows(mesh);
         return mesh;

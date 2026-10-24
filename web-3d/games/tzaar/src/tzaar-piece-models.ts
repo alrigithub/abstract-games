@@ -6,22 +6,23 @@ import {
   tzaarPieceGeometrySet,
   type EnginePiece,
   type PieceGeometrySet,
-  applyClayPieceMaterials,
   clonePieceVisualTemplate,
   loadGltfAsync,
   pieceGlbSideForPlayer,
+  pieceUrl,
+  prepareAuthoredPieceGlb,
   type TzaarKind,
   type ThemeId,
 } from '@abstract/three-engine';
 
 /** One GLB per type × colour. Player A is ivory, B is black. */
 export const TZAAR_MODEL = {
-  tzaarWhite: 'models/tzaar-tzaar-white.glb',
-  tzaarBlack: 'models/tzaar-tzaar-black.glb',
-  tzarraWhite: 'models/tzaar-tzarra-white.glb',
-  tzarraBlack: 'models/tzaar-tzarra-black.glb',
-  tottWhite: 'models/tzaar-tott-white.glb',
-  tottBlack: 'models/tzaar-tott-black.glb',
+  tzaarWhite: 'tzaar-tzaar-white.glb',
+  tzaarBlack: 'tzaar-tzaar-black.glb',
+  tzarraWhite: 'tzaar-tzarra-white.glb',
+  tzarraBlack: 'tzaar-tzarra-black.glb',
+  tottWhite: 'tzaar-tott-white.glb',
+  tottBlack: 'tzaar-tott-black.glb',
 } as const;
 
 export type TzaarStoneSide = 'A' | 'B';
@@ -46,12 +47,6 @@ export function tzaarModelRelPath(kind: KindKey, side: TzaarStoneSide): string {
   return side === 'B' ? TZAAR_MODEL.tottBlack : TZAAR_MODEL.tottWhite;
 }
 
-function modelUrl(path: string): string {
-  const base = import.meta.env.BASE_URL ?? './';
-  const prefix = base.endsWith('/') ? base : `${base}/`;
-  const origin = globalThis.location?.href ?? 'http://127.0.0.1/';
-  return new URL(`${prefix}${path}`, origin).href;
-}
 
 function anchorObjectBaseToY0(object: THREE.Object3D): void {
   object.updateMatrixWorld(true);
@@ -80,15 +75,16 @@ async function loadScene(url: string): Promise<THREE.Object3D> {
 
 async function buildTemplates(): Promise<TzaarTemplates> {
   const [tzaarWhite, tzaarBlack, tzarraWhite, tzarraBlack, tottWhite, tottBlack] = await Promise.all([
-    loadScene(modelUrl(TZAAR_MODEL.tzaarWhite)),
-    loadScene(modelUrl(TZAAR_MODEL.tzaarBlack)),
-    loadScene(modelUrl(TZAAR_MODEL.tzarraWhite)),
-    loadScene(modelUrl(TZAAR_MODEL.tzarraBlack)),
-    loadScene(modelUrl(TZAAR_MODEL.tottWhite)),
-    loadScene(modelUrl(TZAAR_MODEL.tottBlack)),
+    loadScene(pieceUrl(TZAAR_MODEL.tzaarWhite)),
+    loadScene(pieceUrl(TZAAR_MODEL.tzaarBlack)),
+    loadScene(pieceUrl(TZAAR_MODEL.tzarraWhite)),
+    loadScene(pieceUrl(TZAAR_MODEL.tzarraBlack)),
+    loadScene(pieceUrl(TZAAR_MODEL.tottWhite)),
+    loadScene(pieceUrl(TZAAR_MODEL.tottBlack)),
   ]);
-  for (const scene of [tzaarWhite, tzarraWhite, tottWhite]) applyClayPieceMaterials(scene, 'light');
-  for (const scene of [tzaarBlack, tzarraBlack, tottBlack]) applyClayPieceMaterials(scene, 'dark');
+  for (const scene of [tzaarWhite, tzaarBlack, tzarraWhite, tzarraBlack, tottWhite, tottBlack]) {
+    prepareAuthoredPieceGlb(scene);
+  }
   return {
     tzaar: { A: prepareTemplate(tzaarWhite), B: prepareTemplate(tzaarBlack) },
     tzarra: { A: prepareTemplate(tzarraWhite), B: prepareTemplate(tzarraBlack) },
