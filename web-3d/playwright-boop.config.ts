@@ -11,7 +11,7 @@ export default defineConfig({
     baseURL: 'http://127.0.0.1:5194',
   },
   webServer: {
-    command: 'npm run dev -w boop-3d-demo',
+    command: 'npm run dev -w @abstract/boop',
     url: 'http://127.0.0.1:5194',
     reuseExistingServer: true,
     timeout: 180_000,

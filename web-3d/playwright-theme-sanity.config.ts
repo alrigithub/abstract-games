@@ -9,19 +9,19 @@ export default defineConfig({
   use: { ...devices['Desktop Chrome'] },
   webServer: [
     {
-      command: 'npm run dev -w tak-3d',
+      command: 'npm run dev -w @abstract/tak',
       url: 'http://127.0.0.1:5190',
       reuseExistingServer: true,
       timeout: 120_000,
     },
     {
-      command: 'npm run dev -w gomoku-3d-demo',
+      command: 'npm run dev -w @abstract/gomoku',
       url: 'http://127.0.0.1:5192',
       reuseExistingServer: true,
       timeout: 120_000,
     },
     {
-      command: 'npm run dev -w tzaar-3d-demo',
+      command: 'npm run dev -w @abstract/tzaar',
       url: 'http://127.0.0.1:5199',
       reuseExistingServer: true,
       timeout: 120_000,

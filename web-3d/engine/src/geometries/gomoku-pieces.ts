@@ -4,7 +4,7 @@ import { themeTokens } from '../theme';
 import { anchorGeometryBaseToY0 } from './anchor';
 import type { PieceGeometrySet, ThemeId } from '../types';
 
-/** Canonical sizes — see `web-3d/demos/gomoku/IMPLEMENTED.md`. */
+/** Canonical sizes — see `web-3d/games/gomoku/IMPLEMENTED.md`. */
 export const GOMOKU_DIMS = {
   GRID: 15,
   SLAB: 0,

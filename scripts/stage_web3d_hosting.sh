@@ -21,11 +21,11 @@ build_and_copy() {
   cp -a "$WEB3D/$dir/dist/." "$OUT/$dest_name/"
 }
 
-build_and_copy tak tak
-build_and_copy demos/gomoku gomoku
-build_and_copy demos/boop boop
-build_and_copy demos/yinsh yinsh
-build_and_copy demos/tzaar tzaar
+build_and_copy games/tak tak
+build_and_copy games/gomoku gomoku
+build_and_copy games/boop boop
+build_and_copy games/yinsh yinsh
+build_and_copy games/tzaar tzaar
 
 if [[ -f "$WEB3D/hub/index.html" ]]; then
   cp "$WEB3D/hub/index.html" "$OUT/index.html"

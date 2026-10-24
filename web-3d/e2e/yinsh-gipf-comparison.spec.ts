@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 
 const outDir = path.join(process.cwd(), 'e2e', 'screenshots');
-const tzaarShotDir = path.join(process.cwd(), 'demos', 'tzaar', 'screenshots');
+const tzaarShotDir = path.join(process.cwd(), 'games', 'tzaar', 'screenshots');
 
 test.describe.configure({ mode: 'serial' });
 

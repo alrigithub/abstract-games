@@ -60,7 +60,7 @@ test.describe('Boop graduation + Big + AI', () => {
 declare global {
   interface Window {
     __boopPlayToHumanFirstGraduation?: () => Promise<boolean>;
-    __boopController?: import('../demos/boop/src/game/controller').BoopController;
+    __boopController?: import('../games/boop/src/game/controller').BoopController;
     __boopAssertGrounding?: () => { ok: boolean; maxGap: number };
     __boopSetCameraPreset?: (preset: 'top' | 'axo') => void;
   }

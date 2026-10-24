@@ -17,7 +17,7 @@ export default defineConfig({
     { name: 'gomoku-arena-screenshots', testMatch: '**/gomoku-arena-screenshots.spec.ts' },
   ],
   webServer: {
-    command: 'npm run dev -w gomoku-3d-demo -- --host 127.0.0.1 --port 5192',
+    command: 'npm run dev -w @abstract/gomoku -- --host 127.0.0.1 --port 5192',
     url: 'http://127.0.0.1:5192',
     reuseExistingServer: true,
     timeout: 120_000,
