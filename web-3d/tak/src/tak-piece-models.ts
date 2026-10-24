@@ -39,7 +39,9 @@ const _box = new THREE.Box3();
 
 function modelUrl(path: string): string {
   const base = import.meta.env.BASE_URL ?? './';
-  return new URL(path, base.endsWith('/') ? base : `${base}/`).href;
+  const prefix = base.endsWith('/') ? base : `${base}/`;
+  const origin = globalThis.location?.href ?? 'http://127.0.0.1/';
+  return new URL(`${prefix}${path}`, origin).href;
 }
 
 function anchorObjectBaseToY0(object: THREE.Object3D): void {

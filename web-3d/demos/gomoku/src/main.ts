@@ -2,6 +2,7 @@ import {
   createGameButtons,
   GOMOKU_AI_STRENGTH_STORAGE_KEY,
   levelToSearchOptions,
+  playWinSoundAfterPlace,
   readInitialTheme,
   type GameButtonsBar,
   type ThemeId,
@@ -129,6 +130,7 @@ async function playMove(col: number, row: number, isHuman: boolean) {
     player: toScenePlayer(placed),
   };
   await scene.animateDrop(record);
+  if (game.winner) playWinSoundAfterPlace();
   syncBoard();
   scene.setInputEnabled(!game.winner && game.toMove === humanColor && !aiPending);
   if (!game.winner) maybeAiTurn();

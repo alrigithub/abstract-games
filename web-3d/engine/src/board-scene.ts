@@ -7,7 +7,8 @@ import { createContactShadowBlob } from './geometries/contact-shadow';
 import { decoratePieceMesh, makePieceShadow } from './geometries/piece-outlines';
 import { stackHeight } from './stack';
 import { layoutStackCenters, stackExtent, type StackMeasure } from './stack-layout';
-import { createBoardWebGLRenderer } from './board-renderer';
+import { applyBoardEnvironment, createBoardWebGLRenderer } from './board-renderer';
+import { consumeBoopPushLandingSound, initPlaceSfx, playPiecePlaceSound, type PlaceSoundKind } from './sound/place-sfx';
 import { themeTokens, type ThemeId } from './theme';
 import type {
   BoardSnapshot,
@@ -42,6 +43,10 @@ interface PieceObject {
   flipDuration: number;
   flipSwapped: boolean;
   pieceHeight: number;
+  restX: number;
+  restZ: number;
+  landOnComplete?: PlaceSoundKind;
+  lastVertT: number;
 }
 
 export interface BoardSceneOptions {
@@ -59,6 +64,7 @@ export interface BoardSceneOptions {
 }
 
 export async function createBoardScene(container: HTMLElement, options: BoardSceneOptions): Promise<SceneApi> {
+  initPlaceSfx();
   const players = options.players ?? ['A', 'B'];
   const boardSlab = options.boardSlab ?? BOARD.SLAB;
   const playfieldY = options.playfieldSurfaceY ?? BOARD.PLAYFIELD_SURFACE_Y;
@@ -68,6 +74,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(tokens.table);
   const renderer = createBoardWebGLRenderer();
+  const disposeEnvironment = applyBoardEnvironment(scene, renderer);
   container.appendChild(renderer.domElement);
 
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
@@ -291,12 +298,21 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     if (!disposed && !document.hidden && !frame) frame = requestAnimationFrame(render);
   }
 
+  function finishLandSound(item: PieceObject) {
+    if (!item.landOnComplete) return;
+    const kind = item.landOnComplete;
+    item.landOnComplete = undefined;
+    if (kind === 'place' && !consumeBoopPushLandingSound()) return;
+    playPiecePlaceSound({ kind });
+  }
+
   function render(now: number) {
     frame = 0;
     if (disposed || document.hidden) return;
     let animated = false;
     for (const item of objects.values()) {
       const t = reducedMotion.matches ? 1 : Math.min(1, Math.max(0, (now - item.started) / item.duration));
+      const prevT = item.lastVertT;
       item.mesh.position.lerpVectors(item.from, item.to, ANIMATION.easeOutCubic(t));
       if (item.selected && !reducedMotion.matches) {
         const horizontalT = Math.min(1, Math.max(0, (now - item.horizontalStarted) / ANIMATION.HORIZONTAL_DURATION));
@@ -327,6 +343,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       item.shadow.rotation.y = item.mesh.rotation.y;
       syncContactShadow(item);
       if (t < 1) animated = true;
+      else if (prevT < 1 && item.landOnComplete) finishLandSound(item);
+      item.lastVertT = t;
     }
     renderer.render(scene, camera);
     if (animated) requestRender();
@@ -347,10 +365,18 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     item.to.copy(target);
     item.started = performance.now();
     item.duration = duration;
+    if (!immediate && !reducedMotion.matches && !item.selected) {
+      const dy = target.y - item.from.y;
+      if (dy < -0.008) {
+        const xzMoved = Math.hypot(target.x - item.restX, target.z - item.restZ) > 0.08;
+        item.landOnComplete = xzMoved ? 'place' : 'cancel';
+      }
+    }
     if (immediate || reducedMotion.matches) {
       item.mesh.position.copy(target);
       item.from.copy(target);
       item.started -= duration;
+      if (item.landOnComplete) finishLandSound(item);
     }
     requestRender();
   }
@@ -691,6 +717,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       item.shadow.visible = !isSelected && stack[0]?.id === item.pieceId;
       if (isSelected && !item.selected) {
         item.pickupAt = performance.now();
+        item.restX = item.mesh.position.x;
+        item.restZ = item.mesh.position.z;
+        item.landOnComplete = undefined;
         item.horizontalFrom.set(item.mesh.position.x, item.mesh.position.z);
         item.horizontalTo.copy(item.horizontalFrom);
       }
@@ -802,7 +831,13 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
             flipDuration: 0,
             flipSwapped: false,
             pieceHeight: h,
+            restX: destination.x,
+            restZ: destination.z,
+            lastVertT: 1,
           };
+          if (!view.selection && !view.dragging) {
+            item.landOnComplete = 'place';
+          }
           item.shadow.rotation.y = pieceYaw(piece.id);
           if (piece.shape === 'marker') item.shadow.rotation.x = mesh.rotation.x;
           syncContactShadow(item);
@@ -841,6 +876,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       }
     }
     updateInteraction();
+    for (const item of objects.values()) {
+      if (item.landOnComplete && item.lastVertT >= 1) finishLandSound(item);
+    }
     if (reframeCamera) {
       if (cameraViewsRef) cameraViewsRef.refit();
       else fit(true);
@@ -956,6 +994,36 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       const bounds = renderer.domElement.getBoundingClientRect();
       return { x: bounds.left + ((position.x + 1) * bounds.width) / 2, y: bounds.top + ((1 - position.y) * bounds.height) / 2 };
     },
+    getBoardTopY() {
+      board.updateMatrixWorld(true);
+      const box = new THREE.Box3();
+      for (const child of board.children) {
+        if (child instanceof THREE.Mesh && child.geometry instanceof THREE.BoxGeometry) {
+          box.expandByObject(child);
+        }
+      }
+      return Number.isFinite(box.max.y) ? box.max.y : playfieldY;
+    },
+    getStackBottomBaseYs() {
+      const ys: number[] = [];
+      const baseY = (object: THREE.Object3D) => {
+        object.updateMatrixWorld(true);
+        shadowBounds.setFromObject(object);
+        return shadowBounds.min.y;
+      };
+      snapshot.cells.forEach(stack => {
+        if (!stack.length) return;
+        const item = objects.get(stack[0]!.id);
+        if (item && Number.isFinite(baseY(item.mesh))) ys.push(baseY(item.mesh));
+      });
+      for (const slot of snapshot.reserves ?? []) {
+        if (slot.count <= 0) continue;
+        const pick: ReservePick = { slotId: slot.id, player: slot.player, shape: slot.shape, pile: slot.pile };
+        const mesh = reserveTargets.get(reserveKeyFor(pick));
+        if (mesh && Number.isFinite(baseY(mesh))) ys.push(baseY(mesh));
+      }
+      return ys;
+    },
     enqueueAnimation(task) {
       return animQueue.enqueue(async () => {
         inAnimTask = true;
@@ -965,6 +1033,35 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
           inAnimTask = false;
         }
       });
+    },
+    animationsBusy() {
+      return animQueue.busy;
+    },
+    drainAnimations() {
+      return animQueue.drain();
+    },
+    reframe() {
+      fit(true);
+    },
+    setCameraView(options = {}) {
+      const elevation = ((options.elevationDeg ?? 35) * Math.PI) / 180;
+      const azimuth = ((options.azimuthDeg ?? 42) * Math.PI) / 180;
+      const polar = Math.PI / 2 - elevation;
+      const target = options.target
+        ? new THREE.Vector3(options.target.x, options.target.y, options.target.z)
+        : controls.target.clone();
+      controls.target.copy(target);
+      const dist = 6;
+      camera.position.set(
+        target.x + Math.sin(polar) * Math.cos(azimuth) * dist,
+        target.y + Math.cos(polar) * dist,
+        target.z + Math.sin(polar) * Math.sin(azimuth) * dist,
+      );
+      camera.up.set(0, 1, 0);
+      camera.lookAt(target);
+      controls.update();
+      camera.updateMatrixWorld();
+      requestRender();
     },
     animationsBusy() {
       return animQueue.busy;
@@ -1017,6 +1114,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       window.removeEventListener('pointerup', onPointerRelease);
       window.removeEventListener('pointercancel', onPointerRelease);
       controls.dispose();
+      disposeEnvironment();
       renderer.dispose();
       renderer.domElement.remove();
     },

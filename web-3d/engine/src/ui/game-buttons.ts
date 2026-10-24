@@ -8,6 +8,7 @@ import type { CameraViewController } from '../camera-views';
 import { nextCameraPresetAfter } from '../camera-views';
 import { bindThemeToggle, readInitialTheme, type ThemeId } from '../theme';
 import { ensureBasePageStyles } from './page-styles';
+import { initPlaceSfx, isPlaceSoundEnabled, readPlaceSoundEnabled, setPlaceSoundEnabled } from '../sound/place-sfx';
 import {
   createActionIcon,
   createCameraToolbarIcon,
@@ -446,6 +447,7 @@ function createMenuItem(options: {
 export function createGameButtons(options: CreateGameButtonsOptions): GameButtonsBar {
   if (options.basePageStyles !== false) ensureBasePageStyles();
   ensureGameButtonStyles();
+  initPlaceSfx();
   const mount = options.mount ?? document.body;
   const fullscreenEl = options.fullscreenElement ?? document.documentElement;
   const themeApply = options.applyTheme ?? options.onThemeChange;
@@ -532,6 +534,14 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   });
   if (!themeApply) themeBtn.hidden = true;
 
+  let soundEnabled = readPlaceSoundEnabled();
+  const soundBtn = createMenuItem({
+    testId: 'sound-toggle',
+    icon: 'volume-2',
+    label: 'Sound on',
+    closeOnActivate: true,
+  });
+
   const lobby = createMenuItem({
     testId: 'back-to-lobby',
     icon: 'arrow-left',
@@ -547,6 +557,7 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   menu.append(document.createElement('hr'));
   menu.lastElementChild!.className = 'game-menu-separator';
   menu.append(themeBtn);
+  menu.append(soundBtn);
   menu.append(document.createElement('hr'));
   menu.lastElementChild!.className = 'game-menu-separator';
   menu.append(lobby);
@@ -646,6 +657,18 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   };
 
   let currentTheme: ThemeId = readInitialTheme();
+  const syncSoundLabel = () => {
+    soundEnabled = isPlaceSoundEnabled();
+    const label = menu.querySelector<HTMLElement>('[data-testid="sound-toggle"] .game-menu-label');
+    const iconHost = menu.querySelector<HTMLElement>('[data-testid="sound-toggle"] .game-menu-icon');
+    const text = soundEnabled ? 'Sound on' : 'Sound off';
+    if (label) label.textContent = text;
+    if (iconHost) {
+      iconHost.replaceWith(createMenuIcon(soundEnabled ? 'volume-2' : 'volume-x', text));
+    }
+    soundBtn.setAttribute('aria-pressed', String(soundEnabled));
+  };
+
   const syncThemeLabel = () => {
     try {
       const t = document.documentElement.dataset.theme;
@@ -675,6 +698,7 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
     menu.hidden = false;
     menuTrigger.setAttribute('aria-expanded', 'true');
     syncThemeLabel();
+    syncSoundLabel();
     const items = menuItems();
     if (items[0]) items[0].focus();
   };
@@ -688,6 +712,12 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
       queueMicrotask(syncThemeLabel);
     });
   }
+
+  soundBtn.addEventListener('click', () => {
+    setPlaceSoundEnabled(!isPlaceSoundEnabled());
+    syncSoundLabel();
+  });
+  syncSoundLabel();
 
   let unbindCamera: (() => void) | undefined;
   if (options.cameraViews) {

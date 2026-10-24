@@ -91,6 +91,7 @@ describe('createGameButtons menu', () => {
     expect(mount.querySelector('[data-testid="restart-round"]')).toBeTruthy();
     expect(mount.querySelector('[data-testid="ai-strength"]')).toBeTruthy();
     expect(mount.querySelector('[data-testid="theme-toggle"]')).toBeTruthy();
+    expect(mount.querySelector('[data-testid="sound-toggle"]')).toBeTruthy();
     expect(mount.querySelector('[data-testid="back-to-lobby"]')).toBeTruthy();
     expect(mount.querySelector('[data-testid="fullscreen-toggle"]')).toBeTruthy();
     expect(mount.querySelector('[data-testid="game-menu"]')!.querySelector('[data-testid="fullscreen-toggle"]')).toBeNull();
@@ -109,6 +110,31 @@ describe('createGameButtons menu', () => {
     expect(document.querySelector('[data-testid="flip-action"]')).toBeTruthy();
     expect(mount.querySelector('[data-testid="flip-action"]')).toBeNull();
     bar.destroy();
+  });
+
+  it('toggles placement sound preference from the menu', () => {
+    vi.stubGlobal('localStorage', {
+      store: {} as Record<string, string>,
+      getItem(key: string) {
+        return this.store[key] ?? null;
+      },
+      setItem(key: string, value: string) {
+        this.store[key] = value;
+      },
+      removeItem() {},
+      clear() {
+        this.store = {};
+      },
+    });
+    const bar = createGameButtons({ mount, basePageStyles: false });
+    bar.openMenu();
+    const btn = mount.querySelector('[data-testid="sound-toggle"]') as HTMLButtonElement;
+    expect(btn.querySelector('.game-menu-label')!.textContent).toBe('Sound on');
+    btn.click();
+    expect(localStorage.getItem('abstract-three-place-sound')).toBe('off');
+    expect(btn.querySelector('.game-menu-label')!.textContent).toBe('Sound off');
+    bar.destroy();
+    vi.unstubAllGlobals();
   });
 
   it('invokes onRestartRound from the menu item', () => {
