@@ -64,10 +64,18 @@ async function main() {
       throw new Error(`expected data-resting-count >= 1, got ${restingCount}`);
     }
 
+    await page.waitForFunction(() => window.__boopAssertGrounding != null, null, { timeout: 5_000 });
+    const grounding = await page.evaluate(() => window.__boopAssertGrounding());
+    if (!grounding?.ok) {
+      throw new Error(
+        `piece bases not on board top (max gap ${grounding?.maxGap}, boardTop ${grounding?.boardTop}, n=${grounding?.bases?.length})`,
+      );
+    }
+
     const status = await page.locator('[data-testid="game-status"]').textContent();
     if (!status) throw new Error('missing status line');
     if (errors.length) throw new Error(`console errors: ${errors.join('; ')}`);
-    console.log('Smoke OK:', status.trim());
+    console.log('Smoke OK:', status.trim(), `(grounding max gap ${grounding.maxGap.toFixed(4)})`);
   } finally {
     await browser.close();
     vite.kill('SIGTERM');

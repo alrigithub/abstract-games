@@ -133,6 +133,10 @@ export interface SceneApi {
   /** Animate a flippable piece (Yinsh marker, Tak flat/standing stone). */
   flipPiece(pieceId: string): Promise<void>;
   flipPieces(pieceIds: string[], staggerMs?: number): Promise<void>;
+  /** World Y of the top of the built-in board slab (playfield surface). */
+  getBoardTopY(): number;
+  /** World Y of the bottom piece base in each cell stack and reserve pile. */
+  getStackBottomBaseYs(): number[];
   dispose(): void;
 }
 
