@@ -218,6 +218,10 @@ const gameButtons = createGameButtons({
     applyTheme(initial);
     renderStatus('Demo layout reset');
   },
+  onRestartRound: () => {
+    applyTheme(initial);
+    renderStatus('Demo layout reset');
+  },
 });
 
 renderStatus();
