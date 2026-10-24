@@ -12,6 +12,7 @@ import {
 } from '@abstract/three-engine';
 import * as THREE from 'three';
 import { PropertyBinding } from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /** Documented SHA-256 of the committed arena in `web-3d/lib/maps/boop-map.glb`. */
 export const BOOP_ARENA_GLB_SHA256 =
@@ -59,35 +60,60 @@ function isGreeneryMaterial(mat: THREE.Material): boolean {
   return materialLooksGreen(mat);
 }
 
-function toPlainWhiteMaterial(source: THREE.Material): THREE.Material {
-  const mat = source.clone();
-  if (mat instanceof THREE.MeshStandardMaterial) {
-    mat.map = null;
-    mat.normalMap = null;
-    mat.roughnessMap = null;
-    mat.metalnessMap = null;
-    mat.aoMap = null;
-    mat.emissiveMap = null;
-    mat.alphaMap = null;
-    mat.color.copy(PLAIN_WHITE);
-    mat.emissive.setHex(0x000000);
-    mat.metalness = 0;
-    mat.roughness = 0.82;
-    mat.transparent = false;
-    mat.opacity = 1;
-    if (mat instanceof THREE.MeshPhysicalMaterial) {
-      mat.transmission = 0;
-      mat.thickness = 0;
-      mat.ior = 1.5;
-    }
+let sharedArenaMaterial: THREE.MeshStandardMaterial | undefined;
+
+/** One matte white material for the baked arena (avoids hundreds of cloned GLB materials). */
+function arenaPlayfieldMaterial(): THREE.MeshStandardMaterial {
+  if (!sharedArenaMaterial) {
+    sharedArenaMaterial = new THREE.MeshStandardMaterial({
+      color: PLAIN_WHITE,
+      emissive: new THREE.Color(0x000000),
+      metalness: 0,
+      roughness: 0.82,
+      side: THREE.DoubleSide,
+    });
   }
-  return mat;
+  return sharedArenaMaterial;
 }
 
-function whitenMeshMaterials(mesh: THREE.Mesh): void {
-  const apply = (mat: THREE.Material) => toPlainWhiteMaterial(mat);
-  if (Array.isArray(mesh.material)) mesh.material = mesh.material.map(apply);
-  else mesh.material = apply(mesh.material);
+function disposeMeshMaterials(mesh: THREE.Mesh): void {
+  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  for (const mat of materials) mat.dispose();
+}
+
+const _arenaRootInv = new THREE.Matrix4();
+const _arenaBake = new THREE.Matrix4();
+
+/** Alex's export ships ~270 tiny meshes; one draw call keeps piece shadows smooth. */
+function consolidateArenaMeshes(scene: THREE.Group): void {
+  scene.updateMatrixWorld(true);
+  _arenaRootInv.copy(scene.matrixWorld).invert();
+
+  const parts: THREE.BufferGeometry[] = [];
+  const toRemove: THREE.Mesh[] = [];
+
+  scene.traverse(node => {
+    if (!(node as THREE.Mesh).isMesh) return;
+    const mesh = node as THREE.Mesh;
+    toRemove.push(mesh);
+    const geometry = mesh.geometry.clone();
+    _arenaBake.multiplyMatrices(_arenaRootInv, mesh.matrixWorld);
+    geometry.applyMatrix4(_arenaBake);
+    parts.push(geometry);
+    disposeMeshMaterials(mesh);
+  });
+
+  for (const mesh of toRemove) mesh.parent?.remove(mesh);
+  if (!parts.length) return;
+
+  const merged = mergeGeometries(parts, false);
+  for (const geometry of parts) geometry.dispose();
+  if (!merged) return;
+
+  merged.computeVertexNormals();
+  const mesh = new THREE.Mesh(merged, arenaPlayfieldMaterial());
+  mesh.name = 'boop-arena-consolidated';
+  scene.add(mesh);
 }
 
 function arenaAssetUrl(): string {
@@ -118,9 +144,9 @@ function prepareArenaScene(scene: THREE.Group): THREE.Group {
       removeMeshes.push(mesh);
       return;
     }
-    whitenMeshMaterials(mesh);
   });
   for (const obj of removeMeshes) obj.parent?.remove(obj);
+  consolidateArenaMeshes(scene);
   tagArenaGlbForShadows(scene);
 
   return scene;
