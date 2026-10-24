@@ -4,7 +4,6 @@ import {
   createBoopCatGeometry,
   createBoopKittenGeometry,
   createGameButtons,
-  createSquareTopology,
   DomPlacementGhost,
   BOOP_AI_STRENGTH_STORAGE_KEY,
   DEFAULT_AI_STRENGTH_LEVELS,
@@ -20,6 +19,7 @@ import { boardPlayfieldTopY } from './game/boop-grounding';
 import { createBoopPieceGeometrySet } from './game/boop-stone-cats';
 import { BOOP_DEMO_BOOP_SFX_URLS, BOOP_DEMO_PLACE_SFX_URLS } from './game/boop-sfx-manifest';
 import { BoopController } from './game/controller';
+import { createBoopTopology, loadBoopArenaTemplate } from './game/boop-arena';
 import { BOOP_GRID as size, BOOP_OUTSIDE as OUTSIDE_ROWS } from './game/boop-grid';
 
 applyBoopAnimationPacing(ANIMATION);
@@ -27,7 +27,8 @@ applyBoopAnimationPacing(ANIMATION);
 const fallbackCat = createBoopCatGeometry();
 const fallbackKitten = createBoopKittenGeometry();
 const pieces = await createBoopPieceGeometrySet(fallbackCat, fallbackKitten);
-const topology = createSquareTopology({ size, outsideRows: OUTSIDE_ROWS });
+const arenaTemplate = await loadBoopArenaTemplate();
+const topology = createBoopTopology({ size, outsideRows: OUTSIDE_ROWS }, arenaTemplate);
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 injectBoopUiStyles();
