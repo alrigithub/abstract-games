@@ -26,20 +26,17 @@ const CAT_FILES = {
   B: 'cat-adult-slate.glb',
 } as const;
 
-/** Kitten pool uses stone vases (granite/slate) from `public/assets/vases/`. */
+/** Kitten pool uses small stone vases from `public/assets/vases/`. */
 function vaseFileCandidates(player: PlayerId): string[] {
+  const primary = player === 'A' ? 'vase-small-white.glb' : 'vase-small-black.glb';
   const stone = player === 'A' ? 'granite' : 'slate';
   return [
+    primary,
     `vase-junior-${stone}.glb`,
     `vase-${stone}.glb`,
     `junior-${stone}-vase.glb`,
   ];
 }
-
-const JUNIOR_CAT_FALLBACK = {
-  A: 'cat-junior-granite.glb',
-  B: 'cat-junior-slate.glb',
-} as const;
 
 export type StoneCatVariant = 'cat' | 'kitten';
 
@@ -135,18 +132,8 @@ function prepareFromScene(scene: THREE.Group, worldScale: number): StoneTemplate
 }
 
 async function loadKittenTemplate(player: PlayerId, scale: number): Promise<StoneTemplate> {
-  try {
-    const scene = await loadFirstGltf('vases', vaseFileCandidates(player));
-    return prepareFromScene(scene, scale);
-  } catch (err) {
-    console.warn(
-      `[boop] stone vase GLB missing for player ${player} (expected in public/assets/vases/). ` +
-        `Tried: ${vaseFileCandidates(player).join(', ')}. Using cat-junior fallback.`,
-      err,
-    );
-    const scene = await loadGltfScene(assetUrl('cats', JUNIOR_CAT_FALLBACK[player]));
-    return prepareFromScene(scene, scale);
-  }
+  const scene = await loadFirstGltf('vases', vaseFileCandidates(player));
+  return prepareFromScene(scene, scale);
 }
 
 async function loadTemplates(): Promise<Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>> {

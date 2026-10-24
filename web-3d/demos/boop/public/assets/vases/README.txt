@@ -1,13 +1,11 @@
-Stone vase GLBs for Boop kitten pool pieces (player A = granite, B = slate).
+Alex stone vase GLBs (Y-up, metres, origin at base centre).
 
-Copy the .glb files from your stone-vases export into this folder (PNG sidecars are not required).
+Kitten pool (in use):
+  vase-small-white.glb — player A (light / granite)
+  vase-small-black.glb — player B (dark / slate)
 
-Expected names (first match wins):
-  vase-junior-granite.glb
-  vase-junior-slate.glb
+Alternate cat-scale vases (committed, not loaded by default):
+  vase-large-white.glb
+  vase-large-black.glb
 
-Also accepted:
-  vase-granite.glb / vase-slate.glb
-  junior-granite-vase.glb / junior-slate-vase.glb
-
-Same Y-up, floor-origin, and uniform scale rules as public/assets/cats/.
+Use the same uniform scale factor as public/assets/cats/ (fitted to adult cat footprint).
