@@ -165,3 +165,4 @@ export const YINSH_AI_STRENGTH_STORAGE_KEY = 'abstract-yinsh-ai-strength';
 
 /** Suggested storage key for Boop web-3d. */
 export const BOOP_AI_STRENGTH_STORAGE_KEY = 'abstract-boop-ai-strength';
+export const TZAAR_AI_STRENGTH_STORAGE_KEY = 'abstract-tzaar-ai-strength';

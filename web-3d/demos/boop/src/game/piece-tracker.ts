@@ -66,7 +66,24 @@ export class PieceTracker {
     this.resting = this.resting.filter(r => r.id !== id);
   }
 
-  takeForPlacement(player: PlayerId, kind: PieceKind): PlacementSource | null {
+  takeForPlacement(player: PlayerId, kind: PieceKind, preferredId?: string): PlacementSource | null {
+    if (preferredId) {
+      for (let i = this.resting.length - 1; i >= 0; i--) {
+        const r = this.resting[i]!;
+        if (r.id === preferredId) {
+          this.resting.splice(i, 1);
+          return { id: r.id, from: 'resting', restRow: r.row, restCol: r.col };
+        }
+      }
+      for (const poolKind of ['kitten', 'cat'] as const) {
+        const stack = this.poolStacks[player][poolKind];
+        const idx = stack.indexOf(preferredId);
+        if (idx >= 0) {
+          stack.splice(idx, 1);
+          return { id: preferredId, from: 'pool' };
+        }
+      }
+    }
     for (let i = this.resting.length - 1; i >= 0; i--) {
       const r = this.resting[i]!;
       if (r.player === player && r.kind === kind) {

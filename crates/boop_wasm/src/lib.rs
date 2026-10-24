@@ -1,7 +1,7 @@
 use boop::{
     Coord, GameState, Move, MoveEffects, Piece, PieceKind, Player, Pool, TurnMode, BOARD_SIZE,
 };
-use boop_ai::choose_move;
+use boop_ai::{choose_move_limited, SearchLimits};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -394,11 +394,16 @@ impl BoopGame {
         serde_json::to_string(&move_to_dto(&mv)).ok()
     }
 
-    pub fn choose_ai_move(&self, max_depth: u32) -> Option<String> {
+    pub fn choose_ai_move(&self, max_depth: u32, max_nodes: u32, time_budget_ms: u32) -> Option<String> {
         if self.state.to_move() != Player::Second {
             return None;
         }
-        let mv = choose_move(&self.state, max_depth)?;
+        let limits = SearchLimits {
+            max_depth,
+            max_nodes: max_nodes as u64,
+            time_budget_ms: time_budget_ms as u64,
+        };
+        let mv = choose_move_limited(&self.state, limits)?;
         serde_json::to_string(&move_to_dto(&mv)).ok()
     }
 

@@ -4,6 +4,7 @@ import {
   cellIndex,
   endBoopPushLandSounds,
   type BoardSnapshot,
+  type AiStrengthSearchOptions,
   type SceneApi,
   type Selection,
 } from '@abstract/three-engine';
@@ -25,10 +26,10 @@ const stepMs = () => BOOP_ANIM.MOVE_MS + BOOP_ANIM.STEP_GAP_MS;
 export interface BoopControllerOptions {
   scene: SceneApi;
   setStatus: (text: string) => void;
-  getAiDepth: () => number;
+  getAiSearchOptions: () => AiStrengthSearchOptions;
   onReady?: () => void;
-  /** Programmatic Tak-style drag for AI place moves (pool/resting → bed). */
-  aiPlaceDrag?: (fromIndex: number, toIndex: number) => Promise<void>;
+  /** Programmatic tap place for AI place moves (pool/resting → bed). */
+  aiPlaceTap?: (fromIndex: number, toIndex: number) => Promise<void>;
 }
 
 export class BoopController {
@@ -41,16 +42,72 @@ export class BoopController {
   private inflightMove: Promise<void> = Promise.resolve();
   private readonly scene: SceneApi;
   private readonly setStatus: (text: string) => void;
-  private readonly getAiDepth: () => number;
+  private readonly getAiSearchOptions: () => AiStrengthSearchOptions;
+  private pendingPlacementPieceId?: string;
+  private aiWorker: Worker | null = null;
   private readonly onReady?: () => void;
-  private readonly aiPlaceDrag?: (fromIndex: number, toIndex: number) => Promise<void>;
+  private readonly aiPlaceTap?: (fromIndex: number, toIndex: number) => Promise<void>;
+  private stickyKind: PieceKind = 'kitten';
 
   constructor(options: BoopControllerOptions) {
     this.scene = options.scene;
     this.setStatus = options.setStatus;
-    this.getAiDepth = options.getAiDepth;
+    this.getAiSearchOptions = options.getAiSearchOptions;
     this.onReady = options.onReady;
-    this.aiPlaceDrag = options.aiPlaceDrag;
+    this.aiPlaceTap = options.aiPlaceTap;
+  }
+
+  setStickyKind(kind: PieceKind) {
+    this.stickyKind = kind;
+    this.syncStickyKindToDom();
+    this.renderStatus();
+  }
+
+  getStickyKind(): PieceKind {
+    return this.stickyKind;
+  }
+
+  effectiveStickyKind(): PieceKind {
+    const hand = this.view.pools[0]!;
+    const hasKitten = hand.kittens_in_hand > 0;
+    const hasCat = hand.cats_in_hand > 0;
+    if (this.stickyKind === 'kitten' && hasKitten) return 'kitten';
+    if (this.stickyKind === 'cat' && hasCat) return 'cat';
+    if (hasKitten) {
+      this.stickyKind = 'kitten';
+      return 'kitten';
+    }
+    if (hasCat) {
+      this.stickyKind = 'cat';
+      return 'cat';
+    }
+    return this.stickyKind;
+  }
+
+  sourceCellForKind(kind: PieceKind): number {
+    return this.sourceCellForPlacement(HUMAN, kind);
+  }
+
+  private syncStickyKindToDom() {
+    const effective = this.effectiveStickyKind();
+    for (const kind of ['kitten', 'cat'] as const) {
+      const btn = document.querySelector<HTMLElement>(`[data-testid="boop-size-${kind === 'kitten' ? 'kitten' : 'cat'}"]`);
+      if (!btn) continue;
+      const active = effective === kind;
+      btn.dataset.selected = active ? 'true' : 'false';
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    }
+  }
+
+  async tapPlaceOnBed(targetIndex: number) {
+    if (!this.canInteract() || !this.isPlaceMode()) return;
+    const { row, col } = cellCoordinates(GRID, targetIndex, OUTSIDE);
+    if (row < 0 || row >= GRID || col < 0 || col >= GRID) return;
+    if (this.view.board[row]?.[col]) return;
+    const kind = this.effectiveStickyKind();
+    this.syncStickyKindToDom();
+    const source = this.sourceCellForPlacement(HUMAN, kind);
+    await this.commitPlacement({ source, count: 1 }, targetIndex);
   }
 
   async init() {
@@ -61,12 +118,16 @@ export class BoopController {
 
   newGame() {
     this.aiGeneration++;
+    this.aiWorker?.terminate();
+    this.aiWorker = null;
     this.game = new BoopGame();
     this.tracker.resetFromNewGame();
     this.view = parseGameView(this.game.view_json());
     this.inputEnabled = true;
     this.publishSnapshot();
-    this.renderStatus('Your turn — pick up a kitten from the pool or resting pile, then place on the bed');
+    this.stickyKind = 'kitten';
+    this.syncStickyKindToDom();
+    this.renderStatus('Your turn — tap a bed cell to place (pick kitten or cat below)');
   }
 
   getSnapshot(): BoardSnapshot {
@@ -171,10 +232,11 @@ export class BoopController {
 
     const kind = this.inferKindFromSource(selection.source);
     if (!kind) return;
+    const preferredId = this.getSnapshot().cells[selection.source]?.at(-1)?.id;
     const player = this.view.to_move;
     const moveJson = this.game.move_for_interaction_json(player, col, row, kind);
     if (!moveJson) return;
-    await this.playMoveJson(moveJson);
+    await this.playMoveJson(moveJson, { preferredPlacementId: preferredId });
   }
 
   private inferKindFromSource(sourceIndex: number): PieceKind | null {
@@ -214,7 +276,7 @@ export class BoopController {
       this.setStatus(detail ?? 'AI thinking…');
       return;
     }
-    this.setStatus(detail ?? 'Drag from pool or resting pile to an empty bed cell');
+    this.setStatus(detail ?? 'Tap an empty bed cell to place · switch kitten/cat in the bar');
   }
 
   private highlightWin() {
@@ -245,8 +307,14 @@ export class BoopController {
     await this.playMoveJson(moveJson);
   }
 
-  async playMoveJson(moveJson: string, options?: { scheduleAi?: boolean }) {
+  async playMoveJson(
+    moveJson: string,
+    options?: { scheduleAi?: boolean; preferredPlacementId?: string },
+  ) {
     const scheduleAi = options?.scheduleAi ?? true;
+    if (options?.preferredPlacementId) {
+      this.pendingPlacementPieceId = options.preferredPlacementId;
+    }
     const actor = this.view.to_move;
     const task = this.scene.enqueueAnimation(async () => {
       const before = parseGameView(this.game.view_json());
@@ -272,7 +340,9 @@ export class BoopController {
     const step = stepMs();
 
     if (move.type === 'place') {
-      const taken = this.tracker.takeForPlacement(actor, move.piece);
+      const preferredId = this.pendingPlacementPieceId;
+      this.pendingPlacementPieceId = undefined;
+      const taken = this.tracker.takeForPlacement(actor, move.piece, preferredId);
       if (taken?.from === 'resting') {
         this.tracker.addResting(taken.id, actor, move.piece, taken.restRow!, taken.restCol!);
         this.view = before;
@@ -332,20 +402,53 @@ export class BoopController {
     this.inputEnabled = false;
     this.renderStatus();
     await sleep(BOOP_ANIM.AI_PAUSE_MS);
-    const moveJson = this.game.choose_ai_move(this.getAiDepth());
+    const gen = ++this.aiGeneration;
+    const search = this.getAiSearchOptions();
+    const stateExport = this.game.export_state();
+    const moveJson = await this.requestAiMove(gen, stateExport, search);
+    if (gen !== this.aiGeneration) return;
     if (!moveJson) {
       this.inputEnabled = true;
       this.renderStatus('AI stuck');
       return;
     }
     const move = JSON.parse(moveJson) as MoveJson;
-    if (move.type === 'place' && this.aiPlaceDrag) {
+    if (move.type === 'place' && this.aiPlaceTap) {
       const from = this.sourceCellForPlacement(AI, move.piece);
       const to = cellIndex(GRID, move.y, move.x, OUTSIDE)!;
-      await this.aiPlaceDrag(from, to);
+      await this.aiPlaceTap(from, to);
       return;
     }
     await this.playMoveJson(moveJson);
+  }
+
+  private requestAiMove(
+    id: number,
+    stateExport: string,
+    search: AiStrengthSearchOptions,
+  ): Promise<string | undefined> {
+    return new Promise(resolve => {
+      this.aiWorker?.terminate();
+      this.aiWorker = new Worker(new URL('./ai.worker.ts', import.meta.url), { type: 'module' });
+      this.aiWorker.onmessage = (event: MessageEvent<{ id: number; moveJson?: string }>) => {
+        if (event.data.id !== id) return;
+        this.aiWorker?.terminate();
+        this.aiWorker = null;
+        resolve(event.data.moveJson);
+      };
+      this.aiWorker.onerror = () => {
+        this.aiWorker?.terminate();
+        this.aiWorker = null;
+        resolve(undefined);
+      };
+      this.aiWorker.postMessage({
+        id,
+        stateExport,
+        maxDepth: search.maxDepth,
+        maxNodes: search.maxNodes,
+        timeBudgetMs: search.maxTimeMs,
+      });
+    });
   }
 
   async smokePlace(x = 2, y = 2) {

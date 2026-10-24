@@ -75,17 +75,24 @@ export function createGameUi(options: GameUiOptions) {
     }
   }
 
-  function placementMove(target: number): Move | null {
+  function placementMove(target: number, source?: number): Move | null {
     if (target < 0 || target >= playableCells() || game.board.cells[target]!.length) return null;
+    const reserveSource = source !== undefined && source >= playableCells() ? source : undefined;
+    const pieceId =
+      reserveSource !== undefined ? game.board.cells[reserveSource]?.at(-1)?.id : undefined;
     if (game.ply < 2) {
-      return { type: 'place', to: target, kind: 'stone', orientation: 'flat' };
+      return { type: 'place', to: target, kind: 'stone', orientation: 'flat', source: reserveSource, pieceId };
     }
-    if (piece === 'capstone') return { type: 'place', to: target, kind: 'capstone', orientation: 'flat' };
+    if (piece === 'capstone') {
+      return { type: 'place', to: target, kind: 'capstone', orientation: 'flat', source: reserveSource, pieceId };
+    }
     return {
       type: 'place',
       to: target,
       kind: 'stone',
       orientation: piece === 'standing' ? 'standing' : 'flat',
+      source: reserveSource,
+      pieceId,
     };
   }
 
@@ -142,7 +149,7 @@ export function createGameUi(options: GameUiOptions) {
       const source = selection.source;
       if (typeof source === 'number') {
         if (source >= playableCells()) {
-          const move = placementMove(target);
+          const move = placementMove(target, source);
           if (move) stage(move);
           else render('Choose an empty square.');
           return;

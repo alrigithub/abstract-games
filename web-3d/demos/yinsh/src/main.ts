@@ -3,8 +3,8 @@ import {
   YINSH_COORDS,
   createBoardScene,
   createGameButtons,
-  createInteraction,
   createYinshTopology,
+  TAP_MOVE_THRESHOLD,
   DEFAULT_LOBBY_HREF,
   levelToSearchOptions,
   readInitialTheme,
@@ -12,7 +12,6 @@ import {
   YINSH_AI_STRENGTH_STORAGE_KEY,
   yinshWorldPoint,
   type PieceGeometrySet,
-  type ReservePick,
   type ThemeId,
   type Topology,
 } from '@abstract/three-engine';
@@ -62,7 +61,7 @@ let aiPending = false;
 let aiGeneration = 0;
 let aiWorker: Worker | null = null;
 let ringMoveFrom: ReturnType<typeof indexToCoord> | null = null;
-let lastDragging = false;
+let pendingTap: { x: number; y: number } | null = null;
 
 const scene = await createBoardScene(board, {
   gridSize: 11,
@@ -212,87 +211,89 @@ async function humanMove(move: Move) {
   });
 }
 
-createInteraction({
-  element: stage as HTMLElement,
-  getSnapshot: () => gameStateToSnapshot(game),
-  canInteract: () => humanTurn(),
-  hitTest: (x, y) => (humanTurn() ? scene.hitTest(x, y) : null),
-  hitReserve: (x, y) => {
-    if (!humanTurn() || game.turnMode.tag !== 'RingPlacement') return null;
-    const pick = scene.hitReserve(x, y);
-    if (!pick) return null;
-    if (pick.slotId === `hand-${humanPlayer}`) return pick;
-    return null;
-  },
-  onView: view => {
-    scene.setInteraction(view);
-    lastDragging = view.dragging;
-  },
-  onCommit: (selection, target) => {
-    if (typeof target !== 'number') return;
-    const coord = indexToCoord(target);
+function syncYinshInteractionPreview(clientX?: number, clientY?: number) {
+  if (!humanTurn()) {
+    scene.setInteraction({ selection: null, dragging: false, pointer: null, origin: null, target: null, progress: 0 });
+    return;
+  }
+  const pointer = clientX !== undefined && clientY !== undefined ? { x: clientX, y: clientY } : null;
+  const target = pointer ? scene.hitTest(pointer.x, pointer.y) : null;
+  if (ringMoveFrom) {
+    const source = coordToIndex(ringMoveFrom);
+    scene.setInteraction({
+      selection: { source, count: 1 },
+      dragging: false,
+      pointer,
+      origin: null,
+      target,
+      progress: 0,
+    });
+    return;
+  }
+  scene.setInteraction({ selection: null, dragging: false, pointer, origin: null, target, progress: 0 });
+}
 
-    if (typeof selection.source !== 'number') {
-      const reserve = selection.source as ReservePick;
-      if (reserve.slotId === `hand-${humanPlayer}` && game.turnMode.tag === 'RingPlacement') {
-        void humanMove({ tag: 'PlaceRing', coord });
-      }
-      return;
-    }
+async function handleYinshTap(clientX: number, clientY: number) {
+  if (!humanTurn()) return;
+  const reserve = scene.hitReserve(clientX, clientY);
+  if (reserve?.slotId === `hand-${humanPlayer}` && game.turnMode.tag === 'RingPlacement') {
+    const cell = scene.hitTest(clientX, clientY);
+    if (cell !== null) void humanMove({ tag: 'PlaceRing', coord: indexToCoord(cell) });
+    return;
+  }
+  const cell = scene.hitTest(clientX, clientY);
+  if (cell === null) return;
+  const coord = indexToCoord(cell);
+  const mode = game.turnMode.tag;
 
-    const from = indexToCoord(selection.source);
-    const mode = game.turnMode.tag;
+  if (mode === 'RingPlacement') {
+    void humanMove({ tag: 'PlaceRing', coord });
+    return;
+  }
+  if (mode === 'MarkerPlacement') {
+    void humanMove({ tag: 'PlaceMarker', coord });
+    return;
+  }
+  if (mode === 'RunRemoval') {
+    void humanMove({ tag: 'RemoveRun', coord });
+    return;
+  }
+  if (mode === 'RingRemoval') {
+    void humanMove({ tag: 'RemoveRing', coord });
+    return;
+  }
+  if (mode === 'RingMovement') {
+    if (!ringMoveFrom) {
+      ringMoveFrom = coord;
+      gameButtons.setStatus(`${statusLine(game, humanPlayer, gameButtons.aiStrength!.getLevel().label)} · Ring selected — tap destination`);
+      syncYinshInteractionPreview(clientX, clientY);
+      return;
+    }
+    void humanMove({ tag: 'MoveRing', start: ringMoveFrom, end: coord });
+  }
+}
 
-    if (mode === 'MarkerPlacement') {
-      void humanMove({ tag: 'PlaceMarker', coord: from });
-      return;
-    }
-    if (mode === 'RingMovement' && game.turnMode.tag === 'RingMovement') {
-      void humanMove({ tag: 'MoveRing', start: game.turnMode.start, end: coord });
-      return;
-    }
-    if (mode === 'RunRemoval') {
-      void humanMove({ tag: 'RemoveRun', coord });
-      return;
-    }
-    if (mode === 'RingRemoval') {
-      void humanMove({ tag: 'RemoveRing', coord: from });
-    }
-  },
-});
+const onPointerDown = ((event: PointerEvent) => {
+  if (event.button !== 0 || !humanTurn()) return;
+  pendingTap = { x: event.clientX, y: event.clientY };
+}) as EventListener;
 
-stage.addEventListener(
-  'click',
-  ((event: MouseEvent) => {
-    if (!humanTurn() || lastDragging) return;
-    const cell = scene.hitTest(event.clientX, event.clientY);
-    if (cell === null) return;
-    const coord = indexToCoord(cell);
-    const mode = game.turnMode.tag;
+const onPointerMove = ((event: PointerEvent) => {
+  if (!humanTurn()) return;
+  syncYinshInteractionPreview(event.clientX, event.clientY);
+}) as EventListener;
 
-    if (mode === 'MarkerPlacement') {
-      void humanMove({ tag: 'PlaceMarker', coord });
-      return;
-    }
-    if (mode === 'RunRemoval') {
-      void humanMove({ tag: 'RemoveRun', coord });
-      return;
-    }
-    if (mode === 'RingRemoval') {
-      void humanMove({ tag: 'RemoveRing', coord });
-      return;
-    }
-    if (mode === 'RingMovement') {
-      if (!ringMoveFrom) {
-        ringMoveFrom = coord;
-        gameButtons.setStatus(`${statusLine(game, humanPlayer, gameButtons.aiStrength!.getLevel().label)} · Ring selected`);
-        return;
-      }
-      void humanMove({ tag: 'MoveRing', start: ringMoveFrom, end: coord });
-    }
-  }) as EventListener,
-  true,
-);
+const onPointerUp = ((event: PointerEvent) => {
+  if (event.button !== 0 || !pendingTap) return;
+  const start = pendingTap;
+  pendingTap = null;
+  if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > TAP_MOVE_THRESHOLD) return;
+  void handleYinshTap(event.clientX, event.clientY);
+}) as EventListener;
+
+stage.addEventListener('pointerdown', onPointerDown, true);
+stage.addEventListener('pointermove', onPointerMove, true);
+stage.addEventListener('pointerup', onPointerUp, true);
 
 function loadRingCloseupShot() {
   const idx = coordToIndex({ x: 0, y: 0 });

@@ -2,7 +2,9 @@ import { createSandboxState } from '../state';
 import type { BoardState, Color, Orientation, Piece, PieceKind } from '../types';
 
 export type Direction = 'north' | 'east' | 'south' | 'west';
-export type Move = { type: 'place'; to: number; kind: PieceKind; orientation: Orientation } | { type: 'spread'; from: number; direction: Direction; drops: number[] };
+export type Move =
+  | { type: 'place'; to: number; kind: PieceKind; orientation: Orientation; source?: number; pieceId?: string }
+  | { type: 'spread'; from: number; direction: Direction; drops: number[] };
 export interface GameResult { winner: Color | null; reason: 'road' | 'flats'; flats: Record<Color, number> }
 export interface GameState { board: BoardState; toMove: Color; ply: number; result: GameResult | null }
 export const opposite = (color: Color): Color => color === 'ivory' ? 'charcoal' : 'ivory';
@@ -95,9 +97,24 @@ export function applyMove(game: GameState, move: Move): GameState {
   const cells = game.board.cells.slice();
   if (move.type === 'place') {
     const color = placementColor(game);
-    const source = cells.findIndex((stack, index) => index >= game.board.size ** 2 && stack.some(piece => piece.color === color && piece.kind === move.kind));
+    const reserveStart = game.board.size ** 2;
+    let source =
+      move.source !== undefined && move.source >= reserveStart
+        ? move.source
+        : move.pieceId !== undefined
+          ? cells.findIndex((stack, index) => index >= reserveStart && stack.some(piece => piece.id === move.pieceId))
+          : -1;
+    if (source < 0) {
+      source = cells.findIndex(
+        (stack, index) => index >= reserveStart && stack.some(piece => piece.color === color && piece.kind === move.kind),
+      );
+    }
     let offset = cells[source]!.length - 1;
     while (cells[source]![offset]!.color !== color || cells[source]![offset]!.kind !== move.kind) offset--;
+    if (move.pieceId !== undefined) {
+      const byId = cells[source]!.findIndex(piece => piece.id === move.pieceId);
+      if (byId >= 0) offset = byId;
+    }
     const piece = cells[source]![offset]!;
     cells[source] = cells[source]!.filter((_, i) => i !== offset);
     cells[move.to] = [{ ...piece, orientation: move.orientation }];

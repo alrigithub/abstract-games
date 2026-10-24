@@ -1,244 +1,194 @@
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
-  BOARD,
-  CAMERA,
-  GIPF_CHIP,
-  applyBoardEnvironment,
-  createBoardWebGLRenderer,
-  createCameraViewController,
+  createBoardScene,
   createGameButtons,
-  createGipfChipGeometry,
-  createGipfHexBoard,
+  createTapInteraction,
   createTzaarHexTopology,
-  createTzaarPieceMesh,
-  gipfLayoutFrameCorners,
+  DEFAULT_LOBBY_HREF,
+  levelToSearchOptions,
   readInitialTheme,
-  tzaarFixedStart,
-  tzaarLayout,
-  tzaarPlayableCells,
-  themeTokens,
-  type EnginePiece,
+  TZAAR_AI_STRENGTH_STORAGE_KEY,
   type ThemeId,
 } from '@abstract/three-engine';
 import { loadTzaarPieceGeometrySet } from './tzaar-piece-models';
+import { chooseAiMove } from './game/ai';
+import { gameToSnapshot, indexToCoord } from './game/snapshot';
+import { GameState, type Coord, type Move, type Player } from './game/state';
 
-/** Official start plus a few mid-board stacks so height reads at a glance. */
-const STACKS: Record<string, number> = {
-  '3,2': 5,
-  '6,4': 4,
-  '2,4': 3,
-  '4,6': 5,
-  '1,1': 2,
-  '7,7': 4,
-  '0,0': 3,
-  '8,8': 2,
-};
+const board = document.querySelector<HTMLDivElement>('#board')!;
+let theme: ThemeId = readInitialTheme();
+document.documentElement.dataset.theme = theme;
 
-const boardEl = document.querySelector<HTMLDivElement>('#board')!;
-
-const renderer = createBoardWebGLRenderer();
-boardEl.appendChild(renderer.domElement);
-
-const scene = new THREE.Scene();
-applyBoardEnvironment(scene, renderer);
-const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
-camera.position.set(...CAMERA.position);
-camera.lookAt(0, 0, 0);
-
-const boardRoot = new THREE.Group();
-const piecesRoot = new THREE.Group();
-const shadowsRoot = new THREE.Group();
-scene.add(boardRoot, shadowsRoot, piecesRoot);
-
-const layout = tzaarLayout();
-const topology = createTzaarHexTopology();
-const cells = tzaarPlayableCells();
-const start = tzaarFixedStart();
-const snapshot = {
-  playableCells: cells.length,
-  cellCount: cells.length,
-  cells: cells.map(() => []),
-};
-const discGeo = createGipfChipGeometry();
-
-interface StackLabel {
-  el: HTMLSpanElement;
-  world: THREE.Vector3;
-}
-
-const labelCenter = new THREE.Vector3();
-const labelRim = new THREE.Vector3();
-/** Extra pixels beyond the projected chip radius, up-right of the top centre. */
-const LABEL_CLEAR_PX = 16;
-
-const labels: StackLabel[] = [];
-let cameraReady = false;
-
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0, 0);
-controls.enableDamping = false;
-controls.enablePan = true;
-controls.rotateSpeed = CAMERA.rotateSpeed;
-controls.zoomSpeed = CAMERA.zoomSpeed;
-controls.minPolarAngle = CAMERA.minPolarAngle;
-controls.maxPolarAngle = CAMERA.maxPolarAngle;
-controls.minZoom = CAMERA.minZoom;
-controls.maxZoom = CAMERA.maxZoom;
-controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
-controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
-controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
-controls.touches.ONE = THREE.TOUCH.PAN;
-controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
-
-let frame = 0;
-let viewportW = 1;
-let viewportH = 1;
-function requestRender() {
-  if (!document.hidden && !frame) frame = requestAnimationFrame(render);
-}
-function projectLabels() {
-  if (!cameraReady) return;
-  camera.updateMatrixWorld();
-  const bounds = boardEl.getBoundingClientRect();
-  const w = bounds.width;
-  const h = bounds.height;
-  if (w < 2 || h < 2) return;
-  const radius = GIPF_CHIP.RADIUS;
-  for (const label of labels) {
-    labelCenter.copy(label.world).project(camera);
-    const cx = (labelCenter.x * 0.5 + 0.5) * w;
-    const cy = (-labelCenter.y * 0.5 + 0.5) * h;
-    labelRim.set(label.world.x + radius, label.world.y, label.world.z).project(camera);
-    const radiusPx = Math.hypot((labelRim.x * 0.5 + 0.5) * w - cx, (-labelRim.y * 0.5 + 0.5) * h - cy);
-    const dist = radiusPx + LABEL_CLEAR_PX;
-    const along = dist * Math.SQRT1_2;
-    label.el.style.left = `${cx + along}px`;
-    label.el.style.top = `${cy - along}px`;
-  }
-}
-function render() {
-  frame = 0;
-  if (document.hidden) return;
-  renderer.render(scene, camera);
-  projectLabels();
-}
-
-controls.addEventListener('change', requestRender);
-
-function tzaarFramePoints(): THREE.Vector3[] {
-  return (topology.frameCorners?.(snapshot) ?? gipfLayoutFrameCorners(layout)).map(p => p.clone());
-}
-
-const cameraViews = createCameraViewController({
-  camera,
-  controls,
-  getBounds: tzaarFramePoints,
-  getAspect: () => viewportW / viewportH,
-  onUpdate: requestRender,
-});
-
-function fit() {
-  const bounds = boardEl.getBoundingClientRect();
-  viewportW = Math.max(1, Math.round(bounds.width));
-  viewportH = Math.max(1, Math.round(bounds.height));
-  renderer.setSize(viewportW, viewportH, true);
-  cameraViews.refit();
-  cameraReady = true;
-  projectLabels();
-  requestRender();
-}
+let humanPlayer: Player = 'A';
+let aiPlayer: Player = 'B';
+let game = new GameState();
+let aiPending = false;
 
 const pieces = await loadTzaarPieceGeometrySet();
+const topology = createTzaarHexTopology();
 
-function applyTheme(id: ThemeId) {
-  const tokens = themeTokens(id);
-  scene.background = new THREE.Color(tokens.table);
-  boardRoot.clear();
-  boardRoot.add(createGipfHexBoard(layout, tokens));
-  piecesRoot.clear();
-  shadowsRoot.clear();
-  for (const label of labels) label.el.remove();
-  labels.length = 0;
-  const edgeCache = new Map<THREE.BufferGeometry, THREE.EdgesGeometry>();
-  const shadowMat = new THREE.MeshBasicMaterial({
-    color: tokens.shadow,
-    transparent: true,
-    opacity: 0.09,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    toneMapped: false,
-  });
-  const surface = BOARD.PLAYFIELD_SURFACE_Y;
-  for (const piece of start) {
-    const height = STACKS[`${piece.x},${piece.y}`] ?? 1;
-    const pos = topology.cellPosition(piece.index, snapshot);
-    let y = surface;
-    for (let level = 0; level < height; level++) {
-      const enginePiece: EnginePiece = {
-        id: `${piece.x},${piece.y},${level}`,
-        player: piece.player,
-        shape: piece.kind,
-      };
-      const step = pieces.height(enginePiece);
-      const visual = pieces.createVisual
-        ? pieces.createVisual(enginePiece)
-        : createTzaarPieceMesh({
-            player: piece.player,
-            kind: piece.kind,
-            isTop: level === height - 1,
-            tokens,
-            edgeCache,
-            showSeparator: level > 0,
-          });
-      visual.position.set(pos.x, y + step / 2, pos.z);
-      piecesRoot.add(visual);
-      y += step;
-    }
-    const shadow = new THREE.Mesh(discGeo, shadowMat);
-    shadow.scale.set(1, 0.001, 1);
-    shadow.position.set(pos.x, surface + BOARD.SHADOW_CONTACT_EPSILON, pos.z);
-    shadow.renderOrder = 1;
-    shadowsRoot.add(shadow);
-    if (height >= 2) {
-      const el = document.createElement('span');
-      el.className = 'stack-height';
-      el.textContent = String(height);
-      el.dataset.testid = `stack-height-${piece.x}-${piece.y}`;
-      boardEl.appendChild(el);
-      labels.push({ el, world: new THREE.Vector3(pos.x, y, pos.z) });
-    }
-  }
-  requestRender();
-  if (cameraReady) projectLabels();
+const scene = await createBoardScene(board, {
+  gridSize: 9,
+  topology,
+  pieces,
+  initialTheme: theme,
+});
+const stage = board.querySelector('canvas') ?? board;
+
+function applyTheme(next: ThemeId) {
+  theme = next;
+  document.documentElement.dataset.theme = theme;
+  scene.setTheme(theme);
 }
 
-const initial: ThemeId = readInitialTheme();
-applyTheme(initial);
+function syncSnapshot() {
+  scene.setSnapshot(gameToSnapshot(game));
+  renderStatus();
+}
 
 function renderStatus(extra?: string) {
-  gameButtons.setStatus(extra ?? 'Tzaar piece demo · official start (no 3D AI yet)');
+  const label = gameButtons.aiStrength!.getLevel().label;
+  if (extra) {
+    gameButtons.setStatus(extra);
+    return;
+  }
+  if (game.winner) {
+    const who = game.winner === humanPlayer ? 'You win!' : 'AI wins.';
+    gameButtons.setStatus(`${who} · AI ${label}`);
+    return;
+  }
+  if (aiPending) {
+    gameButtons.setStatus(`AI thinking… · ${label}`);
+    return;
+  }
+  if (game.toMove === humanPlayer) {
+    gameButtons.setStatus(`Tap your stack, then tap target · AI ${label}`);
+  } else {
+    gameButtons.setStatus(`AI to move · ${label}`);
+  }
 }
+
+const cameraViews = scene.createCameraViews();
 
 const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  lobbyHref: DEFAULT_LOBBY_HREF,
   cameraViews,
+  aiStrengthStorageKey: TZAAR_AI_STRENGTH_STORAGE_KEY,
   applyTheme,
-  onNewGameReset: () => {
-    applyTheme(initial);
-    renderStatus('Demo layout reset');
-  },
-  onRestartRound: () => {
-    applyTheme(initial);
-    renderStatus('Demo layout reset');
+  onAiStrengthChange: () => renderStatus(),
+  onRestartRound: () => startGame(humanPlayer),
+  firstPlayer: {
+    title: 'Who plays white?',
+    description: 'You vs AI — pick your color.',
+    choices: [
+      { label: 'You · White (A)', id: 'A', testId: 'first-white' },
+      { label: 'You · Black (B)', id: 'B', testId: 'first-black' },
+    ],
+    onSelect: id => startGame(id as Player),
   },
 });
 
-renderStatus();
-fit();
+function startGame(human: Player) {
+  humanPlayer = human;
+  aiPlayer = human === 'A' ? 'B' : 'A';
+  game = new GameState();
+  aiPending = false;
+  syncSnapshot();
+  maybeAiTurn();
+}
 
-const resize = new ResizeObserver(() => fit());
-resize.observe(boardEl);
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) requestRender();
+function humanTurn() {
+  return !game.winner && game.toMove === humanPlayer && !aiPending;
+}
+
+function coordFromIndex(index: number): Coord {
+  return indexToCoord(index);
+}
+
+function stackOwnedByHuman(c: Coord) {
+  const s = game.board.stack(c);
+  return !!s && s.owner === humanPlayer;
+}
+
+async function performMove(move: Move) {
+  if (!game.apply(move)) return;
+  syncSnapshot();
+}
+
+async function humanMove(move: Move) {
+  if (!humanTurn()) return;
+  await scene.enqueueAnimation(async () => {
+    await performMove(move);
+    renderStatus();
+    maybeAiTurn();
+  });
+}
+
+async function runAiTurn() {
+  if (game.winner || game.toMove !== aiPlayer) return;
+  aiPending = true;
+  renderStatus();
+  await new Promise(r => setTimeout(r, 120));
+  const move = chooseAiMove(game);
+  await scene.enqueueAnimation(async () => {
+    if (move) await performMove(move);
+    aiPending = false;
+    renderStatus();
+    maybeAiTurn();
+  });
+}
+
+function maybeAiTurn() {
+  if (game.winner || game.toMove !== aiPlayer || aiPending) return;
+  void runAiTurn();
+}
+
+createTapInteraction({
+  element: stage as HTMLElement,
+  getSnapshot: () => gameToSnapshot(game),
+  canInteract: () => humanTurn(),
+  getPickHeight(cell) {
+    if (!humanTurn()) return 0;
+    const c = coordFromIndex(cell);
+    return stackOwnedByHuman(c) ? 1 : 0;
+  },
+  hitTest: (x, y) => (humanTurn() ? scene.hitTest(x, y) : null),
+  onView: view => scene.setInteraction(view),
+  onCommit: (selection, target) => {
+    if (typeof selection.source !== 'number') return;
+    const from = coordFromIndex(selection.source);
+    const to = coordFromIndex(target);
+    void humanMove({ tag: 'Action', from, to });
+  },
 });
+
+if (new URLSearchParams(location.search).has('e2e')) startGame('A');
+
+declare global {
+  interface Window {
+    __tzaarE2e?: {
+      humanTurn: () => boolean;
+      aiPending: () => boolean;
+      firstLegalMove: () => Move | null;
+      applyMove: (move: Move) => void;
+      waitForSettled: () => Promise<void>;
+    };
+  }
+}
+
+if (new URLSearchParams(location.search).has('e2e')) {
+  window.__tzaarE2e = {
+    humanTurn: () => humanTurn(),
+    aiPending: () => aiPending,
+    firstLegalMove: () => game.legalMoves()[0] ?? null,
+    applyMove: (move: Move) => humanMove(move),
+    waitForSettled: async () => {
+      while (aiPending || scene.animationsBusy()) {
+        await new Promise<void>(r => requestAnimationFrame(() => r()));
+      }
+      await scene.drainAnimations();
+    },
+  };
+}
+
+export { scene, game };
