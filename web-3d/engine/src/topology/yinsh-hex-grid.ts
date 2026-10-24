@@ -3,6 +3,7 @@ import {
   createGipfHexBoard,
   gipfPointKey,
   gipfWorldPoint,
+  isYinshPlayfieldAxial,
   yinshLayout,
   type GipfHexLayout,
 } from '../geometries/gipf-set';
@@ -26,6 +27,10 @@ export function yinshCoordKey(coord: YinshCoord): string {
 
 export function yinshWorldPoint(coord: YinshCoord, spacing: number = YINSH.SPACING): THREE.Vector3 {
   return gipfWorldPoint(coord.x, coord.y, spacing);
+}
+
+export function isYinshPlayfieldCoord(coord: YinshCoord): boolean {
+  return isYinshPlayfieldAxial(coord.x, coord.y);
 }
 
 function tokensFromBoardContext(ctx: BoardBuildContext): ThemeTokens {

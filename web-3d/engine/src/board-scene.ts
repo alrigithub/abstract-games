@@ -8,7 +8,7 @@ import { decoratePieceMesh, makePieceShadow } from './geometries/piece-outlines'
 import { stackHeight } from './stack';
 import { layoutStackCenters, stackExtent, type StackMeasure } from './stack-layout';
 import { createBoardWebGLRenderer } from './board-renderer';
-import { initPlaceSfx, playPiecePlaceSound, type PlaceSoundKind } from './sound/place-sfx';
+import { consumeBoopPushLandingSound, initPlaceSfx, playPiecePlaceSound, type PlaceSoundKind } from './sound/place-sfx';
 import { themeTokens, type ThemeId } from './theme';
 import type {
   BoardSnapshot,
@@ -279,8 +279,10 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
 
   function finishLandSound(item: PieceObject) {
     if (!item.landOnComplete) return;
-    playPiecePlaceSound({ kind: item.landOnComplete });
+    const kind = item.landOnComplete;
     item.landOnComplete = undefined;
+    if (kind === 'place' && !consumeBoopPushLandingSound()) return;
+    playPiecePlaceSound({ kind });
   }
 
   function render(now: number) {
@@ -967,6 +969,35 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     },
     enqueueAnimation(task) {
       return animQueue.enqueue(task);
+    },
+    animationsBusy() {
+      return animQueue.busy;
+    },
+    drainAnimations() {
+      return animQueue.drain();
+    },
+    reframe() {
+      fit(true);
+    },
+    setCameraView(options = {}) {
+      const elevation = ((options.elevationDeg ?? 35) * Math.PI) / 180;
+      const azimuth = ((options.azimuthDeg ?? 42) * Math.PI) / 180;
+      const polar = Math.PI / 2 - elevation;
+      const target = options.target
+        ? new THREE.Vector3(options.target.x, options.target.y, options.target.z)
+        : controls.target.clone();
+      controls.target.copy(target);
+      const dist = 6;
+      camera.position.set(
+        target.x + Math.sin(polar) * Math.cos(azimuth) * dist,
+        target.y + Math.cos(polar) * dist,
+        target.z + Math.sin(polar) * Math.sin(azimuth) * dist,
+      );
+      camera.up.set(0, 1, 0);
+      camera.lookAt(target);
+      controls.update();
+      camera.updateMatrixWorld();
+      requestRender();
     },
     flipPiece(pieceId) {
       return new Promise<void>(resolve => {

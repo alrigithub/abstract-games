@@ -1,10 +1,20 @@
 export const PLACE_SFX_STORAGE_KEY = 'abstract-three-place-sound';
 
 const CLIP_COUNT = 6;
+const WIN_CLIP_COUNT = 2;
 
 export const PLACE_SFX_URLS: readonly string[] = Array.from({ length: CLIP_COUNT }, (_, i) =>
   new URL(`../../assets/sfx/place-${i + 1}.mp3`, import.meta.url).href,
 );
+
+export const WIN_SFX_URLS: readonly string[] = Array.from({ length: WIN_CLIP_COUNT }, (_, i) =>
+  new URL(`../../assets/sfx/win-${i + 1}.mp3`, import.meta.url).href,
+);
+
+export const BOOP_SFX_URL = new URL('../../assets/sfx/boop.mp3', import.meta.url).href;
+
+/** Delay after a placement landing before win SFX (avoids clashing with place clips). */
+export const WIN_SOUND_AFTER_PLACE_DELAY_MS = 220;
 
 export type PlaceSoundKind = 'place' | 'cancel';
 
@@ -18,6 +28,10 @@ export function pickPlaceClipIndex(lastIndex: number | null, random: () => numbe
   let idx = Math.floor(random() * count);
   if (lastIndex !== null && idx === lastIndex) idx = (idx + 1 + Math.floor(random() * (count - 1))) % count;
   return idx;
+}
+
+export function pickWinClipIndex(lastIndex: number | null, random: () => number): number {
+  return pickPlaceClipIndex(lastIndex, random, WIN_CLIP_COUNT);
 }
 
 export function readPlaceSoundEnabled(storageKey = PLACE_SFX_STORAGE_KEY): boolean {
@@ -42,9 +56,14 @@ export function writePlaceSoundEnabled(enabled: boolean, storageKey = PLACE_SFX_
 let initDone = false;
 let enabled = true;
 let lastClipIndex: number | null = null;
+let lastWinClipIndex: number | null = null;
 let audioContext: AudioContext | null = null;
 let buffers: AudioBuffer[] | null = null;
+let winBuffers: AudioBuffer[] | null = null;
+let boopBuffer: AudioBuffer | null = null;
 let loadPromise: Promise<void> | null = null;
+let boopPushBatchDepth = 0;
+let boopPushBatchPlayed = false;
 
 function ensureContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -56,19 +75,29 @@ function ensureContext(): AudioContext | null {
   return audioContext;
 }
 
+async function decodeClip(ctx: AudioContext, url: string): Promise<AudioBuffer> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`sfx fetch failed: ${url}`);
+  const data = await res.arrayBuffer();
+  return ctx.decodeAudioData(data.slice(0));
+}
+
 async function loadBuffers(): Promise<void> {
-  if (buffers) return;
+  if (buffers && winBuffers && boopBuffer) return;
   const ctx = ensureContext();
   if (!ctx) return;
-  const decoded = await Promise.all(
-    PLACE_SFX_URLS.map(async url => {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`place sfx fetch failed: ${url}`);
-      const data = await res.arrayBuffer();
-      return ctx.decodeAudioData(data.slice(0));
-    }),
-  );
-  buffers = decoded;
+  const [place, win, boop] = await Promise.all([
+    buffers
+      ? Promise.resolve(buffers)
+      : Promise.all(PLACE_SFX_URLS.map(url => decodeClip(ctx, url))),
+    winBuffers
+      ? Promise.resolve(winBuffers)
+      : Promise.all(WIN_SFX_URLS.map(url => decodeClip(ctx, url))),
+    boopBuffer ? Promise.resolve(boopBuffer) : decodeClip(ctx, BOOP_SFX_URL),
+  ]);
+  buffers = place;
+  winBuffers = win;
+  boopBuffer = boop;
 }
 
 function unlockAudioContext(): void {
@@ -84,6 +113,8 @@ export function initPlaceSfx(): void {
   enabled = readPlaceSoundEnabled();
   loadPromise = loadBuffers().catch(() => {
     buffers = null;
+    winBuffers = null;
+    boopBuffer = null;
   });
   const unlock = () => {
     unlockAudioContext();
@@ -129,4 +160,79 @@ export function playPiecePlaceSound(options: PlayPiecePlaceSoundOptions = {}): v
     source.start(0);
   };
   void run();
+}
+
+/** While active, the first pushed-piece landing plays {@link playBoopSound} instead of a place clip. */
+export function beginBoopPushLandSounds(): void {
+  boopPushBatchDepth++;
+}
+
+export function endBoopPushLandSounds(): void {
+  if (boopPushBatchDepth > 0) boopPushBatchDepth--;
+  if (boopPushBatchDepth === 0) boopPushBatchPlayed = false;
+}
+
+/**
+ * Called when a piece landing would play a place clip.
+ * @returns false when the landing sound was handled (boop batch) and place SFX should be skipped.
+ */
+export function consumeBoopPushLandingSound(): boolean {
+  if (boopPushBatchDepth <= 0) return true;
+  if (boopPushBatchPlayed) return false;
+  boopPushBatchPlayed = true;
+  playBoopSound();
+  return false;
+}
+
+/** Boop push sting (no-op when Sound is off or audio not unlocked). */
+export function playBoopSound(): void {
+  if (!enabled || typeof window === 'undefined') return;
+  const run = async () => {
+    await loadPromise;
+    const ctx = ensureContext();
+    if (!ctx || !boopBuffer) return;
+    unlockAudioContext();
+    if (ctx.state !== 'running') return;
+
+    const source = ctx.createBufferSource();
+    source.buffer = boopBuffer;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.95 + Math.random() * 0.1;
+    source.playbackRate.value = 0.98 + Math.random() * 0.06;
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(0);
+  };
+  void run();
+}
+
+/** Play a win sting (no-op when Sound is off or audio not unlocked). */
+export function playWinSound(): void {
+  if (!enabled || typeof window === 'undefined') return;
+  const run = async () => {
+    await loadPromise;
+    const ctx = ensureContext();
+    if (!ctx || !winBuffers?.length) return;
+    unlockAudioContext();
+    if (ctx.state !== 'running') return;
+
+    const index = pickWinClipIndex(lastWinClipIndex, Math.random);
+    lastWinClipIndex = index;
+    const buffer = winBuffers[index]!;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.92 + Math.random() * 0.16;
+    source.playbackRate.value = 0.96 + Math.random() * 0.08;
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(0);
+  };
+  void run();
+}
+
+/** Win sting shortly after the placement landing sound finishes its attack. */
+export function playWinSoundAfterPlace(): void {
+  if (!enabled || typeof window === 'undefined') return;
+  window.setTimeout(() => playWinSound(), WIN_SOUND_AFTER_PLACE_DELAY_MS);
 }

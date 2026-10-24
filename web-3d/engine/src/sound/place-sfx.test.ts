@@ -1,8 +1,10 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as placeSfx from './place-sfx';
 import {
   PLACE_SFX_STORAGE_KEY,
   pickPlaceClipIndex,
+  pickWinClipIndex,
   readPlaceSoundEnabled,
   setPlaceSoundEnabled,
   writePlaceSoundEnabled,
@@ -20,6 +22,35 @@ describe('pickPlaceClipIndex', () => {
 
   it('uses the only clip when count is 1', () => {
     expect(pickPlaceClipIndex(0, () => 0.5, 1)).toBe(0);
+  });
+});
+
+describe('boop push landing batch', () => {
+  afterEach(() => {
+    placeSfx.endBoopPushLandSounds();
+    placeSfx.endBoopPushLandSounds();
+    vi.restoreAllMocks();
+  });
+
+  it('handles first pushed landing in a batch instead of a place clip', () => {
+    expect(placeSfx.consumeBoopPushLandingSound()).toBe(true);
+
+    placeSfx.beginBoopPushLandSounds();
+    expect(placeSfx.consumeBoopPushLandingSound()).toBe(false);
+    expect(placeSfx.consumeBoopPushLandingSound()).toBe(false);
+
+    placeSfx.endBoopPushLandSounds();
+    expect(placeSfx.consumeBoopPushLandingSound()).toBe(true);
+  });
+});
+
+describe('pickWinClipIndex', () => {
+  it('never repeats the previous clip', () => {
+    for (let last = 0; last < 2; last++) {
+      for (let i = 0; i < 20; i++) {
+        expect(pickWinClipIndex(last, () => 0.99)).not.toBe(last);
+      }
+    }
   });
 });
 

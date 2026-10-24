@@ -134,6 +134,13 @@ export interface SceneApi {
   cellScreen(index: number): Point;
   /** Queue AI / remote moves through the same animation path. */
   enqueueAnimation(task: () => Promise<void>): Promise<void>;
+  /** True while {@link enqueueAnimation} tasks or tweens are still running. */
+  animationsBusy(): boolean;
+  drainAnimations(): Promise<void>;
+  /** Recompute orthographic framing from {@link Topology.frameCorners}. */
+  reframe(): void;
+  /** Aim the camera before {@link reframe} (orthographic zoom still comes from fit). */
+  setCameraView(options?: { elevationDeg?: number; azimuthDeg?: number; target?: { x: number; y: number; z: number } }): void;
   /** Animate a flippable piece (Yinsh marker, Tak flat/standing stone). */
   flipPiece(pieceId: string): Promise<void>;
   flipPieces(pieceIds: string[], staggerMs?: number): Promise<void>;
