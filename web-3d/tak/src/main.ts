@@ -89,6 +89,16 @@ const gameButtons = createGameButtons({
     onSelect: id => startAiGame(id as Color),
   },
   onAiStrengthChange: () => gameUi.refresh(),
+  onRestartRound: () => {
+    cancel();
+    if (gameUi.isActive()) gameUi.restartRound();
+    else {
+      history.length = 0;
+      state = createSandboxState(boardSize);
+      gameButtons.setStatus('Sandbox');
+      refresh();
+    }
+  },
 });
 
 

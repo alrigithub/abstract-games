@@ -383,6 +383,8 @@ export interface CreateGameButtonsOptions {
   };
   /** Demo/sandbox: New game resets immediately (no first-player popover). */
   onNewGameReset?: () => void;
+  /** Restart the current round with the same mode and settings (no start dialog). Falls back to {@link onNewGameReset}. */
+  onRestartRound?: () => void;
   /** When set, adds a theme toggle button using {@link bindThemeToggle}. */
   applyTheme?: (theme: ThemeId) => void;
   /** Alias for {@link applyTheme}. */
@@ -399,6 +401,8 @@ export interface GameButtonsBar {
   aiStrength: AiStrengthControl | null;
   setStatus(text: string): void;
   openNewGamePopover(): void;
+  /** Runs the restart-round handler (same as the menu item). */
+  restartRound(): void;
   /** Opens the ⋯ dropdown (for tests and programmatic access). */
   openMenu(): void;
   closeMenu(): void;
@@ -499,6 +503,16 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
     closeOnActivate: false,
   });
 
+  const restartRoundHandler = options.onRestartRound ?? options.onNewGameReset;
+  const restartRoundBtn = createMenuItem({
+    testId: 'restart-round',
+    icon: 'rotate-ccw',
+    label: 'Restart round',
+    closeOnActivate: true,
+    onActivate: () => restartRoundHandler?.(),
+  });
+  if (!restartRoundHandler) restartRoundBtn.hidden = true;
+
   const aiSlot = document.createElement('div');
   aiSlot.className = 'game-menu-ai-row';
   aiSlot.setAttribute('role', 'none');
@@ -528,7 +542,7 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
 
   const gameActions = [...(options.gameActions ?? []), ...(options.extraButtons ?? [])];
 
-  menu.append(newGameBtn);
+  menu.append(newGameBtn, restartRoundBtn);
   if (options.aiStrengthStorageKey) menu.append(aiSlot);
   menu.append(document.createElement('hr'));
   menu.lastElementChild!.className = 'game-menu-separator';
@@ -778,6 +792,10 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
       status.textContent = text;
     },
     openNewGamePopover,
+    restartRound() {
+      closeMenu();
+      restartRoundHandler?.();
+    },
     openMenu,
     closeMenu,
     destroy() {

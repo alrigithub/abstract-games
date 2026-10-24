@@ -59,6 +59,10 @@ const gameButtons = createGameButtons({
     interaction.cancel();
     controller.newGame();
   },
+  onRestartRound: () => {
+    interaction.cancel();
+    controller.newGame();
+  },
 });
 
 controller = new BoopController({

@@ -152,6 +152,7 @@ gameButtons = createGameButtons({
   onAiStrengthChange: level => renderStatus(undefined, level.label),
   applyTheme,
   onFirstPlayerSelected: color => startGame(color),
+  onRestartRound: () => startGame(humanColor),
 });
 
 renderStatus();

@@ -88,6 +88,7 @@ describe('createGameButtons menu', () => {
     });
     bar.openMenu();
     expect(mount.querySelector('[data-testid="new-game"]')).toBeTruthy();
+    expect(mount.querySelector('[data-testid="restart-round"]')).toBeTruthy();
     expect(mount.querySelector('[data-testid="ai-strength"]')).toBeTruthy();
     expect(mount.querySelector('[data-testid="theme-toggle"]')).toBeTruthy();
     expect(mount.querySelector('[data-testid="back-to-lobby"]')).toBeTruthy();
@@ -107,6 +108,43 @@ describe('createGameButtons menu', () => {
     expect(document.querySelector('[data-testid="game-action-bar"]')).toBeTruthy();
     expect(document.querySelector('[data-testid="flip-action"]')).toBeTruthy();
     expect(mount.querySelector('[data-testid="flip-action"]')).toBeNull();
+    bar.destroy();
+  });
+
+  it('invokes onRestartRound from the menu item', () => {
+    const onRestartRound = vi.fn();
+    const bar = createGameButtons({
+      mount,
+      basePageStyles: false,
+      onRestartRound,
+    });
+    bar.openMenu();
+    (mount.querySelector('[data-testid="restart-round"]') as HTMLButtonElement).click();
+    expect(onRestartRound).toHaveBeenCalledTimes(1);
+    bar.destroy();
+  });
+
+  it('falls back to onNewGameReset for restart round', () => {
+    const onNewGameReset = vi.fn();
+    const bar = createGameButtons({
+      mount,
+      basePageStyles: false,
+      onNewGameReset,
+    });
+    bar.restartRound();
+    expect(onNewGameReset).toHaveBeenCalledTimes(1);
+    bar.destroy();
+  });
+
+  it('hides restart round when no handler is provided', () => {
+    const bar = createGameButtons({
+      mount,
+      basePageStyles: false,
+      onFirstPlayerSelected: () => {},
+    });
+    bar.openMenu();
+    const restart = mount.querySelector('[data-testid="restart-round"]') as HTMLElement;
+    expect(restart.hidden).toBe(true);
     bar.destroy();
   });
 
