@@ -70,6 +70,7 @@ export async function createGomokuScene(
   let inputEnabled = true;
 
   const stoneAssets = options.stoneAssets ?? (await loadGomokuStoneAssets(materials));
+  stoneAssets.onThemeChange(themeId);
 
   const size = GOMOKU_DIMS.GRID;
   const restY = gomokuStoneRestCenterY();
@@ -175,6 +176,7 @@ export async function createGomokuScene(
       const mat = record.player === 'A' ? materials.stoneA : materials.stoneB;
       if (mesh instanceof THREE.Mesh) mesh.material = mat;
     }
+    mesh.userData.player = record.player;
     mesh.rotation.y = yaw;
     (mesh.userData.shadow as THREE.Mesh).rotation.y = yaw;
     mesh.position.set(p.x, y, p.z);
@@ -368,6 +370,13 @@ export async function createGomokuScene(
       materials.stoneB.dispose();
       materials = gomokuThemeMaterials(themeId);
       scene.background = materials.table.clone();
+      stoneAssets.onThemeChange(themeId);
+      if (stoneAssets.usesGlb) {
+        for (const mesh of stoneMeshes.values()) {
+          const player = mesh.userData.player as ScenePlayer | undefined;
+          if (player) stoneAssets.replaceVisual(mesh, player);
+        }
+      }
       rebuildBoardMesh();
       requestRender();
     },

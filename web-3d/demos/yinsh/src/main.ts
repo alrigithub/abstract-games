@@ -7,6 +7,7 @@ import {
   DEFAULT_LOBBY_HREF,
   AiWorkerSession,
   levelToSearchOptions,
+  applyDocumentTheme,
   readInitialTheme,
   recordAiThinkMetrics,
   THEME_STORAGE_KEY,
@@ -64,7 +65,7 @@ const topology = ringCloseupShot ? yinshCloseupTopology(createYinshTopology(), p
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 let theme: ThemeId = readInitialTheme();
-document.documentElement.dataset.theme = theme;
+applyDocumentTheme(theme);
 
 let humanPlayer: Player = 'A';
 let aiPlayer: Player = 'B';
@@ -87,7 +88,7 @@ const stage = board.querySelector('canvas') ?? board;
 
 function applyTheme(next: ThemeId) {
   theme = next;
-  document.documentElement.dataset.theme = theme;
+  applyDocumentTheme(theme);
   scene.setTheme(theme);
 }
 
