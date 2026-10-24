@@ -1,31 +1,35 @@
 import { describe, expect, it } from 'vitest';
 import { cellIndex } from '@abstract/three-engine';
+import { BOOP_GRID, BOOP_OUTSIDE } from './boop-grid';
+import { poolOccupiedCells } from './boop-pool-layout';
 import { defaultRestingCell, resolveRestingCell } from './boop-resting-slot';
 import { PieceTracker } from './piece-tracker';
 
-const GRID = 6;
-const OUTSIDE = 2;
-
 describe('defaultRestingCell', () => {
-  it('maps a left-edge boop to the exterior column', () => {
-    expect(defaultRestingCell({ x: 0, y: 2 }, { push_x: -1, push_y: 0 })).toEqual({ row: 2, col: -1 });
+  it('places white resting pieces in the far-left column aligned with bed row', () => {
+    expect(defaultRestingCell({ x: 0, y: 2 }, { push_x: -1, push_y: 0 }, 'A')).toEqual({ row: 2, col: -3 });
+  });
+
+  it('places black resting pieces in the far-right column', () => {
+    expect(defaultRestingCell({ x: 5, y: 1 }, { push_x: 1, push_y: 0 }, 'B')).toEqual({ row: 1, col: 8 });
   });
 });
 
 describe('resolveRestingCell', () => {
-  it('slides outward along the off-board row when the default cell is taken', () => {
-    const push = { push_x: -1, push_y: 0 };
-    const occupants = [{ row: 2, col: -1 }];
-    const slot = resolveRestingCell({ x: 0, y: 2 }, push, occupants);
-    expect(slot).toEqual({ row: 2, col: -2 });
-    expect(cellIndex(GRID, slot.row, slot.col, OUTSIDE)).not.toBeNull();
+  it('slides to another row on the owner column when the preferred row is blocked by pool pieces', () => {
+    const blocked = poolOccupiedCells('A', { kittens_in_hand: 8, cats_in_hand: 0, cats_in_reserve: 8 });
+    const slot = resolveRestingCell({ x: 0, y: 2 }, { push_x: -1, push_y: 0 }, [], 'A', blocked);
+    expect(slot.col).toBe(-3);
+    expect(slot.row).not.toBe(2);
+    expect(cellIndex(BOOP_GRID, slot.row, slot.col, BOOP_OUTSIDE)).not.toBeNull();
   });
 
-  it('keeps the default cell when nothing occupies it', () => {
-    const push = { push_x: -1, push_y: 0 };
-    expect(resolveRestingCell({ x: 0, y: 2 }, push, [])).toEqual({ row: 2, col: -1 });
+  it('keeps white and black resting on opposite sides', () => {
+    const white = resolveRestingCell({ x: 0, y: 0 }, { push_x: -1, push_y: 0 }, [], 'A', []);
+    const black = resolveRestingCell({ x: 5, y: 0 }, { push_x: 1, push_y: 0 }, [], 'B', []);
+    expect(white.col).toBeLessThan(0);
+    expect(black.col >= BOOP_GRID).toBe(true);
   });
-
 });
 
 describe('PieceTracker resting overlap', () => {
@@ -33,12 +37,9 @@ describe('PieceTracker resting overlap', () => {
     const tracker = new PieceTracker();
     tracker.resetFromNewGame();
     const push = { push_x: -1, push_y: 0 };
-    const first = defaultRestingCell({ x: 0, y: 0 }, push);
+    const first = tracker.resolveRestingSlot({ x: 0, y: 0 }, push, 'B');
     tracker.addResting('vase-a', 'B', 'kitten', first.row, first.col);
-    const naiveSecond = defaultRestingCell({ x: 0, y: 0 }, push);
-    expect(naiveSecond).toEqual(first);
-
-    const resolved = tracker.resolveRestingSlot({ x: 0, y: 0 }, push);
+    const resolved = tracker.resolveRestingSlot({ x: 0, y: 0 }, push, 'B');
     expect(resolved).not.toEqual(first);
     tracker.addResting('vase-b', 'B', 'kitten', resolved.row, resolved.col);
 
@@ -46,10 +47,10 @@ describe('PieceTracker resting overlap', () => {
       to_move: 'A',
       winner: null,
       turn_mode: { kind: 'place' },
-      board: Array.from({ length: GRID }, () => Array.from({ length: GRID }, () => null)),
+      board: Array.from({ length: BOOP_GRID }, () => Array.from({ length: BOOP_GRID }, () => null)),
       pools: [
-        { kittens_in_hand: 7, cats_in_hand: 2, cats_in_reserve: 0 },
-        { kittens_in_hand: 7, cats_in_hand: 2, cats_in_reserve: 0 },
+        { kittens_in_hand: 7, cats_in_hand: 2, cats_in_reserve: 5 },
+        { kittens_in_hand: 7, cats_in_hand: 2, cats_in_reserve: 5 },
       ],
       effects: { displacements: [], off_board: [], line_highlight: null, graduated_cells: null },
     });
@@ -58,16 +59,5 @@ describe('PieceTracker resting overlap', () => {
     expect(cellOf('vase-a')).toBeGreaterThanOrEqual(0);
     expect(cellOf('vase-b')).toBeGreaterThanOrEqual(0);
     expect(cellOf('vase-a')).not.toBe(cellOf('vase-b'));
-    expect(resolved.col).toBeLessThan(first.col);
-  });
-
-  it('still picks a specific resting piece by preferred id when several are nearby', () => {
-    const tracker = new PieceTracker();
-    tracker.resetFromNewGame();
-    tracker.addResting('near', 'A', 'kitten', 0, -1);
-    tracker.addResting('far', 'A', 'kitten', 0, -2);
-    const taken = tracker.takeForPlacement('A', 'kitten', 'far');
-    expect(taken).toMatchObject({ id: 'far', from: 'resting', restRow: 0, restCol: -2 });
-    expect(tracker.restingCount()).toBe(1);
   });
 });

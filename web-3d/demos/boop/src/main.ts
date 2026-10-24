@@ -20,11 +20,9 @@ import { boardPlayfieldTopY } from './game/boop-grounding';
 import { createBoopPieceGeometrySet } from './game/boop-stone-cats';
 import { BOOP_DEMO_BOOP_SFX_URLS, BOOP_DEMO_PLACE_SFX_URLS } from './game/boop-sfx-manifest';
 import { BoopController } from './game/controller';
+import { BOOP_GRID as size, BOOP_OUTSIDE as OUTSIDE_ROWS } from './game/boop-grid';
 
 applyBoopAnimationPacing(ANIMATION);
-
-const size = 6;
-const OUTSIDE_ROWS = 2;
 
 const fallbackCat = createBoopCatGeometry();
 const fallbackKitten = createBoopKittenGeometry();
@@ -129,6 +127,7 @@ declare global {
     __boopSetScreenshotCamera?: () => void;
     __boopSetCameraPreset?: (preset: 'top' | 'axo') => void;
     __boopStageShowcase?: () => void;
+    __boopPlayToHumanFirstGraduation?: () => Promise<boolean>;
     __boopPreviewGhost?: (kind: 'kitten' | 'cat', row: number, col: number) => void;
   }
 }
@@ -154,6 +153,8 @@ window.__boopSetCameraPreset = preset => {
 window.__boopStageShowcase = () => {
   controller.stageShowcaseForScreenshots();
 };
+
+window.__boopPlayToHumanFirstGraduation = () => controller.playToHumanFirstGraduation();
 
 window.__boopPreviewGhost = (kind, row, col) => {
   controller.setStickyKind(kind);

@@ -11,15 +11,15 @@ import {
   type Selection,
 } from '@abstract/three-engine';
 import init, { BoopGame } from '../../wasm/boop_wasm.js';
+import { exportHumanGraduationSetup } from './boop-graduation-fixture';
 import { BOOP_ANIM } from './animation';
+import { BOOP_GRID as GRID, BOOP_OUTSIDE as OUTSIDE } from './boop-grid';
 import { poolKindAtCell, primaryPoolCellIndex } from './boop-pool-layout';
 import { boardAfterDisplacements, boardWithOffBoardOnBed } from './boop-push-board';
 import { PieceTracker } from './piece-tracker';
 import type { GameView, MoveJson, PieceKind, PlayerId } from './types';
 import { parseGameView } from './types';
 
-const GRID = 6;
-const OUTSIDE = 2;
 const HUMAN: PlayerId = 'A';
 const AI: PlayerId = 'B';
 
@@ -449,21 +449,42 @@ export class BoopController {
     const gen = ++this.aiGeneration;
     const search = this.getAiSearchOptions();
     const stateExport = this.game.export_state();
-    const moveJson = await this.requestAiMove(gen, stateExport, search);
+    let moveJson: string | undefined;
+    try {
+      moveJson = await this.requestAiMove(gen, stateExport, search);
+    } catch {
+      moveJson = this.quickLegalMoveJson();
+    }
     if (gen !== this.aiGeneration) return;
     if (!moveJson) {
-      this.inputEnabled = true;
-      this.renderStatus('AI could not move');
+      this.releaseInputAfterAiFailure();
       return;
     }
     const move = JSON.parse(moveJson) as MoveJson;
     if (move.type === 'place' && this.aiPlaceTap) {
-      const from = this.sourceCellForPlacement(AI, move.piece);
-      const to = cellIndex(GRID, move.y, move.x, OUTSIDE)!;
-      await this.aiPlaceTap(from, to);
-      return;
+      try {
+        const from = this.sourceCellForPlacement(AI, move.piece);
+        const to = cellIndex(GRID, move.y, move.x, OUTSIDE)!;
+        await this.aiPlaceTap(from, to);
+        if (gen !== this.aiGeneration) return;
+        if (this.view.to_move === AI && !this.view.winner) {
+          await this.playMoveJson(moveJson, { scheduleAi: false });
+        }
+        return;
+      } catch {
+        /* Visual tap failed (empty pool cell, etc.) — apply rules move directly. */
+      }
     }
-    await this.playMoveJson(moveJson);
+    try {
+      await this.playMoveJson(moveJson);
+    } catch {
+      this.releaseInputAfterAiFailure();
+    }
+  }
+
+  private releaseInputAfterAiFailure() {
+    this.inputEnabled = !this.view.winner && this.view.to_move === HUMAN;
+    this.renderStatus('AI could not move');
   }
 
   private quickLegalMoveJson(): string | undefined {
@@ -507,6 +528,23 @@ export class BoopController {
   async smokePlace(x = 2, y = 2) {
     const mv = this.game.move_for_interaction_json(HUMAN, x, y, 'kitten');
     if (mv) await this.playMoveJson(mv, { scheduleAi: false });
+  }
+
+  humanPoolView() {
+    return this.view?.pools[0];
+  }
+
+  /** Places the third kitten on a preset row-of-two to trigger graduation, then AI turn. */
+  async playToHumanFirstGraduation() {
+    this.newGame();
+    this.game = BoopGame.import_state(exportHumanGraduationSetup(this.game));
+    this.view = parseGameView(this.game.view_json());
+    this.tracker.syncBoard(this.view);
+    this.publishSnapshot();
+    const mv = this.game.move_for_interaction_json(HUMAN, 2, 0, 'kitten');
+    if (!mv) return false;
+    await this.playMoveJson(mv, { scheduleAi: true });
+    return this.view.pools[0]!.cats_in_hand === 3 && this.view.to_move === AI;
   }
 
   /** Visual-only layout for screenshots: both players' kittens and cats on the bed + spread pools. */
