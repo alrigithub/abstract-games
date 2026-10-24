@@ -103,8 +103,8 @@ const gameUi = createGameUi({
     refresh();
   },
   setStatus: text => gameButtons.setStatus(text),
-  getAiSearchOptions: () => levelToSearchOptions(gameButtons.aiStrength.getLevel()),
-  aiStrengthLabel: () => gameButtons.aiStrength.getLevel().label,
+  getAiSearchOptions: () => levelToSearchOptions(gameButtons.aiStrength!.getLevel()),
+  aiStrengthLabel: () => gameButtons.aiStrength!.getLevel().label,
 });
 
 function canUseBoardInteraction() {

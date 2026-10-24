@@ -53,6 +53,11 @@ const GAME_BUTTONS_CSS = `
 .game-button-bar button[aria-pressed="true"] {
   background: var(--game-btn-active, #e8e4dc);
 }
+.game-button-bar button.game-button-icon {
+  min-width: 36px;
+  padding: 0;
+  font-size: 1.05rem;
+}
 :root[data-theme='dark'] .game-button-bar {
   --game-btn-border: #555;
   --game-btn-bg: #222;
@@ -142,7 +147,8 @@ export interface FirstPlayerChoice {
 export interface CreateGameButtonsOptions {
   mount?: HTMLElement;
   lobbyHref?: string;
-  aiStrengthStorageKey: string;
+  /** When set, shows the shared AI strength stepper in the bar. */
+  aiStrengthStorageKey?: string;
   aiStrengthLevels?: AiStrengthLevel[];
   onAiStrengthChange?: (level: AiStrengthLevel) => void;
   /** Gomoku default: human black or white after New game. */
@@ -154,14 +160,18 @@ export interface CreateGameButtonsOptions {
     choices: FirstPlayerChoice[];
     onSelect: (id: string) => void;
   };
+  /** Demo/sandbox: New game resets immediately (no first-player popover). */
+  onNewGameReset?: () => void;
   /** When set, adds a theme toggle button using {@link bindThemeToggle}. */
   applyTheme?: (theme: ThemeId) => void;
+  /** Alias for {@link applyTheme}. */
+  onThemeChange?: (theme: ThemeId) => void;
   fullscreenElement?: HTMLElement;
 }
 
 export interface GameButtonsBar {
   root: HTMLElement;
-  aiStrength: AiStrengthControl;
+  aiStrength: AiStrengthControl | null;
   setStatus(text: string): void;
   openNewGamePopover(): void;
   destroy(): void;
@@ -171,6 +181,8 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   ensureGameButtonStyles();
   const mount = options.mount ?? document.body;
   const fullscreenEl = options.fullscreenElement ?? document.documentElement;
+  const themeApply = options.applyTheme ?? options.onThemeChange;
+  const usesFirstPlayerPopover = !options.onNewGameReset && (options.firstPlayer != null || options.onFirstPlayerSelected != null);
 
   const root = document.createElement('div');
   root.className = 'game-button-bar';
@@ -188,12 +200,14 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   let unbindTheme: (() => void) | undefined;
   const themeBtn = document.createElement('button');
   themeBtn.type = 'button';
+  themeBtn.className = 'game-button-icon';
+  themeBtn.id = 'theme-toggle';
   themeBtn.dataset.testid = 'theme-toggle';
   themeBtn.setAttribute('aria-label', 'Toggle theme');
   themeBtn.title = 'Toggle theme';
   themeBtn.textContent = '◐';
-  if (options.applyTheme) {
-    unbindTheme = bindThemeToggle(themeBtn, options.applyTheme);
+  if (themeApply) {
+    unbindTheme = bindThemeToggle(themeBtn, themeApply);
   }
 
   const newGameBtn = document.createElement('button');
@@ -203,6 +217,7 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
 
   const aiSlot = document.createElement('div');
   aiSlot.className = 'game-button-ai-slot';
+  if (!options.aiStrengthStorageKey) aiSlot.hidden = true;
 
   const lobby = document.createElement('a');
   lobby.className = 'game-button-link';
@@ -210,7 +225,7 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   lobby.dataset.testid = 'back-to-lobby';
   lobby.textContent = 'Back to Lobby';
 
-  row.append(fullscreenBtn, ...(options.applyTheme ? [themeBtn] : []), newGameBtn, aiSlot, lobby);
+  row.append(fullscreenBtn, ...(themeApply ? [themeBtn] : []), newGameBtn, aiSlot, lobby);
 
   const status = document.createElement('p');
   status.className = 'game-button-status';
@@ -221,44 +236,49 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   root.append(row, status);
   mount.append(root);
 
-  const aiStrength = createAiStrengthControl({
-    container: aiSlot,
-    storageKey: options.aiStrengthStorageKey,
-    levels: options.aiStrengthLevels,
-    layout: 'inline',
-    onChange: level => options.onAiStrengthChange?.(level),
-  });
+  let aiStrength: AiStrengthControl | null = null;
+  if (options.aiStrengthStorageKey) {
+    aiStrength = createAiStrengthControl({
+      container: aiSlot,
+      storageKey: options.aiStrengthStorageKey,
+      levels: options.aiStrengthLevels,
+      layout: 'inline',
+      onChange: level => options.onAiStrengthChange?.(level),
+    });
+  }
 
   const popover = document.createElement('div');
   popover.className = 'game-button-popover';
   popover.dataset.testid = 'first-player-popover';
   popover.hidden = true;
-  const firstTitle = options.firstPlayer?.title ?? 'Who goes first?';
-  const firstDescription = options.firstPlayer?.description ?? 'You vs AI — pick your color.';
-  popover.innerHTML = `<h2></h2><p></p><div class="game-button-popover-actions"></div>`;
-  popover.querySelector('h2')!.textContent = firstTitle;
-  popover.querySelector('p')!.textContent = firstDescription;
-  const actions = popover.querySelector('.game-button-popover-actions')!;
-  const choices =
-    options.firstPlayer?.choices ??
-    ([
-      { label: 'You · Black', id: 'black', testId: 'first-black' },
-      { label: 'You · White', id: 'white', testId: 'first-white' },
-    ] satisfies FirstPlayerChoice[]);
-  for (const choice of choices) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = choice.label;
-    btn.dataset.first = choice.id;
-    btn.dataset.testid = choice.testId;
-    btn.addEventListener('click', () => {
-      popover.hidden = true;
-      if (options.firstPlayer) options.firstPlayer.onSelect(choice.id);
-      else options.onFirstPlayerSelected?.(choice.id as 'black' | 'white');
-    });
-    actions.append(btn);
+  if (usesFirstPlayerPopover) {
+    const firstTitle = options.firstPlayer?.title ?? 'Who goes first?';
+    const firstDescription = options.firstPlayer?.description ?? 'You vs AI — pick your color.';
+    popover.innerHTML = `<h2></h2><p></p><div class="game-button-popover-actions"></div>`;
+    popover.querySelector('h2')!.textContent = firstTitle;
+    popover.querySelector('p')!.textContent = firstDescription;
+    const actions = popover.querySelector('.game-button-popover-actions')!;
+    const choices =
+      options.firstPlayer?.choices ??
+      ([
+        { label: 'You · Black', id: 'black', testId: 'first-black' },
+        { label: 'You · White', id: 'white', testId: 'first-white' },
+      ] satisfies FirstPlayerChoice[]);
+    for (const choice of choices) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = choice.label;
+      btn.dataset.first = choice.id;
+      btn.dataset.testid = choice.testId;
+      btn.addEventListener('click', () => {
+        popover.hidden = true;
+        if (options.firstPlayer) options.firstPlayer.onSelect(choice.id);
+        else options.onFirstPlayerSelected?.(choice.id as 'black' | 'white');
+      });
+      actions.append(btn);
+    }
+    root.append(popover);
   }
-  root.append(popover);
 
   const syncFullscreenLabel = () => {
     const active = document.fullscreenElement === fullscreenEl;
@@ -278,13 +298,17 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   syncFullscreenLabel();
 
   const openNewGamePopover = () => {
-    popover.hidden = false;
+    if (usesFirstPlayerPopover) popover.hidden = false;
   };
 
-  newGameBtn.addEventListener('click', openNewGamePopover);
+  if (options.onNewGameReset) {
+    newGameBtn.addEventListener('click', () => options.onNewGameReset!());
+  } else {
+    newGameBtn.addEventListener('click', openNewGamePopover);
+  }
 
   const onDocClick = (event: MouseEvent) => {
-    if (popover.hidden) return;
+    if (!usesFirstPlayerPopover || popover.hidden) return;
     const target = event.target as Node;
     if (!popover.contains(target) && target !== newGameBtn) popover.hidden = true;
   };
@@ -301,7 +325,7 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
       document.removeEventListener('fullscreenchange', syncFullscreenLabel);
       document.removeEventListener('click', onDocClick);
       unbindTheme?.();
-      aiStrength.destroy();
+      aiStrength?.destroy();
       root.remove();
     },
   };

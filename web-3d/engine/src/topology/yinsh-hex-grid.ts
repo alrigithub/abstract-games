@@ -1,109 +1,59 @@
 import * as THREE from 'three';
-import { BOARD } from '../constants';
-import { createContactShadowBlob } from '../geometries/contact-shadow';
+import {
+  createGipfHexBoard,
+  gipfPointKey,
+  gipfWorldPoint,
+  yinshLayout,
+  type GipfHexLayout,
+} from '../geometries/gipf-set';
 import { YINSH } from '../geometries/yinsh-pieces';
-import type { BoardBuildContext, BoardSnapshot, Topology, YinshCoord } from '../types';
+import type { BoardBuildContext, BoardSnapshot, ThemeTokens, Topology, YinshCoord } from '../types';
 
-const BOARD_RADIUS_SQ = 4.6 * 4.6;
-const SQRT3 = Math.sqrt(3);
+const YINSH_HEX_LAYOUT: GipfHexLayout = yinshLayout(YINSH.SPACING);
+
+/** Playable intersections in layout order (`q` → `x`, `r` → `y`). */
+export const YINSH_COORDS: YinshCoord[] = YINSH_HEX_LAYOUT.points.map(p => ({ x: p.q, y: p.r }));
+
+const INDEX_BY_KEY = new Map(YINSH_COORDS.map((c, i) => [yinshCoordKey(c), i]));
 
 export function isYinshCoordInside(coord: YinshCoord): boolean {
-  const x = coord.x;
-  const y = coord.y;
-  return (0.5 * SQRT3 * x) ** 2 + (0.5 * x - y) ** 2 <= BOARD_RADIUS_SQ;
-}
-
-export function allYinshCoords(): YinshCoord[] {
-  const coords: YinshCoord[] = [];
-  for (let x = -5; x <= 5; x++) {
-    for (let y = -5; y <= 5; y++) {
-      const coord = { x, y };
-      if (isYinshCoordInside(coord)) coords.push(coord);
-    }
-  }
-  return coords;
+  return INDEX_BY_KEY.has(yinshCoordKey(coord));
 }
 
 export function yinshCoordKey(coord: YinshCoord): string {
-  return `${coord.x},${coord.y}`;
+  return gipfPointKey(coord.x, coord.y);
 }
 
 export function yinshWorldPoint(coord: YinshCoord, spacing: number = YINSH.SPACING): THREE.Vector3 {
-  return new THREE.Vector3(
-    spacing * (0.5 * SQRT3 * coord.x),
-    0,
-    spacing * (-coord.y + 0.5 * coord.x),
-  );
+  return gipfWorldPoint(coord.x, coord.y, spacing);
 }
 
-function nearestCoord(x: number, z: number, spacing: number = YINSH.SPACING): { coord: YinshCoord; distSq: number } {
-  const coords = allYinshCoords();
-  let best = coords[0]!;
+function tokensFromBoardContext(ctx: BoardBuildContext): ThemeTokens {
+  return {
+    table: `#${ctx.boardMaterial.color.getHexString()}`,
+    board: `#${ctx.boardMaterial.color.getHexString()}`,
+    lines: `#${ctx.gridMaterial.color.getHexString()}`,
+    win: '#3b82f6',
+    ghostOpacity: 0.24,
+    shadow: `#${ctx.gridMaterial.color.getHexString()}`,
+    piece: {},
+  };
+}
+
+function nearestIndex(x: number, z: number, spacing: number): { index: number; distSq: number } {
+  let best = 0;
   let bestDist = Infinity;
-  for (const coord of coords) {
-    const p = yinshWorldPoint(coord, spacing);
+  for (let i = 0; i < YINSH_COORDS.length; i++) {
+    const p = yinshWorldPoint(YINSH_COORDS[i]!, spacing);
     const dx = p.x - x;
     const dz = p.z - z;
     const distSq = dx * dx + dz * dz;
     if (distSq < bestDist) {
       bestDist = distSq;
-      best = coord;
+      best = i;
     }
   }
-  return { coord: best, distSq: bestDist };
-}
-
-function drawHexLines(ctx: BoardBuildContext, spacing: number) {
-  const lineWidth = BOARD.LINE_W;
-  const addLine = (start: THREE.Vector3, end: THREE.Vector3) => {
-    const dx = end.x - start.x;
-    const dz = end.z - start.z;
-    const length = Math.hypot(dx, dz) + lineWidth;
-    const geo = new THREE.PlaneGeometry(lineWidth, length);
-    ctx.boardGeometries.push(geo);
-    const line = new THREE.Mesh(geo, ctx.gridMaterial);
-    line.rotation.x = -Math.PI / 2;
-    line.rotation.y = Math.atan2(dx, dz);
-    line.position.set((start.x + end.x) / 2, 0.002, (start.z + end.z) / 2);
-    ctx.board.add(line);
-  };
-
-  for (let x = -5; x <= 5; x++) {
-    const coords = allYinshCoords().filter(c => c.x === x);
-    if (!coords.length) continue;
-    const minY = Math.min(...coords.map(c => c.y));
-    const maxY = Math.max(...coords.map(c => c.y));
-    addLine(yinshWorldPoint({ x, y: minY }, spacing), yinshWorldPoint({ x, y: maxY }, spacing));
-  }
-  for (let y = -5; y <= 5; y++) {
-    const coords = allYinshCoords().filter(c => c.y === y);
-    if (!coords.length) continue;
-    const minX = Math.min(...coords.map(c => c.x));
-    const maxX = Math.max(...coords.map(c => c.x));
-    addLine(yinshWorldPoint({ x: minX, y }, spacing), yinshWorldPoint({ x: maxX, y }, spacing));
-  }
-  for (let d = -5; d <= 5; d++) {
-    const coords = allYinshCoords().filter(c => c.y === c.x + d);
-    if (!coords.length) continue;
-    const minX = Math.min(...coords.map(c => c.x));
-    const maxX = Math.max(...coords.map(c => c.x));
-    addLine(
-      yinshWorldPoint({ x: minX, y: minX + d }, spacing),
-      yinshWorldPoint({ x: maxX, y: maxX + d }, spacing),
-    );
-  }
-}
-
-function buildYinshBoardSurface(ctx: BoardBuildContext, spacing: number) {
-  const extent = spacing * 5.65;
-  const thin = 0.028;
-  const slab = new THREE.CylinderGeometry(extent, extent, thin, 6, 1);
-  ctx.boardGeometries.push(slab);
-  const slabMesh = new THREE.Mesh(slab, ctx.boardMaterial);
-  slabMesh.position.y = -thin / 2;
-  ctx.board.add(slabMesh);
-  ctx.board.add(createContactShadowBlob(extent * 2));
-  drawHexLines(ctx, spacing);
+  return { index: best, distSq: bestDist };
 }
 
 export interface YinshTopologyOptions {
@@ -112,63 +62,78 @@ export interface YinshTopologyOptions {
 
 export function createYinshTopology(options: YinshTopologyOptions = {}): Topology {
   const spacing = options.spacing ?? YINSH.SPACING;
-  const coords = allYinshCoords();
-  const indexByKey = new Map(coords.map((c, i) => [yinshCoordKey(c), i]));
+  const layout = spacing === YINSH.SPACING ? YINSH_HEX_LAYOUT : yinshLayout(spacing);
 
   return {
     cellPosition(index, _snapshot) {
-      const coord = coords[index];
-      return coord ? yinshWorldPoint(coord, spacing) : new THREE.Vector3();
+      const coord = YINSH_COORDS[index];
+      return coord ? gipfWorldPoint(coord.x, coord.y, spacing) : new THREE.Vector3();
     },
     cellAtWorld(x, z, _snapshot) {
-      const { coord, distSq } = nearestCoord(x, z, spacing);
-      const pickRadius = spacing * 0.42;
+      const { index, distSq } = nearestIndex(x, z, spacing);
+      const pickRadius = spacing * 0.38;
       if (distSq > pickRadius * pickRadius) return null;
-      return indexByKey.get(yinshCoordKey(coord)) ?? null;
+      return index;
     },
     projectCell(index, _snapshot) {
-      const coord = coords[index];
-      return coord ? yinshWorldPoint(coord, spacing) : new THREE.Vector3();
+      const coord = YINSH_COORDS[index];
+      return coord ? gipfWorldPoint(coord.x, coord.y, spacing) : new THREE.Vector3();
     },
     buildBoard(ctx) {
-      buildYinshBoardSurface(ctx, spacing);
+      const built = createGipfHexBoard(layout, tokensFromBoardContext(ctx));
+      while (built.children.length) ctx.board.add(built.children[0]!);
       return true;
     },
-    frameCorners(_snapshot: BoardSnapshot) {
+    frameCorners(snapshot: BoardSnapshot) {
       const points: THREE.Vector3[] = [];
-      const margin = spacing * 0.55;
-      for (const coord of coords) {
-        const p = yinshWorldPoint(coord, spacing);
-        points.push(new THREE.Vector3(p.x - margin, 0, p.z - margin));
-        points.push(new THREE.Vector3(p.x + margin, 0, p.z + margin));
+      for (const p of layout.points) {
+        points.push(p.world.clone());
       }
-      const rackX = extentRackX(spacing);
-      for (const side of [-1, 1]) {
-        for (let slot = 0; slot < 3; slot++) {
-          const z = spacing * (slot - 1) * 0.85;
-          points.push(new THREE.Vector3(side * rackX, 0, z));
-        }
+      const margin = YINSH.RING_OUTER + spacing * 0.08;
+      for (const slot of snapshot.reserves ?? []) {
+        if (slot.count <= 0) continue;
+        const { x, z } = slot.position;
+        const pad = margin * 1.35;
+        points.push(
+          new THREE.Vector3(x - pad, 0, z - pad),
+          new THREE.Vector3(x + pad, 0, z + pad),
+          new THREE.Vector3(x, YINSH.RING_HEIGHT, z),
+        );
       }
       return points;
     },
   };
 }
 
-function extentRackX(spacing: number): number {
-  const coords = allYinshCoords();
-  let maxX = 0;
-  for (const c of coords) maxX = Math.max(maxX, Math.abs(yinshWorldPoint(c, spacing).x));
-  return maxX + spacing * 1.15;
+export function yinshBoardExtents(spacing: number = YINSH.SPACING): { minX: number; maxX: number; minZ: number; maxZ: number } {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const c of YINSH_COORDS) {
+    const p = gipfWorldPoint(c.x, c.y, spacing);
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minZ = Math.min(minZ, p.z);
+    maxZ = Math.max(maxZ, p.z);
+  }
+  return { minX, maxX, minZ, maxZ };
 }
 
-/** Side rack slot for scored rings (three per player), matching Bevy Yinsh GUI layout. */
+/** Side rack slot for scored rings (three per player), placed via {@link gipfWorldPoint}. */
 export function yinshRackPosition(player: 'A' | 'B', slot: number, spacing: number = YINSH.SPACING): { x: number; z: number } {
-  const rackX = extentRackX(spacing);
-  const step = spacing * 0.85;
-  const side = player === 'A' ? -1 : 1;
-  return { x: side * rackX, z: (slot - 1) * step };
+  const { minX, maxX } = yinshBoardExtents(spacing);
+  const gap = YINSH.RING_OUTER * 1.35;
+  const step = spacing * 0.82;
+  const axialScale = spacing * (Math.sqrt(3) / 2);
+  const targetX = player === 'A' ? minX - gap : maxX + gap;
+  const q = targetX / axialScale;
+  const targetZ = (slot - 1) * step;
+  const r = 0.5 * q - targetZ / spacing;
+  const world = gipfWorldPoint(q, r, spacing);
+  return { x: world.x, z: world.z };
 }
 
 export function yinshIndex(coord: YinshCoord): number {
-  return allYinshCoords().findIndex(c => c.x === coord.x && c.y === coord.y);
+  return INDEX_BY_KEY.get(yinshCoordKey(coord)) ?? -1;
 }

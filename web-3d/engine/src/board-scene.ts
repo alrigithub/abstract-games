@@ -135,6 +135,39 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     offsetOf: verticalOffset,
   };
 
+  function pieceUsesOutline(piece: EnginePiece) {
+    return options.pieces.useOutline?.(piece) !== false;
+  }
+
+  function applyPieceMaterial(mesh: THREE.Mesh, piece: EnginePiece, selected = false) {
+    const custom = options.pieces.materialFor?.(piece, tokens, selected);
+    mesh.material = custom ?? pieceMaterials[`${piece.player}${selected ? 'Selected' : ''}`] ?? pieceMaterials.A!;
+  }
+
+  function createPieceMesh(piece: EnginePiece, selected = false): THREE.Mesh {
+    const mesh = new THREE.Mesh(geometry(piece as never));
+    applyPieceMaterial(mesh, piece, selected);
+    if (pieceUsesOutline(piece)) {
+      decoratePieceMesh(mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache, pieceEdgeThreshold);
+    }
+    return mesh;
+  }
+
+  function refreshPieceMaterials() {
+    for (const item of objects.values()) {
+      const player = item.mesh.userData.player as string;
+      const shape = item.mesh.userData.shape as string;
+      if (!shape) continue;
+      applyPieceMaterial(item.mesh, { id: item.pieceId, player, shape });
+    }
+    for (const mesh of pilesGroup.children) {
+      if (!(mesh instanceof THREE.Mesh)) continue;
+      const pick = mesh.userData.reserve as ReservePick | undefined;
+      if (!pick) continue;
+      applyPieceMaterial(mesh, { id: 'reserve', player: pick.player, shape: pick.shape });
+    }
+  }
+
   const shadowBounds = new THREE.Box3();
   function syncContactShadow(item: PieceObject) {
     item.mesh.updateMatrixWorld(true);
@@ -233,7 +266,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
           if (shape === 'marker') {
             const player = (item.mesh.userData.player as string) === 'A' ? 'B' : 'A';
             item.mesh.userData.player = player;
-            item.mesh.material = pieceMaterials[player] ?? pieceMaterials.A!;
+            applyPieceMaterial(item.mesh, { id: item.pieceId, player, shape: 'marker' });
           } else if (shape === 'flat' || shape === 'standing') {
             swapFlippedStoneShape(item);
           }
@@ -507,13 +540,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         playfieldY,
       );
       for (let level = 0; level < slot.count; level++) {
-        const mesh = decoratePieceMesh(
-          new THREE.Mesh(geometry(pieceStub as never), pieceMaterials[slot.player]!),
-          edgeMaterials[slot.player]!,
-          outlineMaterial,
-          edgeCache,
-          pieceEdgeThreshold,
-        );
+        const mesh = createPieceMesh({ ...pieceStub, id: `reserve-${level}` } as EnginePiece);
         mesh.position.set(position.x, centers[level]!, position.y);
         mesh.userData.reserve = pick;
         mesh.userData.pileKey = pileKey;
@@ -624,7 +651,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       }
       item.selected = isSelected;
       const player = (item.mesh.userData.player as string) ?? 'A';
-      item.mesh.material = pieceMaterials[`${player}${isSelected ? 'Selected' : ''}`] ?? pieceMaterials.A!;
+      const shape = (item.mesh.userData.shape as string) ?? 'flat';
+      applyPieceMaterial(item.mesh, { id: item.pieceId, player, shape }, isSelected);
       const target = item.position.clone();
       if (isSelected) {
         if (carriedPosition && sourcePosition) {
@@ -644,13 +672,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         reserveKey = key;
         reserveGroup.clear();
         selected.forEach((piece, index) => {
-          const mesh = decoratePieceMesh(
-            new THREE.Mesh(geometry(piece as never), pieceMaterials[`${piece.player}Selected`]!),
-            edgeMaterials[piece.player]!,
-            outlineMaterial,
-            edgeCache,
-            pieceEdgeThreshold,
-          );
+          const mesh = createPieceMesh(piece as EnginePiece, true);
           mesh.position.y = index * height(piece as never);
           reserveGroup.add(mesh);
         });
@@ -681,7 +703,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   }
 
   function setSnapshot(next: BoardSnapshot) {
-    const reframeCamera = next.cellCount !== snapshot.cellCount || next.playableCells !== snapshot.playableCells;
+    const prevReserves = JSON.stringify(snapshot.reserves);
+    const reframeCamera =
+      next.cellCount !== snapshot.cellCount ||
+      next.playableCells !== snapshot.playableCells ||
+      (!!options.topology.frameCorners && JSON.stringify(next.reserves) !== prevReserves);
     const previousSelected = selectedPieces().map(p => p.id);
     snapshot = {
       ...next,
@@ -701,13 +727,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         const destination = new THREE.Vector3(position.x, centers[stackIndex]!, position.z);
         let item = objects.get(piece.id);
         if (!item) {
-          const mesh = decoratePieceMesh(
-            new THREE.Mesh(geometry(piece as never), pieceMaterials[piece.player]!),
-            edgeMaterials[piece.player]!,
-            outlineMaterial,
-            edgeCache,
-            pieceEdgeThreshold,
-          );
+          const mesh = createPieceMesh(piece as EnginePiece);
           mesh.position.copy(destination);
           mesh.rotation.y = pieceYaw(piece.id);
           if (piece.shape === 'marker') mesh.rotation.x = piece.player === 'B' ? Math.PI : 0;
@@ -747,10 +767,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         if (item.mesh.geometry !== geometry(piece as never)) {
           item.mesh.geometry = geometry(piece as never);
           item.shadow.geometry = geometry(piece as never);
-          decoratePieceMesh(item.mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache, pieceEdgeThreshold);
+          if (pieceUsesOutline(piece as EnginePiece)) {
+            decoratePieceMesh(item.mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache, pieceEdgeThreshold);
+          }
         }
         item.mesh.userData.player = piece.player;
-        item.mesh.material = pieceMaterials[piece.player] ?? pieceMaterials.A!;
+        applyPieceMaterial(item.mesh, piece as EnginePiece);
         if (piece.shape === 'marker' && item.flipDuration <= 0) {
           const targetX = piece.player === 'B' ? Math.PI : 0;
           if (Math.abs(item.mesh.rotation.x - targetX) > 0.05) item.mesh.rotation.x = targetX;
@@ -810,7 +832,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       if (isMarker) {
         const player = (item.mesh.userData.player as string) === 'A' ? 'B' : 'A';
         item.mesh.userData.player = player;
-        item.mesh.material = pieceMaterials[player] ?? pieceMaterials.A!;
+        applyPieceMaterial(item.mesh, { id: item.pieceId, player, shape: 'marker' });
       } else swapFlippedStoneShape(item);
       item.shadow.rotation.x = item.mesh.rotation.x;
       return;
@@ -837,6 +859,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     setTheme(id) {
       themeId = id;
       rebuildMaterials();
+      refreshPieceMaterials();
       requestRender();
     },
     setCameraMode(mode) {
