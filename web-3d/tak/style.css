@@ -1,33 +1,10 @@
-:root {
-  font-family: system-ui, sans-serif;
-  color: #454b41;
-  background: #f3f1ec;
-}
-* {
-  box-sizing: border-box;
-}
-html,
-body,
-#app,
-main {
-  margin: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-#app {
-  position: fixed;
-  inset: 0;
-}
 .play-area {
   height: 100%;
   padding: 12px;
 }
-.board-wrap,
-#board {
+.board-wrap {
   width: 100%;
   height: 100%;
-  touch-action: none;
 }
 .corner-controls {
   position: fixed;
@@ -119,10 +96,6 @@ main {
   padding: 4px;
   border-radius: 8px;
   pointer-events: auto;
-}
-[data-theme='dark'] {
-  color: #e8e4dc;
-  background: #16171a;
 }
 [data-theme='dark'] .icon-button,
 [data-theme='dark'] .board-actions button,

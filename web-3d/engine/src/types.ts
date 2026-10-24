@@ -1,4 +1,5 @@
 import type * as THREE from 'three';
+import type { CameraViewController } from './camera-views';
 
 export type PlayerId = string;
 
@@ -58,6 +59,10 @@ export interface PieceGeometrySet {
   /** Returns world-space height for stacking. */
   height(piece: EnginePiece): number;
   geometry(piece: EnginePiece): THREE.BufferGeometry;
+  /** Optional GLB / multi-mesh visual; when set, used instead of a single {@link geometry} mesh. */
+  createVisual?(piece: EnginePiece): THREE.Object3D;
+  /** Swap shape (e.g. Tak flat ↔ wall) on an existing visual root. */
+  replaceVisual?(root: THREE.Object3D, piece: EnginePiece): void;
   /** Stable yaw for visual variety. */
   yaw(id: string): number;
   /** EdgesGeometry threshold angle (degrees). */
@@ -66,18 +71,8 @@ export interface PieceGeometrySet {
   verticalOffset?(piece: EnginePiece, stackIndex: number, stack: EnginePiece[]): number;
   /** When false, skip inverted-hull outline (e.g. solid Yinsh markers). */
   useOutline?(piece: EnginePiece): boolean;
-  /** When false, keep edge lines but skip hull outline (e.g. ring inner bore). */
-  hullOutline?(piece: EnginePiece): boolean;
-  /** When false, skip EdgesGeometry line work (e.g. lathe rings). */
-  edgeLines?(piece: EnginePiece): boolean;
-  /** Draw order when geometry overlaps (e.g. marker over ring). */
-  renderOrder?(piece: EnginePiece): number;
   /** Override fill material(s); return null to use theme player color. */
   materialFor?(piece: EnginePiece, tokens: ThemeTokens, selected?: boolean): THREE.Material | THREE.Material[] | null;
-  /** Build multi-mesh GIPF pieces (e.g. Yinsh marker = Tzaar disc + rim). */
-  assemblePiece?(piece: EnginePiece, ctx: PieceBuildContext): THREE.Object3D | null;
-  /** Update materials after theme / flip (when {@link assemblePiece} is used). */
-  refreshPiece?(root: THREE.Object3D, piece: EnginePiece, ctx: PieceBuildContext): void;
 }
 
 export interface PieceBuildContext {
@@ -138,14 +133,16 @@ export interface SceneApi {
   setSnapshot(snapshot: BoardSnapshot): void;
   setInteraction(view: InteractionView): void;
   setTheme(theme: ThemeId): void;
+  /** Shared top / axo camera presets (Back-to-Lobby bar Camera button). */
+  createCameraViews(options?: { getBounds?: () => THREE.Vector3[] }): CameraViewController;
   setCameraMode(mode: 'pan' | 'orbit'): void;
   hitTest(clientX: number, clientY: number): number | null;
   hitReserve(clientX: number, clientY: number): ReservePick | null;
   reserveScreen(pick: ReservePick): Point;
   cellScreen(index: number): Point;
   /** Queue AI / remote moves through the same animation path. */
-  enqueueAnimation(task: () => Promise<void>): void;
-  /** True while {@link enqueueAnimation} tasks or tweens are still running. */
+  enqueueAnimation(task: () => Promise<void>): Promise<void>;
+  /** True while {@link enqueueAnimation} tasks are still running. */
   animationsBusy(): boolean;
   drainAnimations(): Promise<void>;
   /** Animate a flippable piece (Yinsh marker, Tak flat/standing stone). */

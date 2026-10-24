@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BOARD } from '../constants';
-import type { EnginePiece, PieceBuildContext, PieceGeometrySet } from '../types';
+import type { EnginePiece, PieceBuildContext, PieceGeometrySet, ThemeTokens } from '../types';
 import { anchorGeometryBaseToY0 } from './anchor';
 import {
   GIPF_CHIP,
@@ -94,6 +94,19 @@ export function createYinshMarkerMesh(player: string, ctx: PieceBuildContext): T
   return group;
 }
 
+export function yinshMarkerMaterials(player: string, tokens: ThemeTokens): THREE.Material[] {
+  const white = tokens.piece.A!.fill;
+  const black = tokens.piece.B!.fill;
+  const edge = tokens.lines;
+  const topColor = player === 'A' ? white : black;
+  const bottomColor = player === 'A' ? black : white;
+  return [
+    new THREE.MeshBasicMaterial({ color: edge, toneMapped: false }),
+    new THREE.MeshBasicMaterial({ color: topColor, toneMapped: false }),
+    new THREE.MeshBasicMaterial({ color: bottomColor, toneMapped: false }),
+  ];
+}
+
 export function refreshYinshMarkerMesh(root: THREE.Object3D, player: string, ctx: PieceBuildContext): void {
   if (!(root instanceof THREE.Group) || !root.userData.gipfMarker) return;
   const replacement = createYinshMarkerMesh(player, ctx);
@@ -115,26 +128,11 @@ export function yinshPieceGeometrySet(ring: THREE.BufferGeometry, marker: THREE.
     },
     edgeThreshold: YINSH.EDGE_THRESHOLD,
     useOutline(piece: EnginePiece) {
-      return piece.shape === 'marker' || piece.shape === 'ring';
+      return piece.shape === 'ring';
     },
-    hullOutline(piece: EnginePiece) {
-      return piece.shape === 'marker';
-    },
-    edgeLines(piece: EnginePiece) {
-      return piece.shape === 'marker';
-    },
-    renderOrder(piece: EnginePiece) {
-      return piece.shape === 'marker' ? 2 : 1;
-    },
-    materialFor() {
-      return null;
-    },
-    assemblePiece(piece, ctx) {
+    materialFor(piece: EnginePiece, tokens) {
       if (piece.shape !== 'marker') return null;
-      return createYinshMarkerMesh(piece.player, ctx);
-    },
-    refreshPiece(root, piece, ctx) {
-      if (piece.shape === 'marker') refreshYinshMarkerMesh(root, piece.player, ctx);
+      return yinshMarkerMaterials(piece.player, tokens);
     },
     verticalOffset(piece: EnginePiece, stackIndex: number, stack: EnginePiece[]) {
       if (piece.shape !== 'marker' || stackIndex === 0) return 0;

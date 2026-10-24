@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { GOMOKU_DIMS, createGomokuStoneGeometry } from './gomoku-pieces';
+import { GOMOKU_DIMS, createGomokuStoneGeometry, gomokuStoneRestCenterY } from './gomoku-pieces';
 
 describe('createGomokuStoneGeometry', () => {
   it('is a smooth biconvex lens with poles at y=0 and y=height', () => {
@@ -10,6 +10,10 @@ describe('createGomokuStoneGeometry', () => {
     expect(box.min.y).toBeCloseTo(0, 3);
     expect(box.max.y).toBeCloseTo(GOMOKU_DIMS.STONE_H, 3);
     expect(box.max.x).toBeCloseTo(GOMOKU_DIMS.STONE_R, 2);
+  });
+
+  it('rest center is lowered by 25% of height', () => {
+    expect(gomokuStoneRestCenterY()).toBeCloseTo(GOMOKU_DIMS.STONE_H / 2 - 0.25 * GOMOKU_DIMS.STONE_H, 6);
   });
 
   it('has outward-facing normals (no majority inverted on equator)', () => {

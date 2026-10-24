@@ -5,15 +5,12 @@ import {
   createBoardScene,
   createGameButtons,
   createInteraction,
-  createYinshMarkerGeometry,
-  createYinshRingGeometry,
   createYinshTopology,
   DEFAULT_LOBBY_HREF,
   levelToSearchOptions,
-  readStoredTheme,
+  readInitialTheme,
   THEME_STORAGE_KEY,
   YINSH_AI_STRENGTH_STORAGE_KEY,
-  yinshPieceGeometrySet,
   yinshWorldPoint,
   type ReservePick,
   type ThemeId,
@@ -24,12 +21,13 @@ import { serializeForWorker } from './game/serialize';
 import { GameState } from './game/state';
 import { gameStateToSnapshot } from './game/snapshot';
 import { movesInclude, possibleMoves } from './game/moves';
-import { phaseLabel, statusLine } from './game/phase';
+import { statusLine } from './game/phase';
 import { markerIdsOnRingMove, moveNeedsFlip } from './game/visual';
 import { coordToIndex, indexToCoord } from './game/cells';
 import { chooseAiMove } from './game/ai';
 import type { Move } from './game/state';
 import type { Player } from './game/player';
+import { loadYinshPieceGeometrySet } from './yinsh-piece-models';
 
 const ringCloseupShot = new URLSearchParams(location.search).get('shot') === 'ring-closeup';
 
@@ -49,12 +47,10 @@ function yinshCloseupTopology(base: Topology): Topology {
 }
 
 const topology = ringCloseupShot ? yinshCloseupTopology(createYinshTopology()) : createYinshTopology();
-const ringGeo = createYinshRingGeometry();
-const markerGeo = createYinshMarkerGeometry();
-const pieces = yinshPieceGeometrySet(ringGeo, markerGeo);
+const pieces = await loadYinshPieceGeometrySet();
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
-let theme: ThemeId = readStoredTheme();
+let theme: ThemeId = readInitialTheme();
 document.documentElement.dataset.theme = theme;
 
 let humanPlayer: Player = 'A';
@@ -90,12 +86,16 @@ function renderStatus(extra?: string) {
   gameButtons.setStatus(statusLine(game, humanPlayer, label, extra));
 }
 
+const cameraViews = scene.createCameraViews();
+
 const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
   lobbyHref: DEFAULT_LOBBY_HREF,
+  cameraViews,
   aiStrengthStorageKey: YINSH_AI_STRENGTH_STORAGE_KEY,
   applyTheme,
   onAiStrengthChange: () => renderStatus(),
+  onRestartRound: () => startGame(humanPlayer),
   firstPlayer: {
     title: 'Who plays white rings?',
     description: 'You vs AI — pick your color.',
@@ -110,7 +110,7 @@ const gameButtons = createGameButtons({
 try {
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     try {
-      if (localStorage.getItem(THEME_STORAGE_KEY) === null) applyTheme(readStoredTheme());
+      if (localStorage.getItem(THEME_STORAGE_KEY) === null) applyTheme(readInitialTheme());
     } catch {
       /* ignore */
     }
@@ -210,13 +210,6 @@ async function humanMove(move: Move) {
   });
 }
 
-function reserveForHand(player: Player): ReservePick | null {
-  const snap = gameStateToSnapshot(game);
-  const slot = snap.reserves?.find(r => r.id === `hand-${player}`);
-  if (!slot || slot.count <= 0) return null;
-  return { player: slot.player, shape: 'ring', slotId: slot.id, pile: slot.pile };
-}
-
 createInteraction({
   element: stage as HTMLElement,
   getSnapshot: () => gameStateToSnapshot(game),
@@ -268,7 +261,7 @@ createInteraction({
 
 stage.addEventListener(
   'click',
-  (event: MouseEvent) => {
+  ((event: MouseEvent) => {
     if (!humanTurn() || lastDragging) return;
     const cell = scene.hitTest(event.clientX, event.clientY);
     if (cell === null) return;
@@ -295,7 +288,7 @@ stage.addEventListener(
       }
       void humanMove({ tag: 'MoveRing', start: ringMoveFrom, end: coord });
     }
-  },
+  }) as EventListener,
   true,
 );
 
@@ -316,7 +309,7 @@ function loadRingCloseupShot() {
   focus.y = YINSH.RING_HEIGHT * 0.42;
   scene.setCameraView({ elevationDeg: 35, azimuthDeg: 38, target: focus });
   scene.reframe();
-  gameButtons.setStatus('Ring close-up · GIPF marker in hole');
+  gameButtons.setStatus('Ring close-up · stone marker in ring');
   document.body.dataset.shotMode = 'ring-closeup';
 }
 
@@ -330,7 +323,7 @@ if (urlParams.get('shot') === 'ring-closeup') {
 
 async function waitForSettled(timeoutMs = 20_000): Promise<void> {
   const start = performance.now();
-  while (aiPending) {
+  while (aiPending || scene.animationsBusy()) {
     if (performance.now() - start > timeoutMs) throw new Error('AI timeout');
     await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
   }

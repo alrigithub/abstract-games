@@ -2,5 +2,5 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   base: './',
-  server: { host: '0.0.0.0', port: 5198, strictPort: true },
+  server: { host: '0.0.0.0', port: 5199, strictPort: true },
 });

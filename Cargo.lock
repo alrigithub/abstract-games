@@ -1682,6 +1682,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "boop_wasm"
+version = "0.1.0"
+dependencies = [
+ "boop",
+ "boop_ai",
+ "getrandom 0.3.4",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5061,7 +5073,6 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_async_task",
- "bevy_tweening",
  "tzaar",
  "tzaar_ai",
 ]

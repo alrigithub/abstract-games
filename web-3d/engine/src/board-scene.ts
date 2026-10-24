@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { AnimationQueue } from './animation-queue';
+import { createCameraViewController, fitOrthographicToWorldPoints, type CameraViewController } from './camera-views';
 import { ANIMATION, BOARD, CAMERA } from './constants';
 import { createContactShadowBlob } from './geometries/contact-shadow';
 import { decoratePieceMesh, makePieceShadow } from './geometries/piece-outlines';
 import { stackHeight } from './stack';
 import { layoutStackCenters, stackExtent, type StackMeasure } from './stack-layout';
+import { createBoardWebGLRenderer } from './board-renderer';
 import { themeTokens, type ThemeId } from './theme';
 import type {
   BoardSnapshot,
@@ -65,12 +67,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(tokens.table);
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
-  renderer.setPixelRatio(1);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.NoToneMapping;
-  renderer.domElement.setAttribute('aria-hidden', 'true');
-  renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none;';
+  const renderer = createBoardWebGLRenderer();
   container.appendChild(renderer.domElement);
 
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
@@ -139,56 +136,70 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     return options.pieces.useOutline?.(piece) !== false;
   }
 
-  function pieceUsesHullOutline(piece: EnginePiece) {
-    if (!pieceUsesOutline(piece)) return false;
-    return options.pieces.hullOutline?.(piece) !== false;
-  }
-
-  function pieceUsesEdgeLines(piece: EnginePiece) {
-    if (!pieceUsesOutline(piece)) return false;
-    return options.pieces.edgeLines?.(piece) !== false;
-  }
-
-  function pieceBuildContext(): import('./types').PieceBuildContext {
-    return {
-      tokens,
-      edgeCache,
-      edgeMaterial: edgeMaterials.A!,
-      outlineMaterial,
-      edgeThreshold: pieceEdgeThreshold,
-    };
-  }
-
-  function applyPieceMaterial(root: THREE.Object3D, piece: EnginePiece, selected = false) {
-    const ctx = pieceBuildContext();
-    ctx.edgeMaterial = edgeMaterials[piece.player]!;
-    if (options.pieces.refreshPiece && root.userData.gipfMarker) {
-      options.pieces.refreshPiece(root, piece, ctx);
+  function applyPieceMaterial(object: THREE.Object3D, piece: EnginePiece, selected = false) {
+    const custom = options.pieces.materialFor?.(piece, tokens, selected);
+    if (custom === null) return;
+    const mat = custom ?? pieceMaterials[`${piece.player}${selected ? 'Selected' : ''}`] ?? pieceMaterials.A!;
+    if (object instanceof THREE.Mesh) {
+      object.material = mat;
       return;
     }
-    if (!(root instanceof THREE.Mesh)) return;
-    const custom = options.pieces.materialFor?.(piece, tokens, selected);
-    root.material = custom ?? pieceMaterials[`${piece.player}${selected ? 'Selected' : ''}`] ?? pieceMaterials.A!;
+    object.traverse(node => {
+      if (node instanceof THREE.Mesh) node.material = mat;
+    });
   }
 
-  function createPieceMesh(piece: EnginePiece, selected = false): THREE.Object3D {
-    const ctx = pieceBuildContext();
-    ctx.edgeMaterial = edgeMaterials[piece.player]!;
-    const assembled = options.pieces.assemblePiece?.(piece, ctx);
-    if (assembled) {
-      assembled.renderOrder = options.pieces.renderOrder?.(piece) ?? 0;
-      return assembled;
-    }
+  function createPieceMesh(piece: EnginePiece, selected = false): THREE.Mesh {
     const mesh = new THREE.Mesh(geometry(piece as never));
     applyPieceMaterial(mesh, piece, selected);
-    mesh.renderOrder = options.pieces.renderOrder?.(piece) ?? 0;
     if (pieceUsesOutline(piece)) {
-      decoratePieceMesh(mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache, pieceEdgeThreshold, {
-        hullOutline: pieceUsesHullOutline(piece),
-        edgeLines: pieceUsesEdgeLines(piece),
-      });
+      decoratePieceMesh(mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache, pieceEdgeThreshold);
     }
     return mesh;
+  }
+
+  function createPieceVisual(piece: EnginePiece, selected = false): THREE.Object3D {
+    if (options.pieces.createVisual) {
+      const visual = options.pieces.createVisual(piece);
+      visual.userData.pieceId = piece.id;
+      visual.userData.player = piece.player;
+      visual.userData.shape = piece.shape;
+      applyPieceMaterial(visual, piece, selected);
+      return visual;
+    }
+    return createPieceMesh(piece, selected);
+  }
+
+  function swapMarkerPlayer(item: PieceObject) {
+    const player = (item.mesh.userData.player as string) === 'A' ? 'B' : 'A';
+    item.mesh.userData.player = player;
+    const piece = { id: item.pieceId, player, shape: 'marker' } as EnginePiece;
+    if (options.pieces.replaceVisual) {
+      options.pieces.replaceVisual(item.mesh, piece);
+      applyPieceMaterial(item.mesh, piece);
+      item.mesh.rotation.x = item.flipFromX;
+      item.flipToX = item.flipFromX;
+    } else {
+      applyPieceMaterial(item.mesh, piece);
+    }
+  }
+
+  function syncPieceShape(item: PieceObject, piece: EnginePiece) {
+    if (item.mesh.userData.shape === piece.shape) return;
+    if (options.pieces.replaceVisual) {
+      options.pieces.replaceVisual(item.mesh, piece);
+      item.mesh.userData.shape = piece.shape;
+      item.shadow.geometry = geometry(piece as never);
+      return;
+    }
+    if (!(item.mesh instanceof THREE.Mesh)) return;
+    if (item.mesh.geometry === geometry(piece as never)) return;
+    item.mesh.geometry = geometry(piece as never);
+    item.shadow.geometry = geometry(piece as never);
+    if (pieceUsesOutline(piece)) {
+      decoratePieceMesh(item.mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache, pieceEdgeThreshold);
+    }
+    item.mesh.userData.shape = piece.shape;
   }
 
   function refreshPieceMaterials() {
@@ -199,7 +210,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       applyPieceMaterial(item.mesh, { id: item.pieceId, player, shape });
     }
     for (const mesh of pilesGroup.children) {
-      if (!(mesh instanceof THREE.Mesh)) continue;
+      if (!(mesh instanceof THREE.Object3D)) continue;
       const pick = mesh.userData.reserve as ReservePick | undefined;
       if (!pick) continue;
       applyPieceMaterial(mesh, { id: 'reserve', player: pick.player, shape: pick.shape });
@@ -220,7 +231,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   }
 
   const boardGeometries: THREE.BufferGeometry[] = [];
-  const reserveTargets = new Map<string, THREE.Mesh>();
+  const reserveTargets = new Map<string, THREE.Object3D>();
   const reserveSlots: { pick: ReservePick; position: THREE.Vector2 }[] = [];
   const previewShadow = makePieceShadow(geometry({ shape: 'flat' } as never), shadowMaterial, shadowsGroup);
   previewShadow.visible = false;
@@ -230,13 +241,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     if (shape !== 'flat' && shape !== 'standing') return;
     const nextShape = shape === 'flat' ? 'standing' : 'flat';
     const player = item.mesh.userData.player as string;
-    const piece = { shape: nextShape, id: item.pieceId, player };
-    item.mesh.geometry = geometry(piece as never);
-    item.shadow.geometry = geometry(piece as never);
-    item.mesh.userData.shape = nextShape;
-    decoratePieceMesh(item.mesh, edgeMaterials[player]!, outlineMaterial, edgeCache, pieceEdgeThreshold, {
-      hullOutline: pieceUsesHullOutline(piece as EnginePiece),
-    });
+    syncPieceShape(item, { shape: nextShape, id: item.pieceId, player } as EnginePiece);
   }
 
   let snapshot: BoardSnapshot = { playableCells: options.gridSize ** 2, cellCount: options.gridSize ** 2, cells: [] };
@@ -250,14 +255,13 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   let bufferHeight = 0;
   let selectedIds = new Set<string>();
   let reserveKey = '';
-  let ghostKey = '';
   const objects = new Map<string, PieceObject>();
   const animQueue = new AnimationQueue();
+  let inAnimTask = false;
 
-  /** Avoid deadlock when flip/move tasks call each other through the same queue. */
-  function scheduleAnimation(task: () => Promise<void>): Promise<void> {
-    if (animQueue.busy) return task();
-    return animQueue.enqueue(task);
+  function runFlipAnimation(work: () => Promise<void>): Promise<void> {
+    if (inAnimTask) return work();
+    return animQueue.enqueue(work);
   }
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
@@ -268,6 +272,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   let pressBlocksCamera = false;
   let replayingTouch = false;
   let controls: OrbitControls;
+  let cameraViewsRef: CameraViewController | null = null;
 
   function cellPosition(index: number) {
     return options.topology.cellPosition(index, snapshot);
@@ -310,9 +315,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
           item.flipSwapped = true;
           const shape = item.mesh.userData.shape as string;
           if (shape === 'marker') {
-            const player = (item.mesh.userData.player as string) === 'A' ? 'B' : 'A';
-            item.mesh.userData.player = player;
-            applyPieceMaterial(item.mesh, { id: item.pieceId, player, shape: 'marker' });
+            swapMarkerPlayer(item);
           } else if (shape === 'flat' || shape === 'standing') {
             swapFlippedStoneShape(item);
           }
@@ -356,7 +359,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     if (!projectPointer({ x: clientX, y: clientY })) return null;
     scene.updateMatrixWorld(true);
     const meshes = [...piecesGroup.children, ...pilesGroup.children, ...board.children.filter(c => c instanceof THREE.Mesh)].filter(m => m.visible);
-    return raycaster.intersectObjects(meshes, false)[0] ?? null;
+    return raycaster.intersectObjects(meshes, true)[0] ?? null;
   }
 
   function pickSurface(clientX: number, clientY: number) {
@@ -462,12 +465,40 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     container.dispatchEvent(new CustomEvent('camera-change'));
   });
 
-  function fit(reframe = false) {
+  function collectFramePoints(): THREE.Vector3[] {
+    const size = options.gridSize;
+    const points: THREE.Vector3[] = options.topology.frameCorners?.(snapshot) ?? [];
+    if (!points.length) {
+      const half = size / 2 + 0.04;
+      for (const x of [-half, half]) for (const z of [-half, half]) points.push(new THREE.Vector3(x, 0, z));
+    }
+    for (const slot of snapshot.reserves ?? []) {
+      const top =
+        stackHeight(
+          Array.from({ length: slot.count }, () => ({ shape: slot.shape, id: 'x', player: slot.player })),
+          p => height(p as never),
+        ) + 0.025;
+      for (const dx of [-0.43, 0.43])
+        for (const dz of [-0.43, 0.43]) {
+          points.push(
+            new THREE.Vector3(slot.position.x + dx, 0, slot.position.z + dz),
+            new THREE.Vector3(slot.position.x + dx, top, slot.position.z + dz),
+          );
+        }
+    }
+    return points;
+  }
+
+  function syncRendererSize() {
     const bounds = container.getBoundingClientRect();
     width = Math.max(1, Math.round(bounds.width));
     viewportHeight = Math.max(1, Math.round(bounds.height));
     const dpr = window.devicePixelRatio || 1;
-    const renderScale = Math.min(Math.max(CAMERA.minRenderScale, dpr), CAMERA.maxPixelRatio, Math.sqrt(CAMERA.maxBufferPixels / (width * viewportHeight)));
+    const renderScale = Math.min(
+      Math.max(CAMERA.minRenderScale, dpr),
+      CAMERA.maxPixelRatio,
+      Math.sqrt(CAMERA.maxBufferPixels / (width * viewportHeight)),
+    );
     const nextBufferWidth = Math.max(1, Math.round(width * renderScale));
     const nextBufferHeight = Math.max(1, Math.round(viewportHeight * renderScale));
     if (nextBufferWidth !== bufferWidth || nextBufferHeight !== bufferHeight) {
@@ -475,7 +506,16 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       bufferHeight = nextBufferHeight;
       renderer.setSize(bufferWidth, bufferHeight, false);
     }
-    const aspect = width / viewportHeight;
+    return width / viewportHeight;
+  }
+
+  function fit(reframe = false) {
+    const aspect = syncRendererSize();
+    if (cameraViewsRef) {
+      cameraViewsRef.refit();
+      requestRender();
+      return;
+    }
     const size = options.gridSize;
     if (framed && !reframe) {
       const centerX = (camera.left + camera.right) / 2;
@@ -488,33 +528,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     }
     framed = true;
     camera.updateMatrixWorld();
-    const points: THREE.Vector3[] = options.topology.frameCorners?.(snapshot) ?? [];
-    if (!points.length) {
-      const half = size / 2 + 0.04;
-      for (const x of [-half, half]) for (const z of [-half, half]) points.push(new THREE.Vector3(x, 0, z));
-    }
-    for (const slot of snapshot.reserves ?? []) {
-      const top = stackHeight(Array.from({ length: slot.count }, () => ({ shape: slot.shape, id: 'x', player: slot.player })), p => height(p as never)) + 0.025;
-      for (const dx of [-0.43, 0.43]) for (const dz of [-0.43, 0.43]) {
-        points.push(new THREE.Vector3(slot.position.x + dx, 0, slot.position.z + dz), new THREE.Vector3(slot.position.x + dx, top, slot.position.z + dz));
-      }
-    }
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const point of points) {
-      point.applyMatrix4(camera.matrixWorldInverse);
-      minX = Math.min(minX, point.x);
-      maxX = Math.max(maxX, point.x);
-      minY = Math.min(minY, point.y);
-      maxY = Math.max(maxY, point.y);
-    }
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-    const halfHeight = Math.max((maxY - minY) / 2, (maxX - minX) / (2 * aspect)) * CAMERA.framePadding;
-    camera.left = centerX - halfHeight * aspect;
-    camera.right = centerX + halfHeight * aspect;
-    camera.top = centerY + halfHeight;
-    camera.bottom = centerY - halfHeight;
-    camera.updateProjectionMatrix();
+    const points = collectFramePoints().map(p => p.clone());
+    fitOrthographicToWorldPoints(camera, points, aspect, CAMERA.framePadding);
     requestRender();
   }
 
@@ -586,7 +601,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         playfieldY,
       );
       for (let level = 0; level < slot.count; level++) {
-        const mesh = createPieceMesh({ ...pieceStub, id: `reserve-${level}` } as EnginePiece);
+        const mesh = createPieceVisual({ ...pieceStub, id: `reserve-${level}` } as EnginePiece);
         mesh.position.set(position.x, centers[level]!, position.y);
         mesh.userData.reserve = pick;
         mesh.userData.pileKey = pileKey;
@@ -618,20 +633,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       typeof view.selection.source !== 'number' &&
       reserveKeyFor(exterior.pick) === reserveKeyFor(view.selection.source);
     const visible = !!view.selection && !sameReserve && (target !== null || !!exterior) && (typeof view.selection.source !== 'number' || target !== view.selection.source);
-    ghostGroup.visible = visible;
+    ghostGroup.visible = false;
     previewShadow.visible = visible;
     if (!visible) return;
-    const key = selected.map(p => `${p.id}:${p.shape}:${p.player}`).join('|');
-    if (ghostKey !== key) {
-      ghostKey = key;
-      ghostGroup.clear();
-      for (const piece of selected) {
-        const mesh = new THREE.Mesh(geometry(piece as never), ghostMaterials[piece.player]!);
-        mesh.rotation.y = pieceYaw(piece.id);
-        mesh.renderOrder = 2;
-        ghostGroup.add(mesh);
-      }
-    }
     const targetStack = target === null ? [] : snapshot.cells[target] ?? [];
     let y =
       playfieldY +
@@ -648,11 +652,6 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       previewShadow.rotation.y = pieceYaw(selected[0].id);
       previewShadow.position.set(position.x, y + BOARD.SHADOW_CONTACT_EPSILON, position.z);
     }
-    const ghostCenters = layoutStackCenters(selected as EnginePiece[], stackMeasure, y);
-    selected.forEach((piece, i) => {
-      const mesh = ghostGroup.children[i];
-      if (mesh) mesh.position.set(position.x, ghostCenters[i]!, position.z);
-    });
   }
 
   function updateInteraction(immediate = false) {
@@ -718,7 +717,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         reserveKey = key;
         reserveGroup.clear();
         selected.forEach((piece, index) => {
-          const mesh = createPieceMesh(piece as EnginePiece, true);
+          const mesh = createPieceVisual(piece as EnginePiece, true);
           mesh.position.y = index * height(piece as never);
           reserveGroup.add(mesh);
         });
@@ -772,11 +771,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         const h = height(piece as never);
         const destination = new THREE.Vector3(position.x, centers[stackIndex]!, position.z);
         let item = objects.get(piece.id);
+        const prevPlayer = item?.mesh.userData.player as string | undefined;
         if (!item) {
-          const mesh = createPieceMesh(piece as EnginePiece);
+          const mesh = createPieceVisual(piece as EnginePiece);
           mesh.position.copy(destination);
           mesh.rotation.y = pieceYaw(piece.id);
-          if (piece.shape === 'marker') mesh.rotation.x = piece.player === 'B' ? Math.PI : 0;
+          if (piece.shape === 'marker' && !options.pieces.createVisual) mesh.rotation.x = piece.player === 'B' ? Math.PI : 0;
           mesh.userData.pieceId = piece.id;
           mesh.userData.cellIndex = index;
           mesh.userData.player = piece.player;
@@ -810,19 +810,20 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         }
         item.pieceId = piece.id;
         item.pieceHeight = h;
-        if (item.mesh instanceof THREE.Mesh && item.mesh.geometry !== geometry(piece as never)) {
-          item.mesh.geometry = geometry(piece as never);
-          item.shadow.geometry = geometry(piece as never);
-          if (pieceUsesOutline(piece as EnginePiece)) {
-            decoratePieceMesh(item.mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache, pieceEdgeThreshold, {
-              hullOutline: pieceUsesHullOutline(piece as EnginePiece),
-              edgeLines: pieceUsesEdgeLines(piece as EnginePiece),
-            });
-          }
-        }
+        syncPieceShape(item, piece as EnginePiece);
         item.mesh.userData.player = piece.player;
         applyPieceMaterial(item.mesh, piece as EnginePiece);
-        if (piece.shape === 'marker' && item.flipDuration <= 0) {
+        if (
+          piece.shape === 'marker' &&
+          options.pieces.replaceVisual &&
+          item.flipDuration <= 0 &&
+          prevPlayer !== undefined &&
+          prevPlayer !== piece.player
+        ) {
+          options.pieces.replaceVisual(item.mesh, piece as EnginePiece);
+          applyPieceMaterial(item.mesh, piece as EnginePiece);
+        }
+        if (piece.shape === 'marker' && item.flipDuration <= 0 && !options.pieces.createVisual) {
           const targetX = piece.player === 'B' ? Math.PI : 0;
           if (Math.abs(item.mesh.rotation.x - targetX) > 0.05) item.mesh.rotation.x = targetX;
           item.shadow.rotation.x = item.mesh.rotation.x;
@@ -840,7 +841,10 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       }
     }
     updateInteraction();
-    if (reframeCamera) fit(true);
+    if (reframeCamera) {
+      if (cameraViewsRef) cameraViewsRef.refit();
+      else fit(true);
+    }
   }
 
   const resizeObserver = new ResizeObserver(() => {
@@ -878,11 +882,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     requestRender();
     if (item.flipDuration <= 0) {
       item.mesh.rotation.x = item.flipToX;
-      if (isMarker) {
-        const player = (item.mesh.userData.player as string) === 'A' ? 'B' : 'A';
-        item.mesh.userData.player = player;
-        applyPieceMaterial(item.mesh, { id: item.pieceId, player, shape: 'marker' });
-      } else swapFlippedStoneShape(item);
+      if (isMarker) swapMarkerPlayer(item);
+      else swapFlippedStoneShape(item);
       item.shadow.rotation.x = item.mesh.rotation.x;
       return;
     }
@@ -901,6 +902,22 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
 
   return {
     setSnapshot,
+    createCameraViews(cameraOptions = {}) {
+      cameraViewsRef?.dispose();
+      const getBounds = cameraOptions.getBounds ?? collectFramePoints;
+      cameraViewsRef = createCameraViewController({
+        camera,
+        controls,
+        getBounds,
+        getAspect: () => {
+          syncRendererSize();
+          return width / viewportHeight;
+        },
+        onUpdate: requestRender,
+      });
+      framed = true;
+      return cameraViewsRef;
+    },
     setInteraction(next) {
       view = next;
       updateInteraction();
@@ -940,7 +957,14 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       return { x: bounds.left + ((position.x + 1) * bounds.width) / 2, y: bounds.top + ((1 - position.y) * bounds.height) / 2 };
     },
     enqueueAnimation(task) {
-      void animQueue.enqueue(task);
+      return animQueue.enqueue(async () => {
+        inAnimTask = true;
+        try {
+          await task();
+        } finally {
+          inAnimTask = false;
+        }
+      });
     },
     animationsBusy() {
       return animQueue.busy;
@@ -972,12 +996,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       requestRender();
     },
     flipPiece(pieceId) {
-      return scheduleAnimation(async () => {
+      return runFlipAnimation(async () => {
         await runFlipPiece(pieceId);
       });
     },
     flipPieces(pieceIds, staggerMs = 80) {
-      return scheduleAnimation(async () => {
+      return runFlipAnimation(async () => {
         for (let i = 0; i < pieceIds.length; i++) {
           if (i > 0 && staggerMs > 0) await new Promise(r => setTimeout(r, staggerMs));
           await runFlipPiece(pieceIds[i]!);

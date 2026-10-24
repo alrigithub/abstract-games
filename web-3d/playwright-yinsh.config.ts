@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: 'yinsh-gipf-comparison.spec.ts',
+  testMatch: /yinsh-(gipf-comparison|ai-playthrough|glb-screenshots|ring-closeup)\.spec\.ts/,
   fullyParallel: false,
   workers: 1,
   reporter: 'list',
@@ -20,7 +20,7 @@ export default defineConfig({
     },
     {
       command: 'npm run dev -w tzaar-3d-demo',
-      url: 'http://127.0.0.1:5198',
+      url: 'http://127.0.0.1:5199',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

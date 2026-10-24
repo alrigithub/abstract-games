@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BOARD } from '../constants';
+import { themeTokens } from '../theme';
 import { createContactShadowBlob } from './contact-shadow';
 import type { PieceGeometrySet, ThemeId } from '../types';
 
@@ -14,8 +15,8 @@ export const GOMOKU_DIMS = {
   STAR_R: 0.055,
   STONE_R: 0.47,
   STONE_H: 0.21,
-  /** Board surface is y=0; stone center sits at half height (flush, no air gap). */
-  STONE_CENTER_Y: 0.105,
+  /** Lower resting center by this fraction of stone height (visual seat on board). */
+  REST_Y_DROP: 0.25,
 } as const;
 
 const HOSHI_15: readonly (readonly [number, number])[] = [
@@ -48,46 +49,43 @@ export function createGomokuStoneGeometry(
   return geo;
 }
 
+/** World Y of stone mesh center at rest: `STONE_H/2 − REST_Y_DROP×STONE_H`. */
+export function gomokuStoneRestCenterY(height = GOMOKU_DIMS.STONE_H): number {
+  return height / 2 - GOMOKU_DIMS.REST_Y_DROP * height;
+}
+
+/** @deprecated Use {@link gomokuStoneRestCenterY}. */
 export function gomokuStoneCenterY(): number {
-  return GOMOKU_DIMS.STONE_H / 2;
+  return gomokuStoneRestCenterY();
 }
 
 export interface GomokuThemeMaterials {
   table: THREE.Color;
-  board: THREE.MeshStandardMaterial;
+  board: THREE.MeshBasicMaterial;
   line: THREE.MeshBasicMaterial;
   star: THREE.MeshBasicMaterial;
-  stoneA: THREE.MeshStandardMaterial;
-  stoneB: THREE.MeshStandardMaterial;
-  contactShadow: THREE.MeshBasicMaterial;
+  stoneA: THREE.MeshBasicMaterial;
+  stoneB: THREE.MeshBasicMaterial;
+  stoneShadow: THREE.MeshBasicMaterial;
 }
 
 export function gomokuThemeMaterials(theme: ThemeId): GomokuThemeMaterials {
-  const dark = theme === 'dark';
+  const tokens = themeTokens(theme);
+  const pieceA = tokens.piece.A!;
+  const pieceB = tokens.piece.B!;
   return {
-    table: new THREE.Color(dark ? '#16171a' : '#ffffff'),
-    board: new THREE.MeshStandardMaterial({
-      color: dark ? '#22242a' : '#e8e4dc',
-      roughness: dark ? 0.92 : 0.88,
-      metalness: 0,
-    }),
-    line: new THREE.MeshBasicMaterial({ color: dark ? '#8a8f98' : '#1a1a1a', side: THREE.DoubleSide }),
-    star: new THREE.MeshBasicMaterial({ color: dark ? '#8a8f98' : '#1a1a1a', side: THREE.DoubleSide }),
-    stoneA: new THREE.MeshStandardMaterial({
-      color: dark ? '#f5f5f2' : '#fafaf8',
-      roughness: 0.32,
-      metalness: 0.04,
-    }),
-    stoneB: new THREE.MeshStandardMaterial({
-      color: dark ? '#141414' : '#242424',
-      roughness: 0.88,
-      metalness: 0,
-    }),
-    contactShadow: new THREE.MeshBasicMaterial({
-      color: dark ? '#000000' : '#19232e',
+    table: new THREE.Color(tokens.table),
+    board: new THREE.MeshBasicMaterial({ color: tokens.board, side: THREE.DoubleSide }),
+    line: new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.DoubleSide }),
+    star: new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.DoubleSide }),
+    stoneA: new THREE.MeshBasicMaterial({ color: pieceA.fill, toneMapped: false }),
+    stoneB: new THREE.MeshBasicMaterial({ color: pieceB.fill, toneMapped: false }),
+    stoneShadow: new THREE.MeshBasicMaterial({
+      color: tokens.shadow,
       transparent: true,
-      opacity: dark ? 0.45 : 0.12,
+      opacity: 0.09,
       depthWrite: false,
+      side: THREE.DoubleSide,
     }),
   };
 }

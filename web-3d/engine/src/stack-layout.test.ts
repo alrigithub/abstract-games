@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { layoutStackCenters, pieceBaseY, PLAYFIELD_SURFACE_Y, stackExtent } from './stack-layout';
+import {
+  layoutStackCenters,
+  pieceBaseY,
+  PLAYFIELD_SURFACE_Y,
+  stackExtent,
+  type StackMeasure,
+} from './stack-layout';
 import type { EnginePiece } from './types';
 
 const flat = (id: string): EnginePiece => ({ id, player: 'A', shape: 'flat' });
 
 describe('stack layout grounding', () => {
-  const measure = {
-    heightOf: (_piece: EnginePiece) => 0.18,
-    offsetOf: (_piece: EnginePiece, _index: number, _stack: EnginePiece[]) => 0,
+  const measure: StackMeasure = {
+    heightOf: (_p: EnginePiece) => 0.18,
+    offsetOf: (_p: EnginePiece, _i: number, _s: EnginePiece[]) => 0,
   };
 
   it('bottom piece base equals playfield surface', () => {

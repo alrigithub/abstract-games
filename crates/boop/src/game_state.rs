@@ -141,6 +141,16 @@ impl GameState {
         self.pools[pool_index(player)] = pool;
     }
 
+    #[doc(hidden)]
+    pub fn set_winner(&mut self, winner: Option<Player>) {
+        self.winner = winner;
+    }
+
+    #[doc(hidden)]
+    pub fn set_pending_graduation(&mut self, lines: Vec<[Coord; 3]>) {
+        self.pending_graduation = lines;
+    }
+
     /// What the player to move must do next (meaningless once there is a winner).
     pub fn turn_mode(&self) -> TurnMode {
         if !self.pending_graduation.is_empty() {
@@ -313,22 +323,8 @@ impl GameState {
             &mut self.last_effects,
         );
 
-        // Three cats in a row wins outright, before any graduation could break the line.
-        if let Some(line) = find_winning_cat_line(&self.board, player) {
-            self.last_effects.line_highlight = Some(LineHighlight::Win(line));
-            self.winner = Some(player);
+        if apply_line_outcomes(self, player) {
             return Ok(());
-        }
-
-        let candidates = graduation_candidates(&self.board, player);
-        match candidates.as_slice() {
-            [] => {}
-            [line] => graduate_line(self, player, *line),
-            _ => {
-                // Several lines formed at once: the mover keeps the turn and picks one.
-                self.pending_graduation = candidates;
-                return Ok(());
-            }
         }
         finish_turn(self, player);
         Ok(())
@@ -407,12 +403,44 @@ fn alternate_graduation_moves(state: &GameState, player: Player, pool: Pool) -> 
     moves
 }
 
-/// End-of-turn win check (three cats in a row, or all eight cats on the bed), then pass the turn.
-fn finish_turn(state: &mut GameState, player: Player) {
-    if state.winner.is_none() {
+/// Win / graduation lines after boops (either player; boop-formed lines count).
+/// Returns true when the turn must not continue to `finish_turn` (game over or graduation choice pending).
+fn apply_line_outcomes(state: &mut GameState, mover: Player) -> bool {
+    if apply_any_winning_cat_line(state, [mover, mover.opponent()]) {
+        return true;
+    }
+
+    for player in [mover, mover.opponent()] {
+        let candidates = graduation_candidates(&state.board, player);
+        match candidates.as_slice() {
+            [] => {}
+            [line] => graduate_line(state, player, *line),
+            _ => {
+                state.pending_graduation = candidates;
+                state.to_move = player;
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn apply_any_winning_cat_line(state: &mut GameState, order: [Player; 2]) -> bool {
+    for player in order {
         if let Some(line) = find_winning_cat_line(&state.board, player) {
             state.last_effects.line_highlight = Some(LineHighlight::Win(line));
             state.winner = Some(player);
+            return true;
+        }
+    }
+    false
+}
+
+/// End-of-turn win check (three cats in a row, or all eight cats on the bed), then pass the turn.
+fn finish_turn(state: &mut GameState, player: Player) {
+    if state.winner.is_none() {
+        if apply_any_winning_cat_line(state, [player, player.opponent()]) {
+            /* winner set */
         } else if state.board.count_cats(player) >= CATS_PER_PLAYER as u32 {
             state.last_effects.line_highlight = Some(LineHighlight::EightCatsOnBed);
             state.winner = Some(player);

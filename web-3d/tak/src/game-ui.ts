@@ -172,6 +172,15 @@ export function createGameUi(options: GameUiOptions) {
       render();
       maybeAi();
     },
+    restartRound() {
+      if (!active) return;
+      stopAi();
+      draft = null;
+      piece = 'flat';
+      game = createGame(game.board.size);
+      render();
+      maybeAi();
+    },
     startLocal(size: number) {
       stopAi();
       active = true;
@@ -208,6 +217,14 @@ export function createGameUi(options: GameUiOptions) {
       maybeAi();
     },
     refresh: () => render(),
+    canFlipStone() {
+      return active && humanTurn() && !draft && game.ply >= 2 && piece !== 'capstone';
+    },
+    toggleStoneOrientation() {
+      if (!active || !humanTurn() || draft || game.ply < 2 || piece === 'capstone') return;
+      piece = piece === 'standing' ? 'flat' : 'standing';
+      render();
+    },
     dispose() {
       stopAi();
       panel.remove();

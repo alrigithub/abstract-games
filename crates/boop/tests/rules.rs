@@ -293,6 +293,134 @@ fn three_cats_in_a_row_is_win_not_graduation() {
 }
 
 #[test]
+fn three_cats_diagonal_down_right_wins() {
+    let mut g = GameState::new();
+    g.set_piece(
+        Coord::new(0, 0),
+        Piece {
+            player: Player::First,
+            kind: PieceKind::Cat,
+        },
+    );
+    g.set_piece(
+        Coord::new(1, 1),
+        Piece {
+            player: Player::First,
+            kind: PieceKind::Cat,
+        },
+    );
+    g.set_to_move(Player::First);
+    g.set_pool(
+        Player::First,
+        boop::Pool {
+            kittens_in_hand: 8,
+            cats_in_hand: 1,
+            cats_in_reserve: 5,
+        },
+    );
+
+    g.apply(Move::Place {
+        coord: Coord::new(2, 2),
+        piece: PieceKind::Cat,
+    })
+    .unwrap();
+
+    assert_eq!(g.winner(), Some(Player::First));
+}
+
+#[test]
+fn three_cats_diagonal_down_left_wins() {
+    let mut g = GameState::new();
+    g.set_piece(
+        Coord::new(0, 2),
+        Piece {
+            player: Player::First,
+            kind: PieceKind::Cat,
+        },
+    );
+    g.set_piece(
+        Coord::new(1, 1),
+        Piece {
+            player: Player::First,
+            kind: PieceKind::Cat,
+        },
+    );
+    g.set_to_move(Player::First);
+    g.set_pool(
+        Player::First,
+        boop::Pool {
+            kittens_in_hand: 8,
+            cats_in_hand: 1,
+            cats_in_reserve: 5,
+        },
+    );
+
+    g.apply(Move::Place {
+        coord: Coord::new(2, 0),
+        piece: PieceKind::Cat,
+    })
+    .unwrap();
+
+    assert_eq!(g.winner(), Some(Player::First));
+}
+
+#[test]
+fn second_player_three_kittens_diagonal_graduates_via_boop() {
+    let mut g = GameState::new();
+    g.set_piece(
+        Coord::new(0, 0),
+        Piece {
+            player: Player::First,
+            kind: PieceKind::Kitten,
+        },
+    );
+    g.set_piece(
+        Coord::new(1, 1),
+        Piece {
+            player: Player::First,
+            kind: PieceKind::Kitten,
+        },
+    );
+    g.set_piece(
+        Coord::new(3, 3),
+        Piece {
+            player: Player::First,
+            kind: PieceKind::Kitten,
+        },
+    );
+    g.set_to_move(Player::Second);
+    g.set_pool(
+        Player::Second,
+        boop::Pool {
+            kittens_in_hand: 7,
+            cats_in_hand: 0,
+            cats_in_reserve: 8,
+        },
+    );
+    g.set_pool(
+        Player::First,
+        boop::Pool {
+            kittens_in_hand: 5,
+            cats_in_hand: 0,
+            cats_in_reserve: 6,
+        },
+    );
+
+    g.apply(Move::Place {
+        coord: Coord::new(4, 4),
+        piece: PieceKind::Kitten,
+    })
+    .unwrap();
+
+    assert_eq!(g.winner(), None);
+    assert!(matches!(
+        g.last_move_effects().line_highlight,
+        Some(boop::LineHighlight::Graduation(_))
+    ));
+    assert!(g.board().get(Coord::new(2, 2)).is_none());
+}
+
+#[test]
 fn win_with_three_cats_in_a_row() {
     let mut g = GameState::new();
     g.set_piece(

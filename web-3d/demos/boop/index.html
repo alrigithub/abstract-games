@@ -3,21 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Boop cats demo</title>
-    <style>
-      html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; }
-      #board { width: 100%; height: 100%; touch-action: none; }
-      #theme-toggle {
-        position: fixed; z-index: 5; left: 12px; top: 12px;
-        width: 44px; height: 44px; border-radius: 50%; border: 1px solid #ccc;
-        background: #fff; cursor: pointer;
-      }
-    </style>
+    <title>Boop</title>
   </head>
   <body>
     <div id="app">
-      <button id="theme-toggle" data-testid="theme-toggle" aria-label="Toggle theme">◐</button>
-      <div id="board" data-testid="board"></div>
+      <div id="game-buttons-mount"></div>
+      <div id="board" data-testid="board" aria-label="Boop board"></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

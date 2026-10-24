@@ -17,7 +17,7 @@ export function themeTokens(id: ThemeId): ThemeTokens {
       shadow: '#000000',
       piece: {
         A: { fill: '#f5f5f5', rim: '#2a2a2a', edge: '#2a2a2a' },
-        B: { fill: '#111111', rim: '#d8d8d8', edge: '#d8d8d8' },
+        B: { fill: '#111111', rim: '#d0d0d0', edge: '#d0d0d0' },
       },
     };
   }
@@ -49,18 +49,70 @@ export function readStoredTheme(): ThemeId {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-export function bindThemeToggle(button: HTMLElement, apply: (theme: ThemeId) => void): () => void {
-  let theme = readStoredTheme();
-  apply(theme);
-  document.documentElement.dataset.theme = theme;
+/** `?theme=light|dark` URL override (screenshots, tests), else stored/system theme. */
+export function readInitialTheme(): ThemeId {
+  try {
+    const q = new URLSearchParams(location.search).get('theme');
+    if (q === 'light' || q === 'dark') return q;
+  } catch {
+    /* no location */
+  }
+  return readStoredTheme();
+}
+
+/** Sets `data-theme` on the document root. Every game page should go through this. */
+export function applyDocumentTheme(id: ThemeId): void {
+  document.documentElement.dataset.theme = id;
+}
+
+export interface BindThemeToggleOptions {
+  /** Follow OS dark/light changes while the user hasn't picked a theme. Default true. */
+  followSystem?: boolean;
+}
+
+/**
+ * Shared theme wiring: applies the initial theme, toggles on click, persists the
+ * choice, and follows the OS preference until the user picks one.
+ */
+export function bindThemeToggle(
+  button: HTMLElement,
+  apply: (theme: ThemeId) => void,
+  options: BindThemeToggleOptions = {},
+): () => void {
+  let theme = readInitialTheme();
+  const set = (id: ThemeId) => {
+    theme = id;
+    applyDocumentTheme(id);
+    apply(id);
+  };
+  set(theme);
   const onClick = () => {
-    theme = theme === 'light' ? 'dark' : 'light';
-    storeTheme(theme);
-    apply(theme);
-    document.documentElement.dataset.theme = theme;
+    const next = theme === 'light' ? 'dark' : 'light';
+    storeTheme(next);
+    set(next);
   };
   button.addEventListener('click', onClick);
-  return () => button.removeEventListener('click', onClick);
+  let unwatch = () => {};
+  if (options.followSystem !== false) {
+    try {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      const onSystem = () => {
+        try {
+          if (localStorage.getItem(THEME_STORAGE_KEY) === null) set(readInitialTheme());
+        } catch {
+          /* ignore */
+        }
+      };
+      mq.addEventListener('change', onSystem);
+      unwatch = () => mq.removeEventListener('change', onSystem);
+    } catch {
+      /* no matchMedia */
+    }
+  }
+  return () => {
+    button.removeEventListener('click', onClick);
+    unwatch();
+  };
 }
 
 export function storeTheme(id: ThemeId): void {

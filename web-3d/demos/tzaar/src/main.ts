@@ -4,18 +4,23 @@ import {
   BOARD,
   CAMERA,
   GIPF_CHIP,
-  bindThemeToggle,
+  createBoardWebGLRenderer,
+  createCameraViewController,
+  createGameButtons,
   createGipfChipGeometry,
   createGipfHexBoard,
   createTzaarHexTopology,
   createTzaarPieceMesh,
   gipfLayoutFrameCorners,
+  readInitialTheme,
   tzaarFixedStart,
   tzaarLayout,
   tzaarPlayableCells,
   themeTokens,
+  type EnginePiece,
   type ThemeId,
 } from '@abstract/three-engine';
+import { loadTzaarPieceGeometrySet } from './tzaar-piece-models';
 
 /** Official start plus a few mid-board stacks so height reads at a glance. */
 const STACKS: Record<string, number> = {
@@ -29,20 +34,9 @@ const STACKS: Record<string, number> = {
   '8,8': 2,
 };
 
-const params = new URLSearchParams(location.search);
-const requested = params.get('theme');
-const discCloseupShot = params.get('shot') === 'disc-closeup';
-/** Shared with Yinsh GIPF close-up comparison shots. */
-const GIPF_CLOSEUP_CAMERA = { elevationDeg: 35, azimuthDeg: 38 } as const;
-
 const boardEl = document.querySelector<HTMLDivElement>('#board')!;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
-renderer.setPixelRatio(1);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.NoToneMapping;
-renderer.domElement.setAttribute('aria-hidden', 'true');
-renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none;';
+const renderer = createBoardWebGLRenderer();
 boardEl.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -71,9 +65,16 @@ interface StackLabel {
   world: THREE.Vector3;
 }
 
+const labelCenter = new THREE.Vector3();
+const labelRim = new THREE.Vector3();
+/** Extra pixels beyond the projected chip radius, up-right of the top centre. */
+const LABEL_CLEAR_PX = 16;
+
 const labels: StackLabel[] = [];
+let cameraReady = false;
 
 const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0);
 controls.enableDamping = false;
 controls.enablePan = true;
 controls.rotateSpeed = CAMERA.rotateSpeed;
@@ -89,16 +90,29 @@ controls.touches.ONE = THREE.TOUCH.PAN;
 controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
 
 let frame = 0;
-let framed = false;
+let viewportW = 1;
+let viewportH = 1;
 function requestRender() {
   if (!document.hidden && !frame) frame = requestAnimationFrame(render);
 }
 function projectLabels() {
+  if (!cameraReady) return;
+  camera.updateMatrixWorld();
   const bounds = boardEl.getBoundingClientRect();
+  const w = bounds.width;
+  const h = bounds.height;
+  if (w < 2 || h < 2) return;
+  const radius = GIPF_CHIP.RADIUS;
   for (const label of labels) {
-    const p = label.world.clone().project(camera);
-    label.el.style.left = `${(p.x * 0.5 + 0.5) * bounds.width}px`;
-    label.el.style.top = `${(-p.y * 0.5 + 0.5) * bounds.height}px`;
+    labelCenter.copy(label.world).project(camera);
+    const cx = (labelCenter.x * 0.5 + 0.5) * w;
+    const cy = (-labelCenter.y * 0.5 + 0.5) * h;
+    labelRim.set(label.world.x + radius, label.world.y, label.world.z).project(camera);
+    const radiusPx = Math.hypot((labelRim.x * 0.5 + 0.5) * w - cx, (-labelRim.y * 0.5 + 0.5) * h - cy);
+    const dist = radiusPx + LABEL_CLEAR_PX;
+    const along = dist * Math.SQRT1_2;
+    label.el.style.left = `${cx + along}px`;
+    label.el.style.top = `${cy - along}px`;
   }
 }
 function render() {
@@ -110,100 +124,32 @@ function render() {
 
 controls.addEventListener('change', requestRender);
 
-function setCameraView(target: THREE.Vector3) {
-  const elevation = (GIPF_CLOSEUP_CAMERA.elevationDeg * Math.PI) / 180;
-  const azimuth = (GIPF_CLOSEUP_CAMERA.azimuthDeg * Math.PI) / 180;
-  const polar = Math.PI / 2 - elevation;
-  const dist = 6;
-  camera.position.set(
-    target.x + Math.sin(polar) * Math.cos(azimuth) * dist,
-    target.y + Math.cos(polar) * dist,
-    target.z + Math.sin(polar) * Math.sin(azimuth) * dist,
-  );
-  camera.up.set(0, 1, 0);
-  camera.lookAt(target);
-  controls.target.copy(target);
-  controls.update();
-  camera.updateMatrixWorld();
+function tzaarFramePoints(): THREE.Vector3[] {
+  return (topology.frameCorners?.(snapshot) ?? gipfLayoutFrameCorners(layout)).map(p => p.clone());
 }
 
-function fit(reframe = false) {
+const cameraViews = createCameraViewController({
+  camera,
+  controls,
+  getBounds: tzaarFramePoints,
+  getAspect: () => viewportW / viewportH,
+  onUpdate: requestRender,
+});
+
+function fit() {
   const bounds = boardEl.getBoundingClientRect();
-  const width = Math.max(1, Math.round(bounds.width));
-  const height = Math.max(1, Math.round(bounds.height));
-  renderer.setSize(width, height, true);
-  const aspect = width / height;
-  if (framed && !reframe) {
-    const centerX = (camera.left + camera.right) / 2;
-    const halfHeight = (camera.top - camera.bottom) / 2;
-    camera.left = centerX - halfHeight * aspect;
-    camera.right = centerX + halfHeight * aspect;
-    camera.updateProjectionMatrix();
-    requestRender();
-    return;
-  }
-  framed = true;
-  camera.updateMatrixWorld();
-  const points = topology.frameCorners?.(snapshot) ?? gipfLayoutFrameCorners(layout);
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (const point of points) {
-    point.applyMatrix4(camera.matrixWorldInverse);
-    minX = Math.min(minX, point.x);
-    maxX = Math.max(maxX, point.x);
-    minY = Math.min(minY, point.y);
-    maxY = Math.max(maxY, point.y);
-  }
-  const centerX = (minX + maxX) / 2;
-  const centerY = (minY + maxY) / 2;
-  const halfHeight = Math.max((maxY - minY) / 2, (maxX - minX) / (2 * aspect)) * 1.08;
-  camera.left = centerX - halfHeight * aspect;
-  camera.right = centerX + halfHeight * aspect;
-  camera.top = centerY + halfHeight;
-  camera.bottom = centerY - halfHeight;
-  camera.updateProjectionMatrix();
+  viewportW = Math.max(1, Math.round(bounds.width));
+  viewportH = Math.max(1, Math.round(bounds.height));
+  renderer.setSize(viewportW, viewportH, true);
+  cameraViews.refit();
+  cameraReady = true;
+  projectLabels();
   requestRender();
 }
 
-function fitDiscCloseup(focus: THREE.Vector3) {
-  const bounds = boardEl.getBoundingClientRect();
-  const width = Math.max(1, Math.round(bounds.width));
-  const height = Math.max(1, Math.round(bounds.height));
-  renderer.setSize(width, height, true);
-  const aspect = width / height;
-  framed = true;
-  setCameraView(focus);
-  const pad = 0.48;
-  const points = [
-    new THREE.Vector3(focus.x - pad, 0, focus.z - pad),
-    new THREE.Vector3(focus.x + pad, GIPF_CHIP.HEIGHT * 1.05, focus.z + pad),
-  ];
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (const point of points) {
-    point.applyMatrix4(camera.matrixWorldInverse);
-    minX = Math.min(minX, point.x);
-    maxX = Math.max(maxX, point.x);
-    minY = Math.min(minY, point.y);
-    maxY = Math.max(maxY, point.y);
-  }
-  const centerX = (minX + maxX) / 2;
-  const centerY = (minY + maxY) / 2;
-  const halfHeight = Math.max((maxY - minY) / 2, (maxX - minX) / (2 * aspect)) * 1.12;
-  camera.left = centerX - halfHeight * aspect;
-  camera.right = centerX + halfHeight * aspect;
-  camera.top = centerY + halfHeight;
-  camera.bottom = centerY - halfHeight;
-  camera.updateProjectionMatrix();
-  requestRender();
-}
+const pieces = await loadTzaarPieceGeometrySet();
 
 function applyTheme(id: ThemeId) {
-  document.documentElement.dataset.theme = id;
   const tokens = themeTokens(id);
   scene.background = new THREE.Color(tokens.table);
   boardRoot.clear();
@@ -219,34 +165,36 @@ function applyTheme(id: ThemeId) {
     opacity: 0.09,
     depthWrite: false,
     side: THREE.DoubleSide,
+    toneMapped: false,
   });
   const surface = BOARD.PLAYFIELD_SURFACE_Y;
-  const closeupCell = cells.find(c => c.x === 3 && c.y === 2);
-  const layoutPieces = discCloseupShot && closeupCell
-    ? [{ index: closeupCell.index, x: 3, y: 2, player: 'A' as const, kind: 'tott' as const }]
-    : start;
-  let closeupFocus: THREE.Vector3 | null = null;
-  for (const piece of layoutPieces) {
-    const height = discCloseupShot ? 1 : (STACKS[`${piece.x},${piece.y}`] ?? 1);
+  for (const piece of start) {
+    const height = STACKS[`${piece.x},${piece.y}`] ?? 1;
     const pos = topology.cellPosition(piece.index, snapshot);
-    if (discCloseupShot) closeupFocus = new THREE.Vector3(pos.x, GIPF_CHIP.HEIGHT * 0.42, pos.z);
     let y = surface;
     for (let level = 0; level < height; level++) {
-      const isTop = level === height - 1;
-      const mesh = createTzaarPieceMesh({
+      const enginePiece: EnginePiece = {
+        id: `${piece.x},${piece.y},${level}`,
         player: piece.player,
-        kind: isTop ? piece.kind : 'tott',
-        isTop,
-        tokens,
-        edgeCache,
-        showSeparator: level > 0,
-      });
-      mesh.position.set(pos.x, y + GIPF_CHIP.HEIGHT / 2, pos.z);
-      piecesRoot.add(mesh);
-      y += GIPF_CHIP.HEIGHT;
+        shape: piece.kind,
+      };
+      const step = pieces.height(enginePiece);
+      const visual = pieces.createVisual
+        ? pieces.createVisual(enginePiece)
+        : createTzaarPieceMesh({
+            player: piece.player,
+            kind: piece.kind,
+            isTop: level === height - 1,
+            tokens,
+            edgeCache,
+            showSeparator: level > 0,
+          });
+      visual.position.set(pos.x, y + step / 2, pos.z);
+      piecesRoot.add(visual);
+      y += step;
     }
     const shadow = new THREE.Mesh(discGeo, shadowMat);
-    shadow.scale.set(BOARD.SHADOW_SCALE, 0.001, BOARD.SHADOW_SCALE);
+    shadow.scale.set(1, 0.001, 1);
     shadow.position.set(pos.x, surface + BOARD.SHADOW_CONTACT_EPSILON, pos.z);
     shadow.renderOrder = 1;
     shadowsRoot.add(shadow);
@@ -256,18 +204,36 @@ function applyTheme(id: ThemeId) {
       el.textContent = String(height);
       el.dataset.testid = `stack-height-${piece.x}-${piece.y}`;
       boardEl.appendChild(el);
-      labels.push({ el, world: new THREE.Vector3(pos.x, y + 0.02, pos.z) });
+      labels.push({ el, world: new THREE.Vector3(pos.x, y, pos.z) });
     }
   }
-  if (discCloseupShot && closeupFocus) fitDiscCloseup(closeupFocus);
-  else requestRender();
+  requestRender();
+  if (cameraReady) projectLabels();
 }
 
-const initial: ThemeId = requested === 'light' || requested === 'dark' ? requested : 'light';
+const initial: ThemeId = readInitialTheme();
 applyTheme(initial);
-bindThemeToggle(document.querySelector('#theme-toggle')!, applyTheme);
-if (requested === 'light' || requested === 'dark') applyTheme(requested);
-if (!discCloseupShot) fit();
+
+function renderStatus(extra?: string) {
+  gameButtons.setStatus(extra ?? 'Tzaar piece demo · official start (no 3D AI yet)');
+}
+
+const gameButtons = createGameButtons({
+  mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  cameraViews,
+  applyTheme,
+  onNewGameReset: () => {
+    applyTheme(initial);
+    renderStatus('Demo layout reset');
+  },
+  onRestartRound: () => {
+    applyTheme(initial);
+    renderStatus('Demo layout reset');
+  },
+});
+
+renderStatus();
+fit();
 
 const resize = new ResizeObserver(() => fit());
 resize.observe(boardEl);
