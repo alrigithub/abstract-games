@@ -419,12 +419,11 @@ export class BoopController {
     for (let j = 0; j < effects.off_board.length; j++) {
       const o = effects.off_board[j]!;
       const id = this.tracker.ensureIdAt(o.from.x, o.from.y, o.player, o.kind);
-      const { row, col } = PieceTracker.restingCell(o.from, o);
       this.view = boardWithOffBoardOnBed(afterDisplacementsView, effects.off_board, j);
       this.publishSnapshot();
       await sleep(step);
       this.tracker.removeFromBoard(o.from.x, o.from.y);
-      this.tracker.addResting(id, o.player, o.kind, row, col);
+      this.tracker.addRestingFromBoop(id, o.player, o.kind, o.from, o);
       this.view = after;
       this.publishSnapshot();
       await sleep(step);
@@ -536,6 +535,24 @@ export class BoopController {
     await this.playMoveJson(boop, { scheduleAi: false });
     await sleep(stepMs());
     return this.tracker.restingCount() > 0;
+  }
+
+  /** Two vases booped off the same edge cell (second slides outward). For screenshots. */
+  async ensureTwoRestingSameEdgeCell() {
+    if (!(await this.ensureRestingOffBoardPiece())) return false;
+    const step = stepMs();
+    const push = { push_x: -1, push_y: 0 };
+    this.view.board[0]![0] = { player: HUMAN, kind: 'kitten' };
+    this.tracker.syncBoard(this.view);
+    const id = this.tracker.ensureIdAt(0, 0, HUMAN, 'kitten');
+    this.publishSnapshot();
+    await sleep(step);
+    this.tracker.removeFromBoard(0, 0);
+    this.tracker.addRestingFromBoop(id, HUMAN, 'kitten', { x: 0, y: 0 }, push);
+    this.view.board[0]![0] = null;
+    this.publishSnapshot();
+    await sleep(step);
+    return this.tracker.restingCount() >= 2;
   }
 
   /** Place human corner kitten; used by screenshot tooling before an AI boop push. */

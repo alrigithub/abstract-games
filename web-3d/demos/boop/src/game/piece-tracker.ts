@@ -1,5 +1,6 @@
 import type { BoardSnapshot, EnginePiece } from '@abstract/three-engine';
 import { cellIndex } from '@abstract/three-engine';
+import { defaultRestingCell, resolveRestingCell } from './boop-resting-slot';
 import { poolSlots } from './boop-pool-layout';
 import type { GameView, PieceKind, PlayerId } from './types';
 
@@ -55,11 +56,29 @@ export class PieceTracker {
 
   /** Exterior cell one step beyond the bed edge in the boop push direction. */
   static restingCell(from: { x: number; y: number }, push: { push_x: number; push_y: number }) {
-    return { row: from.y + push.push_y, col: from.x + push.push_x };
+    return defaultRestingCell(from, push);
+  }
+
+  resolveRestingSlot(
+    from: { x: number; y: number },
+    push: { push_x: number; push_y: number },
+  ): { row: number; col: number } {
+    return resolveRestingCell(from, push, this.resting);
   }
 
   addResting(id: string, player: PlayerId, kind: PieceKind, row: number, col: number) {
     this.resting.push({ id, player, kind, row, col });
+  }
+
+  addRestingFromBoop(
+    id: string,
+    player: PlayerId,
+    kind: PieceKind,
+    from: { x: number; y: number },
+    push: { push_x: number; push_y: number },
+  ) {
+    const { row, col } = this.resolveRestingSlot(from, push);
+    this.addResting(id, player, kind, row, col);
   }
 
   removeRestingById(id: string) {
