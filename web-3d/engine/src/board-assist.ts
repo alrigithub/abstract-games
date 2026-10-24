@@ -23,6 +23,9 @@ export class BoardAssistLayer {
   private highlightRingMaterial: THREE.MeshBasicMaterial;
   private lastMoveMaterial: THREE.MeshBasicMaterial;
   private lastMoveDotMaterial: THREE.MeshBasicMaterial;
+  private markerGhostMaterial: THREE.MeshBasicMaterial;
+  private markerGhostMesh: THREE.Mesh | null = null;
+  private pieceColors: ThemeTokens['piece'] | null = null;
 
   constructor() {
     this.destDotMaterial = new THREE.MeshBasicMaterial({
@@ -63,6 +66,12 @@ export class BoardAssistLayer {
       opacity: 0.75,
       depthWrite: false,
     });
+    this.markerGhostMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.38,
+      depthWrite: false,
+    });
     this.root.add(this.pathGroup, this.lastMoveGroup);
   }
 
@@ -82,9 +91,13 @@ export class BoardAssistLayer {
     this.highlightRingMaterial.dispose();
     this.lastMoveMaterial.dispose();
     this.lastMoveDotMaterial.dispose();
+    this.markerGhostMaterial.dispose();
+    if (this.markerGhostMesh) this.markerGhostMesh.geometry.dispose();
   }
 
   applyTheme(tokens: ThemeTokens) {
+    this.pieceColors = tokens.piece;
+    this.markerGhostMaterial.opacity = tokens.ghostOpacity * 0.85;
     const accent = tokens.win;
     const hint = tokens.lines;
     this.destDotMaterial.color.set(hint);
@@ -101,6 +114,7 @@ export class BoardAssistLayer {
     if (!state) {
       this.hideAllDots();
       this.hideAllRings();
+      this.hideMarkerGhost();
       this.clearGroup(this.pathGroup);
       this.clearGroup(this.lastMoveGroup);
       return;
@@ -121,6 +135,36 @@ export class BoardAssistLayer {
 
     this.setSoftPath(this.pathGroup, state.pathCells, cellPosition, PATH_HALF_WIDTH, this.pathMaterial, DOT_Y + 0.001);
     this.setLastMove(state.lastMove, cellPosition);
+    this.placeMarkerGhost(state.markerGhost, cellPosition);
+  }
+
+  private hideMarkerGhost() {
+    if (this.markerGhostMesh) this.markerGhostMesh.visible = false;
+  }
+
+  private placeMarkerGhost(
+    ghost: BoardAssistState['markerGhost'],
+    cellPosition: CellPosition,
+  ) {
+    if (!ghost) {
+      this.hideMarkerGhost();
+      return;
+    }
+    if (!this.markerGhostMesh) {
+      this.markerGhostMesh = new THREE.Mesh(
+        new THREE.CircleGeometry(1, BOARD.RADIAL_SEGMENTS),
+        this.markerGhostMaterial,
+      );
+      this.markerGhostMesh.rotation.x = -Math.PI / 2;
+      this.markerGhostMesh.renderOrder = 4;
+      this.root.add(this.markerGhostMesh);
+    }
+    const fill = this.pieceColors?.[ghost.player]?.fill ?? '#cccccc';
+    this.markerGhostMaterial.color.set(fill);
+    this.markerGhostMesh.visible = true;
+    this.markerGhostMesh.scale.set(ghost.radius, ghost.radius, 1);
+    const p = cellPosition(ghost.cell);
+    this.markerGhostMesh.position.set(p.x, DOT_Y + 0.002, p.z);
   }
 
   private hideAllDots() {
