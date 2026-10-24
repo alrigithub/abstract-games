@@ -22,6 +22,11 @@ export default defineConfig({
       testMatch: '**/gomoku.spec.ts',
       use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5192' },
     },
+    {
+      name: 'menu-screenshots',
+      testMatch: '**/game-menu-screenshots.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
   webServer: [
     {

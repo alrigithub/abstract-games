@@ -65,9 +65,10 @@ const gameButtons = createGameButtons({
   cameraViews,
   aiStrengthStorageKey: TAK_AI_STRENGTH_STORAGE_KEY,
   applyTheme,
-  extraButtons: [
+  gameActions: [
     {
       testId: 'flip-stone',
+      icon: 'flip-vertical',
       className: 'game-button-icon',
       label: '↕',
       ariaLabel: 'Flip stone (flat / wall)',

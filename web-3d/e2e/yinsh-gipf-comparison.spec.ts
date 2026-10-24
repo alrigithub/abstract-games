@@ -1,5 +1,6 @@
 import { test } from '@playwright/test';
 import path from 'node:path';
+import { openGameMenu } from './game-menu';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 
@@ -21,16 +22,20 @@ test('capture Yinsh light/dark and GIPF comparison strip', async ({ page, browse
   await waitBoard(page);
   await page.screenshot({ path: path.join(outDir, 'yinsh-light-initial.png'), fullPage: false });
 
+  await openGameMenu(page);
   await page.click('[data-testid="theme-toggle"]');
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(outDir, 'yinsh-dark-initial.png'), fullPage: false });
 
+  await openGameMenu(page);
   await page.click('[data-testid="theme-toggle"]');
   await page.waitForTimeout(200);
+  await openGameMenu(page);
   await page.click('[data-testid="flip-demo"]');
   await page.waitForTimeout(900);
   await page.screenshot({ path: path.join(outDir, 'yinsh-light-flip.png'), fullPage: false });
 
+  await openGameMenu(page);
   await page.click('[data-testid="theme-toggle"]');
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(outDir, 'yinsh-dark-flip.png'), fullPage: false });

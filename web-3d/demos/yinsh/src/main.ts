@@ -107,7 +107,7 @@ const gameButtons = createGameButtons({
     scene.setSnapshot(snapshot);
     renderStatus('Demo layout reset');
   },
-  extraButtons: [{ label: 'Flip run', testId: 'flip-demo', onClick: () => void flipRun() }],
+  gameActions: [{ label: 'Flip run', testId: 'flip-demo', onClick: () => void flipRun() }],
 });
 
 
