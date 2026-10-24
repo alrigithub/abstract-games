@@ -12,7 +12,7 @@ import {
 import * as THREE from 'three';
 import { PropertyBinding } from 'three';
 
-/** Verified SHA-256 of Alex's arena GLB (see `public/assets/overgrown-arena-two-depressions2-white.glb`). */
+/** Documented SHA-256 of Alex's arena GLB (see `public/assets/overgrown-arena-two-depressions2-white.glb`). */
 export const BOOP_ARENA_GLB_SHA256 =
   '458520dc233381c85ae630a0407b4ae7365a36abbec5f3296f8196e9cfe60408';
 export const BOOP_ARENA_GLB_FILE = 'overgrown-arena-two-depressions2-white.glb';

@@ -61,7 +61,7 @@ Use `scene.enqueueAnimation(async () => { … applyMove … scene.setSnapshot(ne
 
 ## GLB assets
 
-Game repos store meshopt-compressed GLBs under `public/`. Run `npm run compress-glb` from `web-3d` before committing. Use `ensureMeshoptDecoderReady()` then `loadGltfAsync()` (or `createMeshoptGltfLoader()`) from this package.
+Game repos store GLBs under each game’s `public/`. Never run `compress-glb` unless Alex explicitly asks for it. Commit GLBs exactly as provided. Use `ensureMeshoptDecoderReady()` then `loadGltfAsync()` (or `createMeshoptGltfLoader()`) from this package so meshopt-compressed assets load when present.
 
 ## Demos
 

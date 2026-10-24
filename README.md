@@ -27,6 +27,10 @@ npm run build
 npm run test:e2e
 ```
 
+## 3D assets (GLB)
+
+Never run `compress-glb` unless Alex explicitly asks for it. Commit GLBs exactly as provided.
+
 ## Repository layout
 
 ```
@@ -35,7 +39,7 @@ web-3d/
   games/<game>/     @abstract/<game> — rules, worker AI, Vite entry
   hub/              lobby page linked from staging root
   e2e/              Playwright smoke tests (one spec per game)
-  scripts/          GLB compression, etc.
+  scripts/          optional manual GLB tools (never auto-run compress-glb)
 scripts/
   stage_web3d_hosting.sh
 ```

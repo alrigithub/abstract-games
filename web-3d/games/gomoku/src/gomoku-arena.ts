@@ -11,7 +11,7 @@ import {
 import * as THREE from 'three';
 import { PropertyBinding } from 'three';
 
-/** Verified SHA-256 of the arena GLB in `public/models/`. */
+/** Documented SHA-256 of the committed arena in `public/models/` (any encoding). */
 export const GOMOKU_ARENA_GLB_SHA256 =
   '2cab380e864043ac9dfa56e6637e6697a0fe3e9cfb427d6a9d7ff963bf2de65c';
 export const GOMOKU_ARENA_GLB_FILE = 'arena-15x15-white-150mm.glb';
