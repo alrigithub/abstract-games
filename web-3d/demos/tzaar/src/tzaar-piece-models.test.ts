@@ -50,8 +50,13 @@ describe('tzaar GLB mapping', () => {
     for (const kind of ['tzaar', 'tzarra', 'tott'] as const) {
       const black = readGlbJson(path.basename(tzaarModelRelPath(kind, 'B')));
       const white = readGlbJson(path.basename(tzaarModelRelPath(kind, 'A')));
-      const blackMat = (black.materials as { pbrMetallicRoughness?: { roughnessFactor?: number }; extensions?: Record<string, unknown> }[])[0]!;
-      const whiteMat = (white.materials as { extensions?: Record<string, unknown> })[0]!;
+      const blackMats = (black.materials ?? []) as {
+        pbrMetallicRoughness?: { roughnessFactor?: number };
+        extensions?: Record<string, unknown>;
+      }[];
+      const whiteMats = (white.materials ?? []) as { extensions?: Record<string, unknown> }[];
+      const blackMat = blackMats[0]!;
+      const whiteMat = whiteMats[0]!;
       expect(blackMat.extensions?.KHR_materials_unlit).toBeUndefined();
       expect(blackMat.pbrMetallicRoughness?.roughnessFactor).toBeCloseTo(0.6, 5);
       expect(whiteMat.extensions?.KHR_materials_unlit).toBeTruthy();

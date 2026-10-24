@@ -22,9 +22,9 @@ export const TZAAR_MODEL = {
 
 /**
  * Per-colour look so Tzaar / Tzarra / Tott stay one black family and one ivory
- * family. Black GLBs are PBR (roughness 0.6 + specular 0.5); RoomEnvironment
- * IBL lifts their large flat tops to mid-grey while the holed Tzaar type still
- * reads dark. Whites are authored `KHR_materials_unlit` and ignore IBL.
+ * family. Black GLBs are PBR (roughness 0.6 + specular 0.5); shared IBL lifts
+ * their large flat tops to mid-grey while the holed Tzaar type still reads
+ * dark. Whites are authored `KHR_materials_unlit` and ignore IBL.
  */
 export const TZAAR_STONE_LOOK = {
   blackColor: 0x5c5c5c,
