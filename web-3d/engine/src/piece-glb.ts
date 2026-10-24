@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { ThemeId } from './theme';
-import { setMeshShadowFlags } from './board-lighting';
+import { PIECE_SKIP_CAST_SHADOW_USER_DATA, setMeshShadowFlags } from './board-lighting';
 import { cloneMeshMaterials } from './ghost-visual';
 
 /** White stone exports use KHR_materials_unlit; let them share the scene lighting. */
@@ -42,7 +42,11 @@ export function applyPieceGlbThemeMaterials(
 
 /** Every mesh in an authored piece GLB casts and receives directional shadows. */
 export function tagPieceGlbMeshesForShadows(root: THREE.Object3D): void {
-  setMeshShadowFlags(root, { cast: true, receive: true });
+  setMeshShadowFlags(
+    root,
+    { cast: true, receive: true },
+    mesh => !mesh.userData[PIECE_SKIP_CAST_SHADOW_USER_DATA],
+  );
   root.traverse(node => {
     if (node instanceof THREE.LineSegments) {
       node.castShadow = false;

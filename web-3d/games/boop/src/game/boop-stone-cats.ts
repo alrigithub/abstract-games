@@ -7,17 +7,25 @@ import {
   pieceGlbSideForPlayer,
   pieceUrl,
   prepareAuthoredPieceGlb,
+  PIECE_OPAQUE_MATERIALS_READY_USER_DATA,
+  PIECE_SKIP_CAST_SHADOW_USER_DATA,
   type EnginePiece,
   type PieceGeometrySet,
   type ThemeId,
 } from '@abstract/three-engine';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { SimplifyModifier } from 'three/addons/modifiers/SimplifyModifier.js';
 import { createGroundedBoopPieces } from './boop-grounding';
 import { boopVaseGlbFor, type BoopVasePlayerId, type BoopVaseVariant } from './boop-vase-assets';
 
 /** Large vase max X/Z on a 1-unit bed cell (~80% of tile × 1.2 boost ≈ 0.96). */
 const LARGE_VASE_TILE_FOOTPRINT = 0.8 * 1.2;
+
+/** Target triangle count for directional-shadow casters (full vase ≈ 17–20k). */
+const SHADOW_STANDIN_TARGET_TRIS = 2000;
+
+const BOOP_SHADOW_CASTER_NAME = '__boopShadowCaster';
 
 /** Face +X-authored models toward the default camera in XZ. */
 export const BOOP_STONE_CAT_YAW =
@@ -29,7 +37,7 @@ function vaseAssetUrl(file: string): string {
 
 export type StoneCatVariant = BoopVaseVariant;
 
-/** Full GLB hierarchy for display (PBR materials intact); baked geo for contact shadows only. */
+/** Full GLB hierarchy for display (PBR materials intact); low-poly geo shared for shadow cast + engine hooks. */
 interface StoneTemplate {
   visual: THREE.Object3D;
   shadowGeometry: THREE.BufferGeometry;
@@ -38,6 +46,11 @@ interface StoneTemplate {
 
 const _box = new THREE.Box3();
 let loaderReady: Promise<void> | undefined;
+
+const shadowCasterMaterial = new THREE.MeshStandardMaterial({
+  colorWrite: false,
+  depthWrite: false,
+});
 
 async function getLoader() {
   if (!loaderReady) loaderReady = ensureMeshoptDecoderReady();
@@ -90,8 +103,15 @@ function measureHeight(object: THREE.Object3D): number {
   return _box.max.y - _box.min.y;
 }
 
-/** World-space merge for shadow meshes only (not used for the visible piece). */
-function bakeShadowGeometry(root: THREE.Object3D): THREE.BufferGeometry {
+function triangleCount(geometry: THREE.BufferGeometry): number {
+  const index = geometry.index;
+  if (index) return Math.floor(index.count / 3);
+  const position = geometry.getAttribute('position');
+  return position ? Math.floor(position.count / 3) : 0;
+}
+
+/** World-space merge of visible meshes (before decimation). */
+function mergeWorldPieceGeometry(root: THREE.Object3D): THREE.BufferGeometry {
   root.updateMatrixWorld(true);
   const meshes = collectMeshes(root);
   if (!meshes.length) throw new Error('No mesh in gltf scene');
@@ -123,6 +143,36 @@ function bakeShadowGeometry(root: THREE.Object3D): THREE.BufferGeometry {
   return geometry;
 }
 
+function simplifyForShadowStandIn(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
+  const fullTris = triangleCount(geometry);
+  if (fullTris <= SHADOW_STANDIN_TARGET_TRIS) return geometry;
+
+  const positionCount = geometry.getAttribute('position').count;
+  const removeCount = Math.max(
+    1,
+    Math.floor(positionCount * (1 - SHADOW_STANDIN_TARGET_TRIS / fullTris)),
+  );
+  const modifier = new SimplifyModifier();
+  const simplified = modifier.modify(geometry, removeCount);
+  simplified.computeVertexNormals();
+  return simplified;
+}
+
+function attachShadowStandIn(visual: THREE.Object3D, shadowGeometry: THREE.BufferGeometry): void {
+  visual.traverse(node => {
+    if (!(node instanceof THREE.Mesh)) return;
+    if (node.name === BOOP_SHADOW_CASTER_NAME) return;
+    node.userData[PIECE_SKIP_CAST_SHADOW_USER_DATA] = true;
+    node.castShadow = false;
+  });
+
+  const shadowMesh = new THREE.Mesh(shadowGeometry, shadowCasterMaterial);
+  shadowMesh.name = BOOP_SHADOW_CASTER_NAME;
+  shadowMesh.castShadow = true;
+  shadowMesh.receiveShadow = false;
+  visual.add(shadowMesh);
+}
+
 function xzExtent(root: THREE.Object3D): number {
   _box.setFromObject(root);
   const size = new THREE.Vector3();
@@ -137,32 +187,47 @@ function prepareVisualTemplate(scene: THREE.Group, worldScale: number): StoneTem
   uprightIfNeeded(visual);
   anchorObjectBaseToFloor(visual);
   const height = measureHeight(visual);
-  const shadowGeometry = bakeShadowGeometry(visual.clone(true));
+
+  const merged = mergeWorldPieceGeometry(visual.clone(true));
+  const shadowGeometry = simplifyForShadowStandIn(merged);
+  attachShadowStandIn(visual, shadowGeometry);
+
+  visual.userData[PIECE_OPAQUE_MATERIALS_READY_USER_DATA] = true;
   return { visual, shadowGeometry, height };
 }
 
-async function loadVariantTemplate(
-  player: BoopVasePlayerId,
-  variant: StoneCatVariant,
-  scale: number,
-): Promise<StoneTemplate> {
-  const file = boopVaseGlbFor(player, variant);
-  const scene = await loadGltfScene(vaseAssetUrl(file));
-  prepareAuthoredPieceGlb(scene);
-  return prepareVisualTemplate(scene, scale);
-}
+const BOOP_VASE_FILES = [
+  'boop-vase-large-white.glb',
+  'boop-vase-large-black.glb',
+  'boop-vase-small-white.glb',
+  'boop-vase-small-black.glb',
+] as const;
+
+type BoopVaseFile = (typeof BOOP_VASE_FILES)[number];
 
 async function loadTemplates(): Promise<Record<BoopVasePlayerId, Record<StoneCatVariant, StoneTemplate>>> {
-  const largeScene = await loadGltfScene(vaseAssetUrl('boop-vase-large-white.glb'));
-  const scale = LARGE_VASE_TILE_FOOTPRINT / xzExtent(largeScene);
+  const scenes = await Promise.all(
+    BOOP_VASE_FILES.map(file => loadGltfScene(vaseAssetUrl(file))),
+  );
+  const sceneByFile = Object.fromEntries(
+    BOOP_VASE_FILES.map((file, index) => [file, scenes[index]!]),
+  ) as Record<BoopVaseFile, THREE.Group>;
+
+  const scale = LARGE_VASE_TILE_FOOTPRINT / xzExtent(sceneByFile['boop-vase-large-white.glb']);
+
+  const templateByFile = new Map<BoopVaseFile, StoneTemplate>();
+  for (const file of BOOP_VASE_FILES) {
+    const scene = sceneByFile[file];
+    prepareAuthoredPieceGlb(scene);
+    templateByFile.set(file, prepareVisualTemplate(scene, scale));
+  }
 
   const players = ['A', 'B'] as const;
   const out = {} as Record<BoopVasePlayerId, Record<StoneCatVariant, StoneTemplate>>;
-
   for (const player of players) {
     out[player] = {
-      cat: await loadVariantTemplate(player, 'cat', scale),
-      kitten: await loadVariantTemplate(player, 'kitten', scale),
+      cat: templateByFile.get(boopVaseGlbFor(player, 'cat') as BoopVaseFile)!,
+      kitten: templateByFile.get(boopVaseGlbFor(player, 'kitten') as BoopVaseFile)!,
     };
   }
   return out;
