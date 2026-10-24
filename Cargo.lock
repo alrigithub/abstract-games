@@ -5061,9 +5061,19 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_async_task",
- "bevy_tweening",
  "tzaar",
  "tzaar_ai",
+]
+
+[[package]]
+name = "tzaar_wasm"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tzaar",
+ "tzaar_ai",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -6113,6 +6123,17 @@ dependencies = [
  "bevy_tweening",
  "gloo-timers 0.3.0",
  "tracing",
+ "yinsh",
+ "yinsh_ai",
+]
+
+[[package]]
+name = "yinsh_wasm"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
  "yinsh",
  "yinsh_ai",
 ]

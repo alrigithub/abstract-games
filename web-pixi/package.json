@@ -1,0 +1,14 @@
+{
+  "name": "abstract-pixi",
+  "private": true,
+  "workspaces": ["shared", "yinsh", "gomoku", "boop", "tak", "tzaar"],
+  "scripts": {
+    "build": "npm run build -w yinsh-pixi -w gomoku-pixi -w boop-pixi -w tak-pixi -w tzaar-pixi",
+    "test:unit": "npm run test:unit -w tak-pixi",
+    "test:e2e:yinsh": "npm run test:e2e:ci -w yinsh-pixi",
+    "test:e2e:gomoku": "npm run test:e2e:ci -w gomoku-pixi",
+    "test:e2e:boop": "npm run test:e2e:ci -w boop-pixi",
+    "test:e2e:tak": "npm run test:e2e:ci -w tak-pixi",
+    "test:e2e:tzaar": "npm run test:e2e:ci -w tzaar-pixi"
+  }
+}
