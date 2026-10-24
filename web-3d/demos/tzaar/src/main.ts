@@ -8,17 +8,29 @@ import {
   DEFAULT_LOBBY_HREF,
   levelToSearchOptions,
   applyDocumentTheme,
+  motionDelay,
+  prefersReducedMotion,
   readInitialTheme,
   recordAiThinkMetrics,
   TZAAR_AI_STRENGTH_STORAGE_KEY,
+  type InteractionView,
   type ThemeId,
 } from '@abstract/three-engine';
 import { loadTzaarPieceGeometrySet } from './tzaar-piece-models';
 import { quickLegalMove } from './game/ai';
-import { gameToSnapshot, indexToCoord } from './game/snapshot';
+import {
+  classifyMove,
+  planActionCues,
+  playCueSequence,
+  TZAAR_ANIM,
+  type Actor,
+} from './game/move-animation';
+import { coordToIndex, gameToSnapshot, indexToCoord } from './game/snapshot';
 import { GameState, serializeForAiWorker, type Coord, type Move, type Player } from './game/state';
+import { createStackHeightLabels } from './stack-labels';
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
+const toast = document.querySelector<HTMLDivElement>('#tzaar-toast')!;
 let theme: ThemeId = readInitialTheme();
 applyDocumentTheme(theme);
 
@@ -26,8 +38,11 @@ let humanPlayer: Player = 'A';
 let aiPlayer: Player = 'B';
 let game = new GameState();
 let aiPending = false;
+let inputLocked = false;
 let aiGeneration = 0;
 const aiSession = new AiWorkerSession();
+let toastTimer = 0;
+let lastAiFromTo: { from: Coord; to: Coord } | null = null;
 
 const pieces = await loadTzaarPieceGeometrySet();
 const topology = createTzaarHexTopology();
@@ -40,6 +55,16 @@ const scene = await createBoardScene(board, {
   stackedPiecesReceiveShadow: true,
 });
 const stage = board.querySelector('canvas') ?? board;
+const stackLabels = createStackHeightLabels(board, scene);
+
+const EMPTY_VIEW: InteractionView = {
+  selection: null,
+  dragging: false,
+  pointer: null,
+  origin: null,
+  target: null,
+  progress: 0,
+};
 
 function applyTheme(next: ThemeId) {
   theme = next;
@@ -47,9 +72,10 @@ function applyTheme(next: ThemeId) {
   scene.setTheme(theme);
 }
 
-function syncSnapshot() {
-  scene.setSnapshot(gameToSnapshot(game));
+function syncSnapshot(options?: Parameters<typeof scene.setSnapshot>[1]) {
+  scene.setSnapshot(gameToSnapshot(game), options);
   board.dataset.ready = 'true';
+  stackLabels.sync(game);
   renderStatus();
 }
 
@@ -73,6 +99,49 @@ function renderStatus(extra?: string) {
   } else {
     gameButtons.setStatus(`AI to move · ${label}`);
   }
+}
+
+function showToast(text: string, ms = TZAAR_ANIM.PASS_TOAST_MS) {
+  toast.hidden = false;
+  toast.textContent = text;
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    toast.hidden = true;
+  }, prefersReducedMotion() ? 0 : ms);
+}
+
+function hideToast() {
+  window.clearTimeout(toastTimer);
+  toast.hidden = true;
+}
+
+function clearAssist() {
+  lastAiFromTo = null;
+  scene.setBoardAssist(null);
+  scene.setInteraction(EMPTY_VIEW);
+}
+
+const HALO_RADIUS = 0.48;
+
+function highlightCells(cells: number[], last?: { from: Coord; to: Coord }) {
+  const valid = cells.filter(index => index >= 0);
+  scene.setBoardAssist({
+    destinationCells: valid,
+    destinationDotRadius: HALO_RADIUS,
+    shadows: valid.map(cell => ({
+      cell,
+      footprint: { shape: 'ring', outerRadius: 0.46, innerRadius: 0.36 },
+      strength: 'hover',
+    })),
+    lastMove: last
+      ? { fromCell: coordToIndex(last.from), toCell: coordToIndex(last.to) }
+      : undefined,
+  });
+}
+
+function showLastAiMove(from: Coord, to: Coord) {
+  lastAiFromTo = { from, to };
+  highlightCells([coordToIndex(from), coordToIndex(to)], { from, to });
 }
 
 const cameraViews = scene.createCameraViews();
@@ -100,6 +169,9 @@ function stopAi() {
   aiGeneration++;
   aiSession.cancel();
   aiPending = false;
+  inputLocked = false;
+  hideToast();
+  clearAssist();
 }
 
 function startGame(human: Player) {
@@ -112,7 +184,7 @@ function startGame(human: Player) {
 }
 
 function humanTurn() {
-  return !game.winner && game.toMove === humanPlayer && !aiPending;
+  return !game.winner && game.toMove === humanPlayer && !aiPending && !inputLocked && !scene.animationsBusy();
 }
 
 function coordFromIndex(index: number): Coord {
@@ -124,25 +196,119 @@ function stackOwnedByHuman(c: Coord) {
   return !!s && s.owner === humanPlayer;
 }
 
-async function performMove(move: Move) {
-  if (!game.apply(move)) return;
-  syncSnapshot();
+async function playAnimatedMove(move: Move, actor: Actor) {
+  const reduced = prefersReducedMotion();
+  const kind = classifyMove(game, move);
+  const from = move.tag === 'Action' ? move.from : undefined;
+  const to = move.tag === 'Action' ? move.to : undefined;
+  const moving = from ? game.board.stack(from) : null;
+  const capturedIds = kind === 'capture' && to ? (game.board.stack(to)?.pieces.map(piece => piece.id) ?? []) : [];
+  const movingHeight = moving?.height ?? 1;
+  const destHeight = to ? (game.board.stack(to)?.height ?? 0) : 0;
+  const stackedHeight = kind === 'stack' ? destHeight + movingHeight : movingHeight;
+  const flyingId = moving?.pieces[moving.pieces.length - 1]?.id;
+
+  const cues = planActionCues({
+    actor,
+    reducedMotion: reduced,
+    includeThink: false,
+    action: { kind, from, to, stackedHeight },
+  });
+
+  board.dataset.animating = 'true';
+  try {
+    await playCueSequence(cues, {
+    delay: ms => motionDelay(ms, reduced),
+    highlightSource(source) {
+      board.dataset.animCue = 'highlight';
+      highlightCells([coordToIndex(source)], lastAiFromTo ?? undefined);
+    },
+    lift(source) {
+      board.dataset.animCue = 'lift';
+      const count = game.board.stack(source)?.height ?? 1;
+      const index = coordToIndex(source);
+      scene.setInteraction({
+        selection: { source: index, count },
+        dragging: false,
+        pointer: null,
+        origin: null,
+        target: index,
+        progress: 0,
+      });
+    },
+    async glide(cue) {
+      board.dataset.animCue = cue.kind === 'stack' ? 'stack-glide' : 'glide';
+      if (!game.apply(move)) {
+        scene.setInteraction(EMPTY_VIEW);
+        syncSnapshot();
+        return;
+      }
+      const hide = new Set<string>();
+      if (cue.kind === 'stack') hide.add(stackLabels.hideCell(cue.to));
+      if (cue.kind === 'capture') hide.add(stackLabels.hideCell(cue.to));
+      highlightCells([coordToIndex(cue.from), coordToIndex(cue.to)], { from: cue.from, to: cue.to });
+      scene.setSnapshot(gameToSnapshot(game), {
+        durationMs: cue.ms,
+        lift: reduced ? 0 : TZAAR_ANIM.LIFT,
+        departing:
+          cue.kind === 'capture' && capturedIds.length
+            ? { ids: capturedIds, durationMs: reduced ? 0 : TZAAR_ANIM.CAPTURE_FADE_MS, sink: TZAAR_ANIM.LIFT }
+            : undefined,
+      });
+      scene.setInteraction(EMPTY_VIEW);
+      stackLabels.sync(game, {
+        hide,
+        flying: flyingId ? { pieceId: flyingId, height: cue.kind === 'stack' ? movingHeight : stackedHeight } : undefined,
+      });
+      await motionDelay(Math.max(cue.ms, cue.kind === 'capture' ? TZAAR_ANIM.CAPTURE_FADE_MS : 0), reduced);
+      if (!reduced) await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    },
+    captureDepart() {
+      /* Departing ids are applied with the glide snapshot. */
+    },
+    land() {
+      board.dataset.animCue = 'land';
+      scene.setInteraction(EMPTY_VIEW);
+      stackLabels.sync(game);
+    },
+    passToast() {
+      board.dataset.animCue = 'pass';
+      if (!game.apply(move)) {
+        syncSnapshot();
+        return;
+      }
+      syncSnapshot();
+      if (actor === 'ai') {
+        showToast('AI passes');
+        gameButtons.setStatus('AI passes');
+      }
+    },
+    lastMove() {
+      /* Turn-level last-move highlight is applied after the AI turn. */
+    },
+  });
+  } finally {
+    board.dataset.animating = 'false';
+    delete board.dataset.animCue;
+  }
 }
 
 async function humanMove(move: Move) {
   if (!humanTurn()) return;
-  await scene.enqueueAnimation(async () => {
-    await performMove(move);
-    renderStatus();
-    maybeAiTurn();
-  });
+  inputLocked = true;
+  clearAssist();
+  try {
+    await scene.enqueueAnimation(async () => {
+      await playAnimatedMove(move, 'human');
+      renderStatus();
+      maybeAiTurn();
+    });
+  } finally {
+    inputLocked = false;
+  }
 }
 
-async function runAiTurn() {
-  if (game.winner || game.toMove !== aiPlayer || aiPending) return;
-  aiPending = true;
-  renderStatus();
-  const gen = ++aiGeneration;
+async function requestAiMove(): Promise<Move | null> {
   const search = levelToSearchOptions(gameButtons.aiStrength!.getLevel());
   document.body.dataset.lastAiWatchdogMs = String(aiWatchdogMs(search.maxTimeMs));
   const t0 = performance.now();
@@ -164,14 +330,45 @@ async function runAiTurn() {
     timeBudgetMs: search.maxTimeMs,
   });
   recordAiThinkMetrics(performance.now() - t0);
-  if (gen !== aiGeneration) return;
-  const resolved = move ?? quickLegalMove(game);
-  await scene.enqueueAnimation(async () => {
-    if (resolved) await performMove(resolved);
-    aiPending = false;
-    renderStatus(resolved ? undefined : 'AI could not move');
-    maybeAiTurn();
-  });
+  return move ?? quickLegalMove(game);
+}
+
+async function runAiTurn() {
+  if (game.winner || game.toMove !== aiPlayer || aiPending) return;
+  aiPending = true;
+  inputLocked = true;
+  renderStatus();
+  const gen = ++aiGeneration;
+  const reduced = prefersReducedMotion();
+  let lastAction: { from: Coord; to: Coord } | null = null;
+  try {
+    while (!game.winner && game.toMove === aiPlayer && gen === aiGeneration) {
+      await motionDelay(TZAAR_ANIM.AI_THINK_MS, reduced);
+      if (gen !== aiGeneration) return;
+      const resolved = await requestAiMove();
+      if (gen !== aiGeneration) return;
+      if (!resolved) {
+        renderStatus('AI could not move');
+        break;
+      }
+      if (resolved.tag === 'Action') lastAction = { from: resolved.from, to: resolved.to };
+      await scene.enqueueAnimation(async () => {
+        if (gen !== aiGeneration) return;
+        await playAnimatedMove(resolved, 'ai');
+      });
+      if (gen !== aiGeneration) return;
+      if (game.toMove === aiPlayer && !game.winner) {
+        await motionDelay(TZAAR_ANIM.BETWEEN_ACTIONS_MS, reduced);
+      }
+    }
+    if (gen === aiGeneration && lastAction) showLastAiMove(lastAction.from, lastAction.to);
+  } finally {
+    if (gen === aiGeneration) {
+      aiPending = false;
+      inputLocked = false;
+      renderStatus();
+    }
+  }
 }
 
 function maybeAiTurn() {
@@ -209,6 +406,7 @@ declare global {
       aiPending: () => boolean;
       firstLegalMove: () => Move | null;
       applyMove: (move: Move) => void;
+      animState: () => { animating: boolean; cue: string; aiPending: boolean; inputLocked: boolean };
       waitForSettled: () => Promise<void>;
     };
   }
@@ -220,8 +418,14 @@ if (new URLSearchParams(location.search).has('e2e')) {
     aiPending: () => aiPending,
     firstLegalMove: () => game.legalMoves()[0] ?? null,
     applyMove: (move: Move) => humanMove(move),
+    animState: () => ({
+      animating: board.dataset.animating === 'true',
+      cue: board.dataset.animCue ?? '',
+      aiPending,
+      inputLocked,
+    }),
     waitForSettled: async () => {
-      while (aiPending || scene.animationsBusy()) {
+      while (aiPending || inputLocked || scene.animationsBusy()) {
         await new Promise<void>(r => requestAnimationFrame(() => r()));
       }
       await scene.drainAnimations();

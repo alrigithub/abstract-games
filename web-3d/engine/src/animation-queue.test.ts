@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AnimationQueue } from './animation-queue';
+import { AnimationQueue, motionDelay } from './animation-queue';
 
 describe('AnimationQueue', () => {
   it('runs tasks one at a time in order', async () => {
@@ -18,6 +18,12 @@ describe('AnimationQueue', () => {
     await q.drain();
     expect(log).toEqual([1, 2, 3]);
     expect(q.busy).toBe(false);
+  });
+
+  it('motionDelay is instant when reduced-motion is requested', async () => {
+    const t0 = Date.now();
+    await motionDelay(400, true);
+    expect(Date.now() - t0).toBeLessThan(30);
   });
 
   it('continues after a rejected task', async () => {

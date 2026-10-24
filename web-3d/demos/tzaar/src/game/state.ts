@@ -6,6 +6,8 @@ export type PieceKind = 'tzaar' | 'tzarra' | 'tott';
 export interface Piece {
   player: Player;
   kind: PieceKind;
+  /** Stable visual identity so stacks can slide instead of respawning. */
+  id: string;
 }
 
 export interface Coord {
@@ -59,10 +61,17 @@ export function step(c: Coord, [dx, dy]: [number, number]): Coord {
   return { x: c.x + dx, y: c.y + dy };
 }
 
+let pieceSeq = 0;
+
+function nextPieceId(): string {
+  pieceSeq += 1;
+  return `tzaar-${pieceSeq}`;
+}
+
 function templatePiece(value: number): Piece {
   const player: Player = value > 0 ? 'A' : 'B';
   const kind: PieceKind = Math.abs(value) === 3 ? 'tzaar' : Math.abs(value) === 2 ? 'tzarra' : 'tott';
-  return { player, kind };
+  return { player, kind, id: nextPieceId() };
 }
 
 export class Stack {
@@ -184,7 +193,11 @@ export class Board {
 
   static fromSerializedStacks(stacks: (Piece[] | null)[]): Board {
     const b = new Board();
-    b.stacks = stacks.map(pieces => (pieces?.length ? new Stack(pieces.map(p => ({ ...p }))) : null));
+    b.stacks = stacks.map(pieces =>
+      pieces?.length
+        ? new Stack(pieces.map(p => ({ player: p.player, kind: p.kind, id: p.id || nextPieceId() })))
+        : null,
+    );
     return b;
   }
 }
