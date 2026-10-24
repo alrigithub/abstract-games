@@ -5,6 +5,8 @@ The playable vases and complete column assemblies remain 3D. Columns occlude
 pieces normally through the depth buffer. Column shadows are baked into the
 plate; moving pieces cast live shadows on the floor, tile proxies, and columns.
 The existing full 3D arena is available for comparison with `?arena=3d`.
+Viewport-hidden meshes, including Boolean cutters, are also hidden from the
+rendered export. Their Boolean modifiers still affect the visible stone geometry.
 
 ## Grid registration
 

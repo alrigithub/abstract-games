@@ -26,6 +26,11 @@ bpy.ops.wm.open_mainfile(filepath=args.grid)
 reference = {o.name: tuple(o.matrix_world.translation) for o in bpy.context.scene.objects if o.get('playable')}
 bpy.ops.wm.open_mainfile(filepath=args.arena)
 scene = bpy.context.scene
+# Export what is visible in the saved viewport. Hidden Boolean cutters still
+# evaluate their modifiers, but must not reappear as rendered geometry.
+for o in scene.objects:
+    if o.type == 'MESH' and o.hide_get():
+        o.hide_render = True
 cells = [o for o in scene.objects if o.name in reference]
 assert len(cells) == 36, 'Expected all 36 reference cells'
 # The supplied grid fixes the playable X/Y centers. Authored tile heights may
