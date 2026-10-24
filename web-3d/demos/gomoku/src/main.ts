@@ -1,9 +1,10 @@
 import {
-  createAiStrengthControl,
+  createGameButtons,
+  DEFAULT_LOBBY_HREF,
   GOMOKU_AI_STRENGTH_STORAGE_KEY,
   levelToSearchOptions,
   readStoredTheme,
-  storeTheme,
+  THEME_STORAGE_KEY,
   type ThemeId,
 } from '@abstract/three-engine';
 import { createGomokuScene, type ScenePlayer, type StoneRecord } from './gomoku-scene';
@@ -18,9 +19,6 @@ import {
 } from './game/engine';
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
-const statusEl = document.querySelector<HTMLParagraphElement>('#game-status')!;
-const newGameBtn = document.querySelector<HTMLButtonElement>('#new-game')!;
-const firstDialog = document.querySelector<HTMLDialogElement>('#first-player')!;
 
 let theme: ThemeId = readStoredTheme();
 document.documentElement.dataset.theme = theme;
@@ -31,11 +29,32 @@ let aiPending = false;
 let aiGeneration = 0;
 let aiWorker: Worker | null = null;
 
-const aiStrength = createAiStrengthControl({
-  container: document.querySelector('#ai-strength-mount')!,
-  storageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
-  onChange: level => renderStatus(undefined, level.label),
+const gameButtons = createGameButtons({
+  mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  lobbyHref: DEFAULT_LOBBY_HREF,
+  aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
+  onAiStrengthChange: level => renderStatus(undefined, level.label),
+  onFirstPlayerSelected: color => startGame(color),
 });
+
+function applyTheme(id: ThemeId) {
+  theme = id;
+  document.documentElement.dataset.theme = id;
+  scene.setTheme(id);
+  syncBoard();
+}
+
+try {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    try {
+      if (localStorage.getItem(THEME_STORAGE_KEY) === null) applyTheme(readStoredTheme());
+    } catch {
+      /* ignore */
+    }
+  });
+} catch {
+  /* ignore */
+}
 
 function toScenePlayer(player: Player): ScenePlayer {
   return player === 'white' ? 'A' : 'B';
@@ -52,6 +71,10 @@ function stonesFromGame(): StoneRecord[] {
   return out;
 }
 
+function stoneCount(): number {
+  return game.cells.filter(Boolean).length;
+}
+
 function winLineCells(): { row: number; col: number }[] | null {
   if (!game.winner || !game.lastMove) return null;
   return winningLine(game, game.lastMove)?.map(c => ({ row: c.y, col: c.x })) ?? null;
@@ -59,19 +82,19 @@ function winLineCells(): { row: number; col: number }[] | null {
 
 function renderStatus(extra?: string, strengthLabel?: string) {
   const human = humanColor === 'black' ? 'Black' : 'White';
-  const ai = humanColor === 'black' ? 'White' : 'Black';
-  const strength = strengthLabel ?? aiStrength.getLevel().label;
+  const strength = strengthLabel ?? gameButtons.aiStrength.getLevel().label;
   let detail = extra;
   if (!detail) {
     if (game.winner) detail = `${game.winner === 'black' ? 'Black' : 'White'} wins`;
-    else if (aiPending) detail = `${ai} (AI) thinking…`;
-    else if (game.toMove === humanColor) detail = `Your turn (${human})`;
-    else detail = `${ai} to move`;
+    else if (aiPending) detail = 'AI thinking…';
+    else if (game.toMove === humanColor) detail = `Your turn · ${human}`;
+    else detail = 'AI to move';
   }
-  statusEl.textContent = `You · ${human} vs AI · ${ai} · AI ${strength} — ${detail}`;
+  gameButtons.setStatus(`${detail} · AI ${strength}`);
 }
 
 function syncBoard() {
+  document.body.dataset.stoneCount = String(stoneCount());
   scene.setStones(stonesFromGame(), winLineCells());
   renderStatus();
 }
@@ -89,7 +112,7 @@ function maybeAiTurn() {
   scene.setInputEnabled(false);
   renderStatus();
   const gen = ++aiGeneration;
-  const search = levelToSearchOptions(aiStrength.getLevel());
+  const search = levelToSearchOptions(gameButtons.aiStrength.getLevel());
   document.body.dataset.lastAiDepth = String(search.maxDepth);
   document.body.dataset.lastAiMaxNodes = String(search.maxNodes);
   aiWorker = new Worker(new URL('./game/ai.worker.ts', import.meta.url), { type: 'module' });
@@ -146,25 +169,5 @@ function startGame(color: Player) {
   scene.setInputEnabled(true);
   if (game.toMove !== humanColor) maybeAiTurn();
 }
-
-document.querySelector('#theme-toggle')!.addEventListener('click', () => {
-  theme = theme === 'light' ? 'dark' : 'light';
-  storeTheme(theme);
-  document.documentElement.dataset.theme = theme;
-  scene.setTheme(theme);
-  syncBoard();
-});
-
-newGameBtn.addEventListener('click', () => firstDialog.showModal());
-
-firstDialog.querySelectorAll<HTMLButtonElement>('[data-first]').forEach(button => {
-  button.addEventListener('click', () => {
-    const pick = button.dataset.first;
-    firstDialog.close();
-    startGame(pick === 'white' ? 'white' : 'black');
-  });
-});
-
-firstDialog.querySelector('[data-cancel]')?.addEventListener('click', () => firstDialog.close());
 
 startGame('black');

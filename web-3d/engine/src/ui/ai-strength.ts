@@ -31,6 +31,8 @@ export interface CreateAiStrengthControlOptions {
   onChange?: (level: AiStrengthLevel, index: number) => void;
   /** Default level index when nothing stored (default: 1 = Medium). */
   defaultIndex?: number;
+  /** `inline` = − / label / + row only (for shared game button bar). */
+  layout?: 'panel' | 'inline';
 }
 
 export interface AiStrengthControl {
@@ -78,13 +80,20 @@ export function createAiStrengthControl(options: CreateAiStrengthControlOptions)
   const levels = options.levels ?? DEFAULT_AI_STRENGTH_LEVELS;
   let index = readStoredAiStrengthIndex(options.storageKey, levels.length, options.defaultIndex ?? 1);
 
+  const layout = options.layout ?? 'panel';
   const root = document.createElement('div');
-  root.className = 'ai-strength-control';
+  root.className = layout === 'inline' ? 'ai-strength-inline' : 'ai-strength-control';
   root.dataset.testid = 'ai-strength';
 
-  const title = document.createElement('span');
-  title.className = 'ai-strength-title';
-  title.textContent = 'AI strength';
+  const title =
+    layout === 'panel'
+      ? (() => {
+          const el = document.createElement('span');
+          el.className = 'ai-strength-title';
+          el.textContent = 'AI strength';
+          return el;
+        })()
+      : null;
 
   const row = document.createElement('div');
   row.className = 'ai-strength-row';
@@ -108,7 +117,8 @@ export function createAiStrengthControl(options: CreateAiStrengthControlOptions)
   inc.textContent = '+';
 
   row.append(dec, value, inc);
-  root.append(title, row);
+  if (title) root.append(title, row);
+  else root.append(row);
   options.container.append(root);
 
   const sync = () => {

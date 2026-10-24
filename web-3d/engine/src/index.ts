@@ -6,6 +6,7 @@ export * from './stack';
 export * from './stack-layout';
 export * from './theme';
 export * from './ui/ai-strength';
+export * from './ui/game-buttons';
 export * from './types';
 export * from './topology/square-grid';
 export * from './geometries/tak-pieces';
