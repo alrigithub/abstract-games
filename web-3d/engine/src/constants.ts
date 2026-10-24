@@ -6,25 +6,34 @@ export const ANIMATION = {
   LIFT_DURATION: 150,
   /** Vertical lift while dragging (world units). */
   LIFT: 0.28,
-  /** Gap above board surface for stack bases (world units). */
-  FLOOR: 0.018,
+  /** @deprecated Resting stacks use {@link PLAYFIELD_SURFACE_Y}; kept for legacy imports only. */
+  FLOOR: 0,
   /** Delay after pickup before horizontal follow eases (ms). */
   PICKUP_HORIZONTAL_DELAY: 85,
   /** Horizontal nudge while selected (ms). */
   HORIZONTAL_DURATION: 60,
   /** Out cubic ease: `1 - (1 - t) ** 3` */
   easeOutCubic: (t: number) => 1 - (1 - t) ** 3,
+  /** Marker / stone flip duration (ms), matched to Bevy Yinsh GUI and Tak studio. */
+  FLIP_DURATION: 500,
 } as const;
 
 export const INTERACTION = {
-  HOLD_INTERVAL: 400,
+  /** Ms between each additional piece picked up from a held stack. */
+  HOLD_INTERVAL: 500,
   DRAG_THRESHOLD: 6,
   RESERVE_STACK_SIZE: 7,
 } as const;
 
 export const BOARD = {
-  /** Slab thickness (~10 mm at pitch 1). */
-  SLAB: 0.25,
+  /** Default visual slab for demos (grid lines sit on y≈0). */
+  SLAB: 0.06,
+  /** Tak board slab thickness (top face at y=0). */
+  TAK_SLAB: 0.018,
+  /** Top of board / table where piece bases rest (world Y). */
+  PLAYFIELD_SURFACE_Y: 0,
+  /** Contact shadow sits this far above the piece base (world Y). */
+  SHADOW_CONTACT_EPSILON: 0.001,
   LINE_W: 0.018,
   RADIAL_SEGMENTS: 32,
   EDGE_THRESHOLD_TAK: 20,
@@ -32,7 +41,8 @@ export const BOARD = {
   EDGE_THRESHOLD_BOOP: 20,
   OUTLINE_EXPAND: 0.004,
   SHADOW_SCALE: 1.04,
-  SHADOW_Y: 0.006,
+  /** @deprecated Use SHADOW_CONTACT_EPSILON at piece base. */
+  SHADOW_Y: 0.001,
   CONTACT_BLOB_SOFT_SCALE: 1.12,
   CONTACT_BLOB_OPACITY: 0.6,
 } as const;
@@ -47,7 +57,7 @@ export const CAMERA = {
   maxPolarAngle: 1.18,
   minZoom: 0.3,
   maxZoom: 2.8,
-  framePadding: 1.1,
+  framePadding: 1.18,
   maxPixelRatio: 2,
   minRenderScale: 1.5,
   maxBufferPixels: 3_000_000,

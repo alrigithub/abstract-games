@@ -16,16 +16,32 @@ async function waitBoard(page: import('@playwright/test').Page, dismiss: 'sandbo
   }
 }
 
-async function boardCenter(page: import('@playwright/test').Page) {
+type Pt = { x: number; y: number };
+
+async function boardBox(page: import('@playwright/test').Page) {
   const board = page.locator('[data-testid="board"]');
   const box = await board.boundingBox();
   expect(box).toBeTruthy();
   return { board, box: box! };
 }
 
+function screenPoint(box: { x: number; y: number; width: number; height: number }, p: Pt) {
+  return { x: box.x + p.x, y: box.y + p.y };
+}
+
+async function dragBoard(page: import('@playwright/test').Page, box: { x: number; y: number }, from: Pt, to: Pt) {
+  const a = screenPoint(box, from);
+  const b = screenPoint(box, to);
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(b.x, b.y, { steps: 14 });
+  await page.waitForTimeout(80);
+  await page.mouse.up();
+}
+
 test.describe('Tak 3D', () => {
   for (const theme of ['light', 'dark'] as const) {
-    test(`renders and interacts (${theme})`, async ({ page }) => {
+    test(`hold-drag sandbox (${theme})`, async ({ page }) => {
       await waitBoard(page);
       if (theme === 'dark') {
         await page.click('[data-testid="theme-toggle"]');
@@ -33,22 +49,32 @@ test.describe('Tak 3D', () => {
       }
       await page.screenshot({ path: path.join(screenshotDir, `tak-${theme}-initial.png`), fullPage: true });
 
-      const { box } = await boardCenter(page);
-      const cx = box.x + box.width * 0.5;
-      const cy = box.y + box.height * 0.5;
-      const reserveX = box.x + box.width * 0.12;
-      const reserveY = box.y + box.height * 0.45;
+      const pilePt = await page.evaluate(() => (window as unknown as { __takE2e: { pilePoint(): { x: number; y: number } } }).__takE2e.pilePoint());
+      const centerPt = await page.evaluate(() => (window as unknown as { __takE2e: { centerPoint(): { x: number; y: number } } }).__takE2e.centerPoint());
+      const stackTarget = { x: centerPt.x + 36, y: centerPt.y };
+      await page.mouse.move(pilePt.x, pilePt.y);
+      await page.mouse.down();
+      await expect(page.locator('[data-testid="selection-info"]')).toBeVisible({ timeout: 2000 });
+      await expect(page.locator('#selection-label')).toHaveText(/^[2-9]/, { timeout: 4000 });
+      await page.mouse.move(pilePt.x + 40, pilePt.y + 40, { steps: 12 });
+      await page.mouse.up();
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: path.join(screenshotDir, `tak-${theme}-hold-grow.png`), fullPage: true });
 
-      await page.mouse.click(reserveX, reserveY);
-      await page.waitForTimeout(250);
-      await page.mouse.click(cx, cy);
-      await page.waitForTimeout(500);
+      await page.mouse.move(pilePt.x, pilePt.y);
+      await page.mouse.down();
+      await page.mouse.move(centerPt.x, centerPt.y, { steps: 14 });
+      await page.waitForTimeout(80);
+      await page.mouse.up();
+      await page.waitForTimeout(350);
       await page.screenshot({ path: path.join(screenshotDir, `tak-${theme}-tray-place.png`), fullPage: true });
 
-      await page.mouse.click(cx, cy);
-      await page.waitForTimeout(200);
-      await page.mouse.click(cx + 36, cy);
-      await page.waitForTimeout(400);
+      await page.mouse.move(centerPt.x, centerPt.y);
+      await page.mouse.down();
+      await page.mouse.move(stackTarget.x, stackTarget.y, { steps: 14 });
+      await page.waitForTimeout(80);
+      await page.mouse.up();
+      await page.waitForTimeout(450);
       await page.screenshot({ path: path.join(screenshotDir, `tak-${theme}-stack.png`), fullPage: true });
 
       const rotate = page.locator('[data-testid="rotate-piece"]');
@@ -65,8 +91,9 @@ test.describe('Tak 3D', () => {
     await waitBoard(page, false);
     await page.locator('[data-testid="mode-ai"]').click();
     await expect(page.locator('[data-testid="game-status"]')).toBeVisible();
-    const { box } = await boardCenter(page);
-    await page.mouse.click(box.x + box.width * 0.52, box.y + box.height * 0.52);
+    const { box } = await boardBox(page);
+    const center = screenPoint(box, { x: box.width * 0.52, y: box.height * 0.52 });
+    await page.mouse.click(center.x, center.y);
     await expect(page.locator('[data-testid="end-turn"]')).toBeEnabled({ timeout: 10_000 });
     await page.click('[data-testid="end-turn"]');
     await expect(page.locator('[data-testid="game-status"]')).toContainText(/thinking|to move|wins/i, { timeout: 20_000 });
