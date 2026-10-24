@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BOARD } from '../constants';
 import type { PieceGeometrySet } from '../types';
+import { anchorGeometryBaseToY0 } from './anchor';
 
 /** Alex sketch override: cat lathe crown; kitten plain cylinder (IMPLEMENTED.md). */
 export function createBoopCatGeometry(): THREE.BufferGeometry {
@@ -10,15 +11,11 @@ export function createBoopCatGeometry(): THREE.BufferGeometry {
     new THREE.Vector2(0.17, 0.36),
     new THREE.Vector2(0.17, 0.36),
   ];
-  const geo = new THREE.LatheGeometry(profile, 96, 0, Math.PI * 2);
-  geo.computeBoundingBox();
-  return geo;
+  return anchorGeometryBaseToY0(new THREE.LatheGeometry(profile, 96, 0, Math.PI * 2));
 }
 
 export function createBoopKittenGeometry(): THREE.BufferGeometry {
-  const geo = new THREE.CylinderGeometry(0.2, 0.2, 0.3, 48, 1, false);
-  geo.computeBoundingBox();
-  return geo;
+  return anchorGeometryBaseToY0(new THREE.CylinderGeometry(0.2, 0.2, 0.3, 48, 1, false));
 }
 
 export function boopPieceGeometrySet(
