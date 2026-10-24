@@ -38,7 +38,6 @@ const scene = await createBoardScene(board, {
   pieces,
   initialTheme: theme,
   playfieldSurfaceY: boardPlayfieldTopY(),
-  pbrLighting: true,
 });
 
 const stage = board.querySelector('canvas') ?? board;
@@ -60,6 +59,10 @@ const gameButtons = createGameButtons({
   aiStrengthStorageKey: BOOP_AI_STRENGTH_STORAGE_KEY,
   onAiStrengthChange: () => controller?.renderStatus(),
   onNewGameReset: () => {
+    interaction.cancel();
+    controller.newGame();
+  },
+  onRestartRound: () => {
     interaction.cancel();
     controller.newGame();
   },

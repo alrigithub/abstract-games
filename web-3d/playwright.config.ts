@@ -22,6 +22,16 @@ export default defineConfig({
       testMatch: '**/gomoku.spec.ts',
       use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5192' },
     },
+    {
+      name: 'menu-screenshots',
+      testMatch: '**/game-menu-screenshots.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'unified-lighting-screenshots',
+      testMatch: '**/unified-lighting-screenshots.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
   webServer: [
     {
@@ -33,6 +43,24 @@ export default defineConfig({
     {
       command: 'npm run dev -w gomoku-3d-demo',
       url: 'http://127.0.0.1:5192',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
+      command: 'npm run dev -w boop-3d-demo',
+      url: 'http://127.0.0.1:5194',
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+    },
+    {
+      command: 'npm run dev -w yinsh-3d-demo',
+      url: 'http://127.0.0.1:5196',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
+      command: 'npm run dev -w tzaar-3d-demo',
+      url: 'http://127.0.0.1:5199',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

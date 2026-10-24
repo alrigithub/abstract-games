@@ -22,9 +22,9 @@ export const CAMERA_VIEW = {
   ORBIT_DISTANCE: 16,
 } as const;
 
-export const INITIAL_CAMERA_PRESET: CameraPresetId = 'top';
+export const INITIAL_CAMERA_PRESET: CameraPresetId = 'axo';
 
-/** Next preset after each Camera button press (starts on top). */
+/** Next preset after each Camera button press (default load is axo → first press is top). */
 export function nextCameraPresetAfter(current: CameraPresetId): CameraPresetId {
   return current === 'top' ? 'axo' : 'top';
 }

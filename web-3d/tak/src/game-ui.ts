@@ -172,6 +172,15 @@ export function createGameUi(options: GameUiOptions) {
       render();
       maybeAi();
     },
+    restartRound() {
+      if (!active) return;
+      stopAi();
+      draft = null;
+      piece = 'flat';
+      game = createGame(game.board.size);
+      render();
+      maybeAi();
+    },
     startLocal(size: number) {
       stopAi();
       active = true;

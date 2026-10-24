@@ -30,7 +30,8 @@ let aiWorker: Worker | null = null;
 function applyTheme(id: ThemeId) {
   theme = id;
   scene.setTheme(id);
-  syncBoard();
+  // bindThemeToggle runs during createGameButtons — gameButtons is not initialized yet.
+  if (typeof gameButtons !== 'undefined') syncBoard();
 }
 
 
@@ -151,6 +152,7 @@ gameButtons = createGameButtons({
   onAiStrengthChange: level => renderStatus(undefined, level.label),
   applyTheme,
   onFirstPlayerSelected: color => startGame(color),
+  onRestartRound: () => startGame(humanColor),
 });
 
 renderStatus();

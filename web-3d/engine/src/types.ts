@@ -59,6 +59,10 @@ export interface PieceGeometrySet {
   /** Returns world-space height for stacking. */
   height(piece: EnginePiece): number;
   geometry(piece: EnginePiece): THREE.BufferGeometry;
+  /** Optional GLB / multi-mesh visual; when set, used instead of a single {@link geometry} mesh. */
+  createVisual?(piece: EnginePiece): THREE.Object3D;
+  /** Swap shape (e.g. Tak flat ↔ wall) on an existing visual root. */
+  replaceVisual?(root: THREE.Object3D, piece: EnginePiece): void;
   /** Stable yaw for visual variety. */
   yaw(id: string): number;
   /** EdgesGeometry threshold angle (degrees). */

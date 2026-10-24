@@ -12,6 +12,15 @@ import type { TzaarKind } from './hex-board';
 export const TZAAR_DISC_RADIUS = GIPF_CHIP.RADIUS;
 export const TZAAR_DISC_HEIGHT = GIPF_CHIP.HEIGHT;
 
+/** Alex stone GLB diameter (README: 28 mm, Y-up meters, origin at base centre). */
+export const TZAAR_GLB_DIAMETER_M = 0.028;
+/** Alex stone GLB thickness (README: 4.3 mm; all three types share this). */
+export const TZAAR_GLB_HEIGHT_M = 0.0043;
+/** One scale for the whole Tzaar set so 28 mm maps to {@link TZAAR_DISC_RADIUS}. */
+export const TZAAR_GLB_WORLD_SCALE = TZAAR_DISC_RADIUS / (TZAAR_GLB_DIAMETER_M / 2);
+/** Flush stack step = scaled 4.3 mm. */
+export const TZAAR_GLB_STACK_STEP = TZAAR_GLB_HEIGHT_M * TZAAR_GLB_WORLD_SCALE;
+
 const SEGMENTS = 48;
 const EMBLEM_LIFT = 0.01;
 const EMBLEM_H = 0.007;

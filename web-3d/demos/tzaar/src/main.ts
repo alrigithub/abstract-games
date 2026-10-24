@@ -4,6 +4,7 @@ import {
   BOARD,
   CAMERA,
   GIPF_CHIP,
+  createBoardWebGLRenderer,
   createCameraViewController,
   createGameButtons,
   createGipfChipGeometry,
@@ -16,8 +17,10 @@ import {
   tzaarLayout,
   tzaarPlayableCells,
   themeTokens,
+  type EnginePiece,
   type ThemeId,
 } from '@abstract/three-engine';
+import { loadTzaarPieceGeometrySet } from './tzaar-piece-models';
 
 /** Official start plus a few mid-board stacks so height reads at a glance. */
 const STACKS: Record<string, number> = {
@@ -33,12 +36,7 @@ const STACKS: Record<string, number> = {
 
 const boardEl = document.querySelector<HTMLDivElement>('#board')!;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
-renderer.setPixelRatio(1);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.NoToneMapping;
-renderer.domElement.setAttribute('aria-hidden', 'true');
-renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none;';
+const renderer = createBoardWebGLRenderer();
 boardEl.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -149,6 +147,8 @@ function fit() {
   requestRender();
 }
 
+const pieces = await loadTzaarPieceGeometrySet();
+
 function applyTheme(id: ThemeId) {
   const tokens = themeTokens(id);
   scene.background = new THREE.Color(tokens.table);
@@ -162,9 +162,10 @@ function applyTheme(id: ThemeId) {
   const shadowMat = new THREE.MeshBasicMaterial({
     color: tokens.shadow,
     transparent: true,
-    opacity: 0.28,
+    opacity: 0.09,
     depthWrite: false,
     side: THREE.DoubleSide,
+    toneMapped: false,
   });
   const surface = BOARD.PLAYFIELD_SURFACE_Y;
   for (const piece of start) {
@@ -172,18 +173,25 @@ function applyTheme(id: ThemeId) {
     const pos = topology.cellPosition(piece.index, snapshot);
     let y = surface;
     for (let level = 0; level < height; level++) {
-      const isTop = level === height - 1;
-      const mesh = createTzaarPieceMesh({
+      const enginePiece: EnginePiece = {
+        id: `${piece.x},${piece.y},${level}`,
         player: piece.player,
-        kind: isTop ? piece.kind : 'tott',
-        isTop,
-        tokens,
-        edgeCache,
-        showSeparator: level > 0,
-      });
-      mesh.position.set(pos.x, y + GIPF_CHIP.HEIGHT / 2, pos.z);
-      piecesRoot.add(mesh);
-      y += GIPF_CHIP.HEIGHT;
+        shape: piece.kind,
+      };
+      const step = pieces.height(enginePiece);
+      const visual = pieces.createVisual
+        ? pieces.createVisual(enginePiece)
+        : createTzaarPieceMesh({
+            player: piece.player,
+            kind: piece.kind,
+            isTop: level === height - 1,
+            tokens,
+            edgeCache,
+            showSeparator: level > 0,
+          });
+      visual.position.set(pos.x, y + step / 2, pos.z);
+      piecesRoot.add(visual);
+      y += step;
     }
     const shadow = new THREE.Mesh(discGeo, shadowMat);
     shadow.scale.set(1, 0.001, 1);
@@ -215,6 +223,10 @@ const gameButtons = createGameButtons({
   cameraViews,
   applyTheme,
   onNewGameReset: () => {
+    applyTheme(initial);
+    renderStatus('Demo layout reset');
+  },
+  onRestartRound: () => {
     applyTheme(initial);
     renderStatus('Demo layout reset');
   },

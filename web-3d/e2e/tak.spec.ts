@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
+import { openGameMenu } from './game-menu';
 
 const screenshotDir = path.join(process.cwd(), 'e2e', 'screenshots');
 
@@ -44,6 +45,7 @@ test.describe('Tak 3D', () => {
     test(`hold-drag sandbox (${theme})`, async ({ page }) => {
       await waitBoard(page);
       if (theme === 'dark') {
+        await openGameMenu(page);
         await page.click('[data-testid="theme-toggle"]');
         await page.waitForTimeout(200);
       }

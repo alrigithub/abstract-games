@@ -7,6 +7,7 @@ import { createContactShadowBlob } from './geometries/contact-shadow';
 import { decoratePieceMesh, makePieceShadow } from './geometries/piece-outlines';
 import { stackHeight } from './stack';
 import { layoutStackCenters, stackExtent, type StackMeasure } from './stack-layout';
+import { createBoardWebGLRenderer } from './board-renderer';
 import { themeTokens, type ThemeId } from './theme';
 import type {
   BoardSnapshot,
@@ -22,7 +23,7 @@ import type {
 const EMPTY_VIEW: InteractionView = { selection: null, dragging: false, pointer: null, origin: null, target: null, progress: 0 };
 
 interface PieceObject {
-  mesh: THREE.Mesh;
+  mesh: THREE.Object3D;
   shadow: THREE.Mesh;
   pieceId: string;
   position: THREE.Vector3;
@@ -55,8 +56,6 @@ export interface BoardSceneOptions {
   boardSlab?: number;
   /** Y of the playfield/table top where piece bases rest (default 0). */
   playfieldSurfaceY?: number;
-  /** Hemisphere + directional lights for GLTF / MeshStandard pieces (Boop stone cats). */
-  pbrLighting?: boolean;
 }
 
 export async function createBoardScene(container: HTMLElement, options: BoardSceneOptions): Promise<SceneApi> {
@@ -68,21 +67,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(tokens.table);
-  if (options.pbrLighting) {
-    scene.add(new THREE.HemisphereLight(0xf4f4f8, 0x3a3a48, 1.1));
-    const key = new THREE.DirectionalLight(0xffffff, 1.25);
-    key.position.set(5, 12, 7);
-    scene.add(key);
-    const fill = new THREE.DirectionalLight(0xc8d0e8, 0.4);
-    fill.position.set(-7, 5, -5);
-    scene.add(fill);
-  }
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
-  renderer.setPixelRatio(1);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.NoToneMapping;
-  renderer.domElement.setAttribute('aria-hidden', 'true');
-  renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none;';
+  const renderer = createBoardWebGLRenderer();
   container.appendChild(renderer.domElement);
 
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
@@ -151,9 +136,17 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     return options.pieces.useOutline?.(piece) !== false;
   }
 
-  function applyPieceMaterial(mesh: THREE.Mesh, piece: EnginePiece, selected = false) {
+  function applyPieceMaterial(object: THREE.Object3D, piece: EnginePiece, selected = false) {
     const custom = options.pieces.materialFor?.(piece, tokens, selected);
-    mesh.material = custom ?? pieceMaterials[`${piece.player}${selected ? 'Selected' : ''}`] ?? pieceMaterials.A!;
+    if (custom === null) return;
+    const mat = custom ?? pieceMaterials[`${piece.player}${selected ? 'Selected' : ''}`] ?? pieceMaterials.A!;
+    if (object instanceof THREE.Mesh) {
+      object.material = mat;
+      return;
+    }
+    object.traverse(node => {
+      if (node instanceof THREE.Mesh) node.material = mat;
+    });
   }
 
   function createPieceMesh(piece: EnginePiece, selected = false): THREE.Mesh {
@@ -165,6 +158,36 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     return mesh;
   }
 
+  function createPieceVisual(piece: EnginePiece, selected = false): THREE.Object3D {
+    if (options.pieces.createVisual) {
+      const visual = options.pieces.createVisual(piece);
+      visual.userData.pieceId = piece.id;
+      visual.userData.player = piece.player;
+      visual.userData.shape = piece.shape;
+      applyPieceMaterial(visual, piece, selected);
+      return visual;
+    }
+    return createPieceMesh(piece, selected);
+  }
+
+  function syncPieceShape(item: PieceObject, piece: EnginePiece) {
+    if (item.mesh.userData.shape === piece.shape) return;
+    if (options.pieces.replaceVisual) {
+      options.pieces.replaceVisual(item.mesh, piece);
+      item.mesh.userData.shape = piece.shape;
+      item.shadow.geometry = geometry(piece as never);
+      return;
+    }
+    if (!(item.mesh instanceof THREE.Mesh)) return;
+    if (item.mesh.geometry === geometry(piece as never)) return;
+    item.mesh.geometry = geometry(piece as never);
+    item.shadow.geometry = geometry(piece as never);
+    if (pieceUsesOutline(piece)) {
+      decoratePieceMesh(item.mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache, pieceEdgeThreshold);
+    }
+    item.mesh.userData.shape = piece.shape;
+  }
+
   function refreshPieceMaterials() {
     for (const item of objects.values()) {
       const player = item.mesh.userData.player as string;
@@ -173,7 +196,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       applyPieceMaterial(item.mesh, { id: item.pieceId, player, shape });
     }
     for (const mesh of pilesGroup.children) {
-      if (!(mesh instanceof THREE.Mesh)) continue;
+      if (!(mesh instanceof THREE.Object3D)) continue;
       const pick = mesh.userData.reserve as ReservePick | undefined;
       if (!pick) continue;
       applyPieceMaterial(mesh, { id: 'reserve', player: pick.player, shape: pick.shape });
@@ -194,7 +217,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   }
 
   const boardGeometries: THREE.BufferGeometry[] = [];
-  const reserveTargets = new Map<string, THREE.Mesh>();
+  const reserveTargets = new Map<string, THREE.Object3D>();
   const reserveSlots: { pick: ReservePick; position: THREE.Vector2 }[] = [];
   const previewShadow = makePieceShadow(geometry({ shape: 'flat' } as never), shadowMaterial, shadowsGroup);
   previewShadow.visible = false;
@@ -204,11 +227,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     if (shape !== 'flat' && shape !== 'standing') return;
     const nextShape = shape === 'flat' ? 'standing' : 'flat';
     const player = item.mesh.userData.player as string;
-    const piece = { shape: nextShape, id: item.pieceId, player };
-    item.mesh.geometry = geometry(piece as never);
-    item.shadow.geometry = geometry(piece as never);
-    item.mesh.userData.shape = nextShape;
-    decoratePieceMesh(item.mesh, edgeMaterials[player]!, outlineMaterial, edgeCache, pieceEdgeThreshold);
+    syncPieceShape(item, { shape: nextShape, id: item.pieceId, player } as EnginePiece);
   }
 
   let snapshot: BoardSnapshot = { playableCells: options.gridSize ** 2, cellCount: options.gridSize ** 2, cells: [] };
@@ -564,7 +583,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         playfieldY,
       );
       for (let level = 0; level < slot.count; level++) {
-        const mesh = createPieceMesh({ ...pieceStub, id: `reserve-${level}` } as EnginePiece);
+        const mesh = createPieceVisual({ ...pieceStub, id: `reserve-${level}` } as EnginePiece);
         mesh.position.set(position.x, centers[level]!, position.y);
         mesh.userData.reserve = pick;
         mesh.userData.pileKey = pileKey;
@@ -680,7 +699,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         reserveKey = key;
         reserveGroup.clear();
         selected.forEach((piece, index) => {
-          const mesh = createPieceMesh(piece as EnginePiece, true);
+          const mesh = createPieceVisual(piece as EnginePiece, true);
           mesh.position.y = index * height(piece as never);
           reserveGroup.add(mesh);
         });
@@ -735,7 +754,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         const destination = new THREE.Vector3(position.x, centers[stackIndex]!, position.z);
         let item = objects.get(piece.id);
         if (!item) {
-          const mesh = createPieceMesh(piece as EnginePiece);
+          const mesh = createPieceVisual(piece as EnginePiece);
           mesh.position.copy(destination);
           mesh.rotation.y = pieceYaw(piece.id);
           if (piece.shape === 'marker') mesh.rotation.x = piece.player === 'B' ? Math.PI : 0;
@@ -772,13 +791,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         }
         item.pieceId = piece.id;
         item.pieceHeight = h;
-        if (item.mesh.geometry !== geometry(piece as never)) {
-          item.mesh.geometry = geometry(piece as never);
-          item.shadow.geometry = geometry(piece as never);
-          if (pieceUsesOutline(piece as EnginePiece)) {
-            decoratePieceMesh(item.mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache, pieceEdgeThreshold);
-          }
-        }
+        syncPieceShape(item, piece as EnginePiece);
         item.mesh.userData.player = piece.player;
         applyPieceMaterial(item.mesh, piece as EnginePiece);
         if (piece.shape === 'marker' && item.flipDuration <= 0) {
@@ -916,36 +929,6 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       position.project(camera);
       const bounds = renderer.domElement.getBoundingClientRect();
       return { x: bounds.left + ((position.x + 1) * bounds.width) / 2, y: bounds.top + ((1 - position.y) * bounds.height) / 2 };
-    },
-    getBoardTopY() {
-      board.updateMatrixWorld(true);
-      const box = new THREE.Box3();
-      for (const child of board.children) {
-        if (child instanceof THREE.Mesh && child.geometry instanceof THREE.BoxGeometry) {
-          box.expandByObject(child);
-        }
-      }
-      return Number.isFinite(box.max.y) ? box.max.y : playfieldY;
-    },
-    getStackBottomBaseYs() {
-      const ys: number[] = [];
-      const baseY = (mesh: THREE.Mesh) => {
-        mesh.updateMatrixWorld(true);
-        shadowBounds.setFromObject(mesh);
-        return shadowBounds.min.y;
-      };
-      snapshot.cells.forEach(stack => {
-        if (!stack.length) return;
-        const item = objects.get(stack[0]!.id);
-        if (item && Number.isFinite(baseY(item.mesh))) ys.push(baseY(item.mesh));
-      });
-      for (const slot of snapshot.reserves ?? []) {
-        if (slot.count <= 0) continue;
-        const pick: ReservePick = { slotId: slot.id, player: slot.player, shape: slot.shape, pile: slot.pile };
-        const mesh = reserveTargets.get(reserveKeyFor(pick));
-        if (mesh && Number.isFinite(baseY(mesh))) ys.push(baseY(mesh));
-      }
-      return ys;
     },
     enqueueAnimation(task) {
       return animQueue.enqueue(task);

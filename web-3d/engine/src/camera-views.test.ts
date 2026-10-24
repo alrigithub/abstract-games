@@ -8,11 +8,11 @@ import {
 } from './camera-views';
 
 describe('camera-views', () => {
-  it('cycles top → axo → top on each toggle target', () => {
-    expect(INITIAL_CAMERA_PRESET).toBe('top');
-    expect(nextCameraPresetAfter('top')).toBe('axo');
+  it('cycles axo → top → axo on each toggle target', () => {
+    expect(INITIAL_CAMERA_PRESET).toBe('axo');
     expect(nextCameraPresetAfter('axo')).toBe('top');
-    expect(nextCameraPresetAfter(nextCameraPresetAfter('top'))).toBe('top');
+    expect(nextCameraPresetAfter('top')).toBe('axo');
+    expect(nextCameraPresetAfter(nextCameraPresetAfter('axo'))).toBe('axo');
   });
 
   it('fits orthographic frustum to world bounds for the current pose', () => {

@@ -3,7 +3,6 @@ import {
   CAMERA,
   type EnginePiece,
   type PieceGeometrySet,
-  type ThemeTokens,
 } from '@abstract/three-engine';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -109,8 +108,7 @@ function bakeSceneToFloorGeometry(root: THREE.Object3D): StoneTemplate {
   const height = geometry.boundingBox!.max.y - geometry.boundingBox!.min.y;
 
   const sourceMat = meshes[0]!.material;
-  const material = (Array.isArray(sourceMat) ? sourceMat[0] : sourceMat).clone() as THREE.MeshStandardMaterial;
-  material.side = THREE.FrontSide;
+  const material = (Array.isArray(sourceMat) ? sourceMat[0] : sourceMat).clone();
 
   return { geometry, material, height };
 }
@@ -157,19 +155,6 @@ async function loadTemplates(): Promise<Record<PlayerId, Record<StoneCatVariant,
 
 type PlayerId = 'A' | 'B';
 
-function materialForTemplate(
-  template: StoneTemplate,
-  selected: boolean | undefined,
-): THREE.Material {
-  const mat = template.material.clone();
-  if (selected && 'emissive' in mat) {
-    const m = mat as THREE.MeshStandardMaterial;
-    m.emissive = m.emissive?.clone() ?? new THREE.Color(0x333333);
-    m.emissiveIntensity = (m.emissiveIntensity ?? 0) + 0.35;
-  }
-  return mat;
-}
-
 function resolveTemplate(
   templates: Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>,
   piece: EnginePiece,
@@ -177,6 +162,13 @@ function resolveTemplate(
   const player: PlayerId = piece.player === 'B' ? 'B' : 'A';
   const variant: StoneCatVariant = piece.shape === 'kitten' ? 'kitten' : 'cat';
   return templates[player][variant];
+}
+
+function mountVisual(root: THREE.Group, template: StoneTemplate) {
+  root.clear();
+  const mesh = new THREE.Mesh(template.geometry, template.material.clone());
+  root.add(mesh);
+  root.rotation.y = BOOP_STONE_CAT_YAW;
 }
 
 function createStonePieceSet(templates: Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>): PieceGeometrySet {
@@ -193,9 +185,14 @@ function createStonePieceSet(templates: Record<PlayerId, Record<StoneCatVariant,
     yaw: () => BOOP_STONE_CAT_YAW,
     edgeThreshold: BOARD.EDGE_THRESHOLD_BOOP,
     useOutline: () => false,
-    materialFor(piece: EnginePiece, _tokens: ThemeTokens, selected?: boolean) {
-      void _tokens;
-      return materialForTemplate(templateFor(piece), selected);
+    materialFor: () => null,
+    createVisual(piece: EnginePiece) {
+      const root = new THREE.Group();
+      mountVisual(root, templateFor(piece));
+      return root;
+    },
+    replaceVisual(root: THREE.Object3D, piece: EnginePiece) {
+      mountVisual(root as THREE.Group, templateFor(piece));
     },
   };
 }
