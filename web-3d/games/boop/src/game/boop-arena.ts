@@ -84,36 +84,49 @@ function disposeMeshMaterials(mesh: THREE.Mesh): void {
 const _arenaRootInv = new THREE.Matrix4();
 const _arenaBake = new THREE.Matrix4();
 
-/** Alex's export ships ~270 tiny meshes; one draw call keeps piece shadows smooth. */
+function assignSharedArenaMaterial(mesh: THREE.Mesh): void {
+  mesh.material = arenaPlayfieldMaterial();
+}
+
+/** Alex's export ships ~270 tiny meshes; merge when attributes match, else one shared material. */
 function consolidateArenaMeshes(scene: THREE.Group): void {
   scene.updateMatrixWorld(true);
   _arenaRootInv.copy(scene.matrixWorld).invert();
 
+  const meshes: THREE.Mesh[] = [];
   const parts: THREE.BufferGeometry[] = [];
-  const toRemove: THREE.Mesh[] = [];
 
   scene.traverse(node => {
     if (!(node as THREE.Mesh).isMesh) return;
     const mesh = node as THREE.Mesh;
-    toRemove.push(mesh);
+    meshes.push(mesh);
     const geometry = mesh.geometry.clone();
     _arenaBake.multiplyMatrices(_arenaRootInv, mesh.matrixWorld);
     geometry.applyMatrix4(_arenaBake);
     parts.push(geometry);
-    disposeMeshMaterials(mesh);
   });
 
-  for (const mesh of toRemove) mesh.parent?.remove(mesh);
   if (!parts.length) return;
 
   const merged = mergeGeometries(parts, false);
   for (const geometry of parts) geometry.dispose();
-  if (!merged) return;
 
-  merged.computeVertexNormals();
-  const mesh = new THREE.Mesh(merged, arenaPlayfieldMaterial());
-  mesh.name = 'boop-arena-consolidated';
-  scene.add(mesh);
+  if (merged) {
+    for (const mesh of meshes) {
+      disposeMeshMaterials(mesh);
+      mesh.parent?.remove(mesh);
+    }
+    merged.computeVertexNormals();
+    const baked = new THREE.Mesh(merged, arenaPlayfieldMaterial());
+    baked.name = 'boop-arena-consolidated';
+    scene.add(baked);
+    return;
+  }
+
+  for (const mesh of meshes) {
+    disposeMeshMaterials(mesh);
+    assignSharedArenaMaterial(mesh);
+  }
 }
 
 function arenaAssetUrl(): string {
