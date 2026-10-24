@@ -130,6 +130,8 @@ export interface SceneApi {
   /** Animate a flippable piece (Yinsh marker, Tak flat/standing stone). */
   flipPiece(pieceId: string): Promise<void>;
   flipPieces(pieceIds: string[], staggerMs?: number): Promise<void>;
+  /** Recompute orthographic framing from {@link Topology.frameCorners}. */
+  reframe(): void;
   dispose(): void;
 }
 

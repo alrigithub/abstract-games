@@ -4,28 +4,69 @@ import type { EnginePiece, PieceGeometrySet, ThemeTokens } from '../types';
 import { anchorGeometryBaseToY0 } from './anchor';
 import { GIPF_CHIP, createGipfChipGeometry } from './gipf-set';
 
-/** Yinsh ring annulus — inner hole fits the shared GIPF chip with clearance. */
+const HOLE_CLEARANCE = 0.026;
+const RING_WALL = 0.088;
+
+/** Physical ring: hole clears the GIPF marker; wall thickness ≈ ring height. */
 export const YINSH = {
   SPACING: 1,
-  RING_INNER: GIPF_CHIP.RADIUS + 0.028,
-  RING_OUTER: 0.48,
-  RING_HEIGHT: 0.056,
-  EDGE_THRESHOLD: 18,
+  /** Radial gap between chip and inner bore (world units, ~1 mm at GIPF scale). */
+  HOLE_CLEARANCE,
+  /** Radial wall thickness (also sets ring height). */
+  RING_WALL,
+  RING_INNER: GIPF_CHIP.RADIUS + HOLE_CLEARANCE,
+  RING_OUTER: GIPF_CHIP.RADIUS + HOLE_CLEARANCE + RING_WALL,
+  RING_HEIGHT: RING_WALL,
+  /** Corner radius on the wall cross-section (rounded-rect / torus-like). */
+  CORNER_RATIO: 0.22,
+  /** Smooth hole and outer rim (no visible faceting). */
+  LATHE_SEGMENTS: BOARD.RADIAL_SEGMENTS * 4,
+  CORNER_ARC_STEPS: 20,
+  /** Hide lathe facet lines; keep rim silhouettes (match Gomoku stone readability). */
+  EDGE_THRESHOLD: 42,
 } as const;
 
-function flatAnnulus(inner: number, outer: number, depth: number): THREE.BufferGeometry {
-  const shape = new THREE.Shape();
-  shape.absarc(0, 0, outer, 0, Math.PI * 2, false);
-  const hole = new THREE.Path();
-  hole.absarc(0, 0, inner, 0, Math.PI * 2, true);
-  shape.holes.push(hole);
-  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: BOARD.RADIAL_SEGMENTS });
-  geo.rotateX(-Math.PI / 2);
-  return anchorGeometryBaseToY0(geo);
+function arcPoints(
+  cx: number,
+  cy: number,
+  radius: number,
+  fromAngle: number,
+  toAngle: number,
+  steps: number,
+): THREE.Vector2[] {
+  const out: THREE.Vector2[] = [];
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const a = fromAngle + (toAngle - fromAngle) * t;
+    out.push(new THREE.Vector2(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius));
+  }
+  return out;
+}
+
+/** Lathe profile for a thick plastic annulus (rounded rectangle cross-section). */
+function ringWallProfile(inner: number, outer: number, height: number): THREE.Vector2[] {
+  const wall = outer - inner;
+  const r = Math.min(wall * YINSH.CORNER_RATIO, height * 0.45, wall * 0.48);
+  const steps = YINSH.CORNER_ARC_STEPS;
+  const profile: THREE.Vector2[] = [];
+  profile.push(new THREE.Vector2(inner + r, 0));
+  profile.push(...arcPoints(inner + r, r, r, -Math.PI / 2, Math.PI, steps));
+  profile.push(new THREE.Vector2(inner, height - r));
+  profile.push(...arcPoints(inner + r, height - r, r, Math.PI, Math.PI / 2, steps));
+  profile.push(new THREE.Vector2(outer - r, height));
+  profile.push(...arcPoints(outer - r, height - r, r, Math.PI / 2, 0, steps));
+  profile.push(new THREE.Vector2(outer, r));
+  profile.push(...arcPoints(outer - r, r, r, 0, -Math.PI / 2, steps));
+  return profile;
 }
 
 export function createYinshRingGeometry(): THREE.BufferGeometry {
-  return flatAnnulus(YINSH.RING_INNER, YINSH.RING_OUTER, YINSH.RING_HEIGHT);
+  const profile = ringWallProfile(YINSH.RING_INNER, YINSH.RING_OUTER, YINSH.RING_HEIGHT);
+  const geo = new THREE.LatheGeometry(profile, YINSH.LATHE_SEGMENTS);
+  geo.computeVertexNormals();
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
+  return anchorGeometryBaseToY0(geo);
 }
 
 /** Match {@link THREE.CylinderGeometry} groups: 0 side, 1 top cap, 2 bottom cap. */
@@ -69,8 +110,10 @@ function assignGipfChipFlipGroups(geo: THREE.BufferGeometry): void {
   if (bottom.length) geo.addGroup(start, bottom.length, 2);
 }
 
+const MARKER_LATHE_SEGMENTS = BOARD.RADIAL_SEGMENTS * 2;
+
 export function createYinshMarkerGeometry(): THREE.BufferGeometry {
-  const geo = createGipfChipGeometry();
+  const geo = createGipfChipGeometry(MARKER_LATHE_SEGMENTS);
   assignGipfChipFlipGroups(geo);
   return anchorGeometryBaseToY0(geo);
 }

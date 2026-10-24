@@ -7,6 +7,15 @@ describe('yinsh pieces vs GIPF chip', () => {
     expect(YINSH.RING_INNER).toBeGreaterThan(GIPF_CHIP.RADIUS);
   });
 
+  it('ring wall is about as wide as it is tall', () => {
+    expect(YINSH.RING_WALL).toBeCloseTo(YINSH.RING_HEIGHT, 5);
+    expect(YINSH.RING_OUTER - YINSH.RING_INNER).toBeCloseTo(YINSH.RING_WALL, 5);
+  });
+
+  it('hole clearance matches chip radius plus gap', () => {
+    expect(YINSH.RING_INNER - GIPF_CHIP.RADIUS).toBeCloseTo(YINSH.HOLE_CLEARANCE, 5);
+  });
+
   it('marker uses GIPF chip height', () => {
     const geo = createYinshMarkerGeometry();
     geo.computeBoundingBox();
@@ -15,9 +24,12 @@ describe('yinsh pieces vs GIPF chip', () => {
     geo.dispose();
   });
 
-  it('ring outer exceeds chip diameter', () => {
-    expect(YINSH.RING_OUTER).toBeGreaterThan(GIPF_CHIP.RADIUS);
+  it('ring lathe mesh is smooth and tall enough for the marker hole', () => {
     const ring = createYinshRingGeometry();
+    ring.computeBoundingBox();
+    const h = ring.boundingBox!.max.y - ring.boundingBox!.min.y;
+    expect(h).toBeCloseTo(YINSH.RING_HEIGHT, 3);
+    expect(YINSH.LATHE_SEGMENTS).toBeGreaterThanOrEqual(64);
     ring.dispose();
   });
 });

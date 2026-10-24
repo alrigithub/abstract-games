@@ -171,7 +171,7 @@ export function gipfChipMaterials(tokens: ThemeTokens): Record<string, { fill: T
 }
 
 /** Low-poly lathe poker-chip: flat faces, small edge chamfer. */
-export function createGipfChipGeometry(): THREE.BufferGeometry {
+export function createGipfChipGeometry(segments: number = GIPF_CHIP.SEGMENTS): THREE.BufferGeometry {
   const h = GIPF_CHIP.HEIGHT / 2;
   const r = GIPF_CHIP.RADIUS;
   const c = GIPF_CHIP.CHAMFER;
@@ -183,7 +183,7 @@ export function createGipfChipGeometry(): THREE.BufferGeometry {
     new THREE.Vector2(r - c, h),
     new THREE.Vector2(0, h),
   ];
-  const geo = new THREE.LatheGeometry(profile, GIPF_CHIP.SEGMENTS);
+  const geo = new THREE.LatheGeometry(profile, segments);
   geo.computeBoundingBox();
   geo.computeBoundingSphere();
   return geo;

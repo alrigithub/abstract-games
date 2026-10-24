@@ -893,6 +893,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     enqueueAnimation(task) {
       void animQueue.enqueue(task);
     },
+    reframe() {
+      fit(true);
+    },
     flipPiece(pieceId) {
       return new Promise<void>(resolve => {
         void animQueue.enqueue(async () => {

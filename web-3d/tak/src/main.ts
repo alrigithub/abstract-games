@@ -19,7 +19,7 @@ import {
 import { toEngineSnapshot, toTakSelection } from './bridge';
 import { createGameUi } from './game-ui';
 import { stackPickLimit } from './pick-height';
-import { createSandboxState, moveSelection, rotateSelection } from './state';
+import { createSandboxState, createState, moveSelection, rotateSelection } from './state';
 import type { BoardState, Color } from './types';
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
@@ -33,9 +33,15 @@ const sizeSelect = document.querySelector<HTMLSelectElement>('#size')!;
 const geos = createTakPieceGeometries();
 const pieces = takPieceGeometrySet(geos);
 let boardSize = 5;
-let topology = createSquareTopology({ size: boardSize, outsideRows: 6 });
+const flatCloseupShot = new URLSearchParams(location.search).get('shot') === 'flat-closeup';
+const sandboxOutsideRows = flatCloseupShot ? 0 : 6;
+let topology = createSquareTopology({ size: boardSize, outsideRows: sandboxOutsideRows });
 let theme: ThemeId = readStoredTheme();
-let state: BoardState = createSandboxState(boardSize);
+let state: BoardState = flatCloseupShot ? createState(boardSize) : createSandboxState(boardSize);
+if (flatCloseupShot) {
+  const mid = Math.floor((boardSize * boardSize) / 2);
+  state.cells[mid] = [{ id: 'closeup-flat', color: 'ivory', kind: 'stone', orientation: 'flat' }];
+}
 const history: BoardState[] = [];
 let sandbox = true;
 let lastView: InteractionView | null = null;
@@ -265,8 +271,14 @@ document.querySelector('#camera-mode')!.addEventListener('click', () => {
 
 applyTheme(theme);
 refresh();
-gameButtons.setStatus('Sandbox');
-menu.showModal();
+if (flatCloseupShot) {
+  requestAnimationFrame(() => {
+    scene.reframe();
+    requestAnimationFrame(() => scene.reframe());
+  });
+}
+gameButtons.setStatus(flatCloseupShot ? 'Flat stone close-up' : 'Sandbox');
+if (!flatCloseupShot) menu.showModal();
 
 if (location.search.includes('human=ivory')) {
   (window as unknown as {
