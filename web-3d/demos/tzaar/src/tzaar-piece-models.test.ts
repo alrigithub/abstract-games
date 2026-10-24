@@ -4,6 +4,12 @@ import { fileURLToPath } from 'node:url';
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
+  TZAAR_GLB_DIAMETER_M,
+  TZAAR_GLB_HEIGHT_M,
+  TZAAR_GLB_WORLD_SCALE,
+  layoutStackCenters,
+} from '@abstract/three-engine';
+import {
   TZAAR_MODEL,
   TZAAR_STONE_LOOK,
   configureTzaarStoneMaterials,
@@ -44,6 +50,43 @@ describe('tzaar GLB mapping', () => {
         expect(nodes.some(node => node.name === `tzaar-${kind}-${colour}`)).toBe(true);
       }
     }
+  });
+
+  it('keeps one authored height and ~28 mm diameter so stacks stay flush', () => {
+    const bounds = (['tzaar', 'tzarra', 'tott'] as const).flatMap(kind =>
+      (['A', 'B'] as const).map(side => {
+        const filename = path.basename(tzaarModelRelPath(kind, side));
+        const gltf = readGlbJson(filename);
+        const mesh = (gltf.meshes as { primitives: { attributes: { POSITION: number } }[] }[])[0]!;
+        const accessors = gltf.accessors as { min?: number[]; max?: number[] }[];
+        const acc = accessors[mesh.primitives[0]!.attributes.POSITION]!;
+        const min = acc.min!;
+        const max = acc.max!;
+        return {
+          filename,
+          height: max[1]! - min[1]!,
+          diameter: max[0]! - min[0]!,
+          baseY: min[1]!,
+        };
+      }),
+    );
+    const height = bounds[0]!.height;
+    for (const piece of bounds) {
+      expect(piece.baseY, piece.filename).toBeCloseTo(0, 6);
+      expect(piece.height, piece.filename).toBeCloseTo(height, 6);
+      expect(piece.height, piece.filename).toBeCloseTo(TZAAR_GLB_HEIGHT_M, 3);
+      expect(piece.diameter, piece.filename).toBeCloseTo(TZAAR_GLB_DIAMETER_M, 2);
+    }
+    const worldHeight = height * TZAAR_GLB_WORLD_SCALE;
+    const stack = [
+      { id: 'lower', player: 'A', shape: 'tott' },
+      { id: 'upper', player: 'A', shape: 'tzaar' },
+    ];
+    const centers = layoutStackCenters(stack, {
+      heightOf: () => worldHeight,
+      offsetOf: () => 0,
+    });
+    expect(centers[1]! - centers[0]!).toBeCloseTo(worldHeight, 8);
   });
 
   it('authors black stones as PBR and white stones as unlit', () => {
