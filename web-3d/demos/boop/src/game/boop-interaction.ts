@@ -201,7 +201,7 @@ export function poolCellIndex(): number {
 
 export function aiPoolCellIndex(kind: 'kitten' | 'cat' = 'kitten'): number {
   const row = kind === 'kitten' ? 3 : 5;
-  return cellIndex(GRID, row, GRID + 1, OUTSIDE)!;
+  return cellIndex(GRID, row, GRID + 3, OUTSIDE)!;
 }
 
 export function cellAt(row: number, col: number): number {
