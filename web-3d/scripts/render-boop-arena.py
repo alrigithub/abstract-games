@@ -17,6 +17,7 @@ parser.add_argument('--grid', required=True)
 parser.add_argument('--output', required=True)
 parser.add_argument('--source-copy', required=True)
 parser.add_argument('--resolution', type=int, default=1536)
+parser.add_argument('--allow-grid-offsets', action='store_true', help='Keep intentionally moved tile centers and record their reference offsets')
 args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
 args.output = os.path.abspath(args.output)
 os.makedirs(args.output, exist_ok=True)
@@ -32,7 +33,7 @@ assert len(cells) == 36, 'Expected all 36 reference cells'
 errors = [math.hypot(o.matrix_world.translation.x - reference[o.name][0],
                      o.matrix_world.translation.y - reference[o.name][1]) for o in cells]
 height_changes = [abs(o.matrix_world.translation.z - reference[o.name][2]) for o in cells]
-assert max(errors) < 1e-5, 'Grid and source arena differ horizontally; review alignment before rendering'
+assert args.allow_grid_offsets or max(errors) < 1e-5, 'Grid and source arena differ horizontally; review alignment before rendering'
 
 # The authored pitch is 1.05 m; the game's cell pitch is one world unit.
 scale = 1 / 1.05
@@ -43,6 +44,14 @@ for o in list(scene.objects):
     if o.parent is None:
         o.matrix_world = transform @ o.matrix_world
 bpy.context.view_layer.update()
+recess = scene.objects.get('Arena recessed floor')
+recess_z = recess.matrix_world.translation.z if recess else 0
+ground_cutout = None
+if recess:
+    corners = [recess.matrix_world @ Vector(v) for v in recess.bound_box]
+    ground_cutout = {'minX': min(p.x for p in corners), 'maxX': max(p.x for p in corners),
+                     'minZ': -max(p.y for p in corners), 'maxZ': -min(p.y for p in corners),
+                     'floorY': recess_z}
 
 def srgb(hex_value):
     values = [int(hex_value[i:i + 2], 16) / 255 for i in (0, 2, 4)]
@@ -62,7 +71,7 @@ meshes = [o for o in scene.objects if o.type == 'MESH' and not o.hide_render and
 for o in meshes:
     o.data = o.data.copy()
     o.data.materials.clear()
-    o.data.materials.append(ground if o == floor else stone)
+    o.data.materials.append(ground if o == floor or o == recess or o.name == 'Arena recess inner sides' else stone)
 
 # Retain complete column assemblies so moving pieces can pass behind their silhouettes.
 columns = [o for o in meshes if any(s in o.name.lower() for s in ('column', 'capital'))]
@@ -76,7 +85,7 @@ for o in cells:
     origin = o.matrix_world.inverted() @ Vector((center.x, center.y, 10))
     direction = o.matrix_world.to_3x3().inverted() @ Vector((0, 0, -1))
     hit, point, _, _ = o.ray_cast(origin, direction)
-    top = max(0, (o.matrix_world @ point).z if hit else center.z + o.dimensions.z / 2)
+    top = max(recess_z, (o.matrix_world @ point).z if hit else center.z + o.dimensions.z / 2)
     records.append({'name': o.name, 'row': row, 'col': col, 'x': center.x, 'y': top, 'z': -center.y})
     marker = bpy.data.objects.new('Grid ' + o.name, None)
     marker.empty_display_type = 'SPHERE'
@@ -134,6 +143,7 @@ for o in columns:
 report = {
     'referenceCellCount': len(cells), 'maxSourceAlignmentError': max(errors),
     'maxSourceHeightChange': max(height_changes),
+    'groundCutout': ground_cutout,
     'sourcePitch': 1.05, 'worldScale': scale, 'cells': sorted(records, key=lambda c: (c['row'], c['col'])),
     'camera': {'position': [position[0], position[2], -position[1]], 'target': [0, 0, 0], 'width': 18, 'height': 18, 'frameWidth': 14, 'frameHeight': 10},
     'liveColumns': [o.name for o in columns], 'staticMeshCount': len(meshes) - len(columns),

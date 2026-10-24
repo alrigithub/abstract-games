@@ -9,10 +9,13 @@ The existing full 3D arena is available for comparison with `?arena=3d`.
 ## Grid registration
 
 The supplied `boop_grid.blend` contains the same 36 named cell objects as
-`ari+6X6.blend`. Their horizontal source centers match exactly (maximum error 0).
-Tile heights can be edited independently in Blender; the manifest records the
-current top of each tile, clamped to the ground for buried tiles. The renderer
-checks horizontal registration and reports the largest source height change.
+`ari+6X6.blend`. Cell names preserve the reference grid's row and column identity.
+The latest saved arena intentionally offsets some tile centers. Rendering with
+`--allow-grid-offsets` retains these edits and records the reference displacement.
+Placement and picking use the exported positions. Without this flag, horizontal
+registration must still match the reference exactly.
+The manifest records the current top of each tile, clamped to the recessed floor
+for buried tiles, and reports the largest source height change.
 The authored pitch is 1.05 Blender units; the entire scene is uniformly scaled
 by 1/1.05 to match the game's one-unit pitch. Intentional tile offsets are retained.
 Blender +Z maps to game +Y, and Blender +Y maps to game -Z. Grid row labels are
@@ -23,6 +26,9 @@ cell center and surface height, the live column names, and the exact camera.
 Piece placement, picking, and screen coordinates use this registration. Exterior
 pool cells keep the existing coordinates. Two batched tile surfaces provide
 depth and live contact shadows without rendering the original tile meshes.
+The surrounding ground is at zero with a rectangular opening and a lowered
+arena floor. Both invisible depth and shadow receivers share this opening;
+there is no zero-height floor covering pieces placed inside the recess.
 
 ## Camera and color
 
