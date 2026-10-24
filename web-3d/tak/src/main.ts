@@ -1,10 +1,10 @@
 import '../style.css';
 import {
+  BOARD,
   createBoardScene,
   createInteraction,
   createSquareTopology,
   createTakPieceGeometries,
-  BOARD,
   INTERACTION,
   readStoredTheme,
   storeTheme,

@@ -33,7 +33,7 @@ export function makePieceShadow(
 ): THREE.Mesh {
   const shadow = new THREE.Mesh(geo, material);
   shadow.scale.set(BOARD.SHADOW_SCALE, 0.001, BOARD.SHADOW_SCALE);
-  shadow.position.y = BOARD.SHADOW_Y;
+  shadow.position.y = 0;
   shadow.renderOrder = 1;
   group.add(shadow);
   return shadow;

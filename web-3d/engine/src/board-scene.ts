@@ -5,6 +5,7 @@ import { ANIMATION, BOARD, CAMERA } from './constants';
 import { createContactShadowBlob } from './geometries/contact-shadow';
 import { decoratePieceMesh, makePieceShadow } from './geometries/piece-outlines';
 import { stackHeight } from './stack';
+import { layoutStackCenters, stackExtent, type StackMeasure } from './stack-layout';
 import { themeTokens, type ThemeId } from './theme';
 import type {
   BoardSnapshot,
@@ -38,6 +39,7 @@ interface PieceObject {
   flipStarted: number;
   flipDuration: number;
   flipSwapped: boolean;
+  pieceHeight: number;
 }
 
 export interface BoardSceneOptions {
@@ -50,11 +52,14 @@ export interface BoardSceneOptions {
   initialTheme?: ThemeId;
   /** Board slab thickness in world units (default {@link BOARD.SLAB}). */
   boardSlab?: number;
+  /** Y of the playfield/table top where piece bases rest (default 0). */
+  playfieldSurfaceY?: number;
 }
 
 export async function createBoardScene(container: HTMLElement, options: BoardSceneOptions): Promise<SceneApi> {
   const players = options.players ?? ['A', 'B'];
   const boardSlab = options.boardSlab ?? BOARD.SLAB;
+  const playfieldY = options.playfieldSurfaceY ?? BOARD.PLAYFIELD_SURFACE_Y;
   let themeId: ThemeId = options.initialTheme ?? 'light';
   let tokens = themeTokens(themeId);
 
@@ -125,6 +130,23 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const pieceEdgeThreshold = options.pieces.edgeThreshold ?? BOARD.EDGE_THRESHOLD_TAK;
   const verticalOffset = (piece: EnginePiece, stackIndex: number, stack: EnginePiece[]) =>
     options.pieces.verticalOffset?.(piece, stackIndex, stack) ?? 0;
+  const stackMeasure: StackMeasure = {
+    heightOf: piece => height(piece as never),
+    offsetOf: verticalOffset,
+  };
+
+  const shadowBounds = new THREE.Box3();
+  function syncContactShadow(item: PieceObject) {
+    item.mesh.updateMatrixWorld(true);
+    shadowBounds.setFromObject(item.mesh);
+    if (Number.isFinite(shadowBounds.min.y)) {
+      item.shadow.position.y = shadowBounds.min.y + BOARD.SHADOW_CONTACT_EPSILON;
+    } else {
+      item.shadow.position.y = item.mesh.position.y - item.pieceHeight / 2 + BOARD.SHADOW_CONTACT_EPSILON;
+    }
+    item.shadow.position.x = item.mesh.position.x;
+    item.shadow.position.z = item.mesh.position.z;
+  }
 
   const boardGeometries: THREE.BufferGeometry[] = [];
   const reserveTargets = new Map<string, THREE.Mesh>();
@@ -219,9 +241,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         if (flipT < 1) animated = true;
         else item.flipDuration = 0;
       }
-      item.shadow.position.x = item.mesh.position.x;
-      item.shadow.position.z = item.mesh.position.z;
       item.shadow.rotation.x = item.mesh.rotation.x;
+      item.shadow.rotation.y = item.mesh.rotation.y;
+      syncContactShadow(item);
       if (t < 1) animated = true;
     }
     renderer.render(scene, camera);
@@ -479,6 +501,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       const pileKey = reserveKeyFor(pick);
       const pieceStub = { shape: slot.shape, id: 'reserve', player: slot.player };
       const h = height(pieceStub as never);
+      const centers = layoutStackCenters(
+        Array.from({ length: slot.count }, (_, level) => ({ ...pieceStub, id: `reserve-${level}` })),
+        stackMeasure,
+        playfieldY,
+      );
       for (let level = 0; level < slot.count; level++) {
         const mesh = decoratePieceMesh(
           new THREE.Mesh(geometry(pieceStub as never), pieceMaterials[slot.player]!),
@@ -487,7 +514,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
           edgeCache,
           pieceEdgeThreshold,
         );
-        mesh.position.set(position.x, h * (level + 0.5), position.y);
+        mesh.position.set(position.x, centers[level]!, position.y);
         mesh.userData.reserve = pick;
         mesh.userData.pileKey = pileKey;
         pilesGroup.add(mesh);
@@ -534,7 +561,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     }
     const targetStack = target === null ? [] : snapshot.cells[target] ?? [];
     let y =
-      ANIMATION.FLOOR +
+      playfieldY +
       (exterior
         ? (snapshot.reserves?.find(s => reserveKeyFor({ slotId: s.id, player: s.player, shape: s.shape, pile: s.pile }) === reserveKeyFor(exterior.pick))?.count ?? 0) *
           height(selected[0] ?? ({ shape: 'flat', id: 'g' } as never))
@@ -546,13 +573,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     if (selected[0]) {
       previewShadow.geometry = geometry(selected[0] as never);
       previewShadow.rotation.y = pieceYaw(selected[0].id);
-      previewShadow.position.set(position.x, y + 0.004, position.z);
+      previewShadow.position.set(position.x, y + BOARD.SHADOW_CONTACT_EPSILON, position.z);
     }
+    const ghostCenters = layoutStackCenters(selected as EnginePiece[], stackMeasure, y);
     selected.forEach((piece, i) => {
       const mesh = ghostGroup.children[i];
-      const h = height(piece as never);
-      if (mesh) mesh.position.set(position.x, y + h / 2, position.z);
-      y += h;
+      if (mesh) mesh.position.set(position.x, ghostCenters[i]!, position.z);
     });
   }
 
@@ -567,17 +593,25 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     const sourcePosition = typeof selection?.source === 'number' ? cellPosition(selection.source) : null;
     const selectedBottom =
       selected.length && typeof selection?.source === 'number'
-        ? stackHeight(snapshot.cells[selection.source]?.slice(0, -selected.length) ?? [], p => height(p as never))
+        ? stackExtent(snapshot.cells[selection.source]?.slice(0, -selected.length) ?? [], stackMeasure, playfieldY)
         : 0;
     const support =
       view.target === null
         ? exterior
-          ? (snapshot.reserves?.find(s => reserveKeyFor({ slotId: s.id, player: s.player, shape: s.shape, pile: s.pile }) === reserveKeyFor(exterior.pick))?.count ?? 0) *
-            height(selected[0] ?? ({ shape: 'flat', id: 's' } as never))
+          ? stackExtent(
+              Array.from({ length: snapshot.reserves?.find(s => reserveKeyFor({ slotId: s.id, player: s.player, shape: s.shape, pile: s.pile }) === reserveKeyFor(exterior.pick))?.count ?? 0 }, (_, i) => ({
+                id: `r${i}`,
+                player: exterior.pick.player,
+                shape: exterior.pick.shape,
+              })),
+              stackMeasure,
+              playfieldY,
+            )
           : 0
-        : stackHeight(
+        : stackExtent(
             (snapshot.cells[view.target] ?? []).filter(p => !selectedIds.has(p.id)),
-            p => height(p as never),
+            stackMeasure,
+            playfieldY,
           );
     for (const item of objects.values()) {
       const isSelected = selectedIds.has(item.pieceId);
@@ -636,7 +670,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       } else if (target !== null) {
         const position = cellPosition(target);
         const stackH = stackHeight(snapshot.cells[target] ?? [], p => height(p as never));
-        reserveGroup.position.set(position.x, ANIMATION.FLOOR + stackH + lift + sourceHeight / 2, position.z);
+        reserveGroup.position.set(position.x, playfieldY + stackH + lift + sourceHeight / 2, position.z);
       } else {
         reserveGroup.position.copy(sourcePosition3);
       }
@@ -660,12 +694,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     const present = new Set<string>();
     snapshot.cells.forEach((stack, index) => {
       const position = cellPosition(index);
-      let y = ANIMATION.FLOOR;
+      const centers = layoutStackCenters(stack, stackMeasure, playfieldY);
       stack.forEach((piece, stackIndex) => {
         present.add(piece.id);
         const h = height(piece as never);
-        const yOffset = verticalOffset(piece, stackIndex, stack);
-        const destination = new THREE.Vector3(position.x, y + h / 2 + yOffset, position.z);
+        const destination = new THREE.Vector3(position.x, centers[stackIndex]!, position.z);
         let item = objects.get(piece.id);
         if (!item) {
           const mesh = decoratePieceMesh(
@@ -702,12 +735,15 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
             flipStarted: 0,
             flipDuration: 0,
             flipSwapped: false,
+            pieceHeight: h,
           };
           item.shadow.rotation.y = pieceYaw(piece.id);
           if (piece.shape === 'marker') item.shadow.rotation.x = mesh.rotation.x;
+          syncContactShadow(item);
           objects.set(piece.id, item);
         }
         item.pieceId = piece.id;
+        item.pieceHeight = h;
         if (item.mesh.geometry !== geometry(piece as never)) {
           item.mesh.geometry = geometry(piece as never);
           item.shadow.geometry = geometry(piece as never);
@@ -722,7 +758,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         }
         item.mesh.userData.cellIndex = index;
         item.position.copy(destination);
-        y += h;
+        syncContactShadow(item);
       });
     });
     for (const [id, item] of objects) {
