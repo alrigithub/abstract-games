@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { GOMOKU_DIMS, gomokuCellWorld } from '@abstract/three-engine';
 import {
+  GOMOKU_ARENA_AUTHORED_FIELD_HALF_M,
+  GOMOKU_ARENA_AUTHORED_PITCH_M,
   GOMOKU_ARENA_FIELD_HALF_M,
   GOMOKU_ARENA_TILE_PITCH_M,
   GOMOKU_ARENA_WORLD_SCALE,
@@ -10,10 +12,12 @@ import {
 } from './gomoku-arena';
 
 describe('gomoku arena grid alignment', () => {
-  it('uses 1.05 m tile pitch and a 7.35 m half-span in authored space', () => {
-    expect(GOMOKU_ARENA_TILE_PITCH_M).toBeCloseTo(1.05, 6);
-    expect(GOMOKU_ARENA_FIELD_HALF_M).toBeCloseTo(7.35, 6);
-    expect(GOMOKU_ARENA_WORLD_SCALE * GOMOKU_ARENA_TILE_PITCH_M).toBeCloseTo(1, 8);
+  it('uses 150 mm pitch (1.05 m authored spacing) and centres on origin', () => {
+    expect(GOMOKU_ARENA_TILE_PITCH_M).toBeCloseTo(0.15, 6);
+    expect(GOMOKU_ARENA_FIELD_HALF_M).toBeCloseTo(1.05, 6);
+    expect(GOMOKU_ARENA_AUTHORED_PITCH_M).toBeCloseTo(1.05, 6);
+    expect(GOMOKU_ARENA_AUTHORED_FIELD_HALF_M).toBeCloseTo(7.35, 6);
+    expect(GOMOKU_ARENA_WORLD_SCALE * GOMOKU_ARENA_AUTHORED_PITCH_M).toBeCloseTo(1, 8);
   });
 
   it('maps authored cell nodes to the 15×15 placement grid within tolerance', () => {
@@ -36,7 +40,7 @@ describe('gomoku arena grid alignment', () => {
     expect(center.x).toBeCloseTo(0, 4);
     expect(center.y).toBeCloseTo(0, 4);
     const corner = gomokuArenaCellAuthoredXz(0, 0);
-    expect(corner.x).toBeCloseTo(-GOMOKU_ARENA_FIELD_HALF_M, 4);
-    expect(corner.z).toBeCloseTo(GOMOKU_ARENA_FIELD_HALF_M, 4);
+    expect(corner.x).toBeCloseTo(-GOMOKU_ARENA_AUTHORED_FIELD_HALF_M, 4);
+    expect(corner.z).toBeCloseTo(GOMOKU_ARENA_AUTHORED_FIELD_HALF_M, 4);
   });
 });

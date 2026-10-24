@@ -12,16 +12,20 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 /** Verified SHA-256 of the meshopt-compressed arena in `public/models/`. */
 export const GOMOKU_ARENA_GLB_SHA256 =
-  '583dde9622d8e92073563d546ec19b0115a5093e89817b35a3334378ad9a2325';
-export const GOMOKU_ARENA_GLB_FILE = 'arena-15x15-white.glb';
+  '4fc63280520261ade1d95cf37bc2ed29bfecd11141b3db58097973b1ae8e5414';
+export const GOMOKU_ARENA_GLB_FILE = 'arena-15x15-white-150mm.glb';
 
-/** Authored tile spacing in the GLB (Blender meters, Y-up). */
-export const GOMOKU_ARENA_TILE_PITCH_M = 1.05;
-/** Maps authored meters → one world unit per intersection. */
-export const GOMOKU_ARENA_WORLD_SCALE = 1 / GOMOKU_ARENA_TILE_PITCH_M;
+/** Real-world tile pitch (150 mm) mapped to one world unit per intersection. */
+export const GOMOKU_ARENA_TILE_PITCH_M = 0.15;
+/** Cell node spacing in the GLB export (7× the 150 mm pitch, in meters). */
+export const GOMOKU_ARENA_AUTHORED_PITCH_M = 1.05;
+/** Maps authored GLB meters → world units (one unit per intersection). */
+export const GOMOKU_ARENA_WORLD_SCALE = 1 / GOMOKU_ARENA_AUTHORED_PITCH_M;
 
-/** Outer corner translation in authored space (Cell A01 / O15 corners). */
-export const GOMOKU_ARENA_FIELD_HALF_M = 7.35;
+/** Playfield half-span: 7 × {@link GOMOKU_ARENA_TILE_PITCH_M} = 1.05 m. */
+export const GOMOKU_ARENA_FIELD_HALF_M = 1.05;
+/** Outer corner cell translation magnitude in authored GLB space. */
+export const GOMOKU_ARENA_AUTHORED_FIELD_HALF_M = 7.35;
 
 const INFINITE_GROUND_RAW = 'Infinite white ground';
 const INFINITE_GROUND_SANITIZED = PropertyBinding.sanitizeNodeName(INFINITE_GROUND_RAW);
@@ -102,8 +106,9 @@ function prepareArenaScene(scene: THREE.Group): THREE.Group {
 }
 
 export function gomokuArenaCellAuthoredXz(row: number, col: number): { x: number; z: number } {
-  const half = GOMOKU_ARENA_FIELD_HALF_M;
-  return { x: -half + col * GOMOKU_ARENA_TILE_PITCH_M, z: half - row * GOMOKU_ARENA_TILE_PITCH_M };
+  const half = GOMOKU_ARENA_AUTHORED_FIELD_HALF_M;
+  const pitch = GOMOKU_ARENA_AUTHORED_PITCH_M;
+  return { x: -half + col * pitch, z: half - row * pitch };
 }
 
 /** World XZ of a cell centre after scale + Z flip (before root Y shift). */
