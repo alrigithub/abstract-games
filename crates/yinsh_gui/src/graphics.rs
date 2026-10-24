@@ -1,5 +1,9 @@
 use std::time::Duration;
 
+use abstract_gui_theme::{
+    apply_stage_clear_color, configure_grid_gizmos, insert_player_color_materials,
+    PlayerColorMaterials, BACKGROUND, FOREGROUND,
+};
 #[cfg_attr(target_arch = "wasm32", allow(unused_imports))]
 use bevy::{
     camera::visibility::RenderLayers, post_process::bloom::Bloom, prelude::*, render::view::Hdr,
@@ -14,64 +18,15 @@ use crate::{
     grid::draw_grid,
 };
 
-pub const FOREGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(2);
-pub const BACKGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(1);
-
-pub const COLOR_GRID: Color = Color::hsl(0.0, 0.0, 0.2);
-
-pub const COLOR_BACKGROUND: Color = Color::hsl(0.0, 0.0, 0.05);
-
-pub const COLOR_RING_MOVEMENT_INDICATOR: Color = Color::hsla(0.0, 0.0, 1.5, 0.1);
-
-/// Score-line glow overlay (meshes; bloom picks this up on desktop).
-pub const COLOR_WIN_GLOW: Color =
-    Color::srgb(0x3b as f32 / 255., 0x82 as f32 / 255., 0xf6 as f32 / 255.);
-
-pub const COLOR_HUMAN_R: f32 = 255.;
-pub const COLOR_HUMAN_G: f32 = 226.;
-pub const COLOR_HUMAN_B: f32 = 55.;
-
-pub const COLOR_HUMAN_BLOOM: f32 = 1.5;
-
-pub const COLOR_HUMAN: Color = Color::srgba(
-    COLOR_HUMAN_BLOOM * COLOR_HUMAN_R / 255.,
-    COLOR_HUMAN_BLOOM * COLOR_HUMAN_G / 255.,
-    COLOR_HUMAN_BLOOM * COLOR_HUMAN_B / 255.,
-    1.0,
-);
-pub const COLOR_HUMAN_HIGHLIGHTED: Color = Color::srgba(
-    4.0 * COLOR_HUMAN_R / 255.,
-    4.0 * COLOR_HUMAN_G / 255.,
-    4.0 * COLOR_HUMAN_B / 255.,
-    1.0,
-);
-pub const COLOR_HUMAN_TRANSPARENT: Color = Color::srgba(
-    COLOR_HUMAN_BLOOM * COLOR_HUMAN_R / 255.,
-    COLOR_HUMAN_BLOOM * COLOR_HUMAN_G / 255.,
-    COLOR_HUMAN_BLOOM * COLOR_HUMAN_B / 255.,
-    0.2,
-);
-
-pub const COLOR_AI_R: f32 = 81.;
-pub const COLOR_AI_G: f32 = 151.;
-pub const COLOR_AI_B: f32 = 242.;
-
-pub const COLOR_AI_BLOOM: f32 = 1.3;
-
-pub const COLOR_AI: Color = Color::srgba(
-    COLOR_AI_BLOOM * COLOR_AI_R / 255.,
-    COLOR_AI_BLOOM * COLOR_AI_G / 255.,
-    COLOR_AI_BLOOM * COLOR_AI_B / 255.,
-    1.0,
-);
-
-pub fn color_for_player(player: Player) -> Color {
-    if player == PLAYER_HUMAN {
-        COLOR_HUMAN
-    } else {
-        COLOR_AI
-    }
-}
+pub use abstract_gui_theme::{
+    BACKGROUND as BACKGROUND_RENDER_LAYER, FOREGROUND as FOREGROUND_RENDER_LAYER,
+};
+pub use abstract_gui_theme::{
+    AI as COLOR_AI, GRID_LINE as COLOR_GRID, HUMAN as COLOR_HUMAN,
+    HUMAN_GHOST as COLOR_HUMAN_TRANSPARENT, HUMAN_HIGHLIGHTED as COLOR_HUMAN_HIGHLIGHTED,
+    RING_MOVEMENT_INDICATOR as COLOR_RING_MOVEMENT_INDICATOR, STAGE as COLOR_BACKGROUND,
+    WIN as COLOR_WIN_GLOW,
+};
 
 pub const ANIMATION_DURATION: Duration = Duration::from_millis(500);
 
@@ -82,7 +37,6 @@ pub struct MainCamera;
 pub struct ScaleFactor {
     pub spacing: f32,
     pub factor: f32,
-    /// Half of the logical window width (camera half-extent in world units).
     pub half_width: f32,
 }
 
@@ -109,13 +63,14 @@ impl Default for ScaleFactor {
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ScaleFactorSet;
 
-#[derive(Resource)]
-pub struct PlayerColors {
-    pub human: Handle<ColorMaterial>,
-    pub human_highlighted: Handle<ColorMaterial>,
-    pub human_transparent: Handle<ColorMaterial>,
-    pub ai: Handle<ColorMaterial>,
-    pub animated_markers: [Handle<ColorMaterial>; 8],
+pub type PlayerColors = PlayerColorMaterials;
+
+pub fn color_for_player(player: Player) -> Color {
+    if player == PLAYER_HUMAN {
+        COLOR_HUMAN
+    } else {
+        COLOR_AI
+    }
 }
 
 pub fn ring_mesh(
@@ -159,7 +114,7 @@ pub fn spawn_ring(
         ring_mesh(meshes, color, Visibility::Visible),
         BoardElement(coord, player),
         Ring,
-        FOREGROUND_RENDER_LAYER,
+        FOREGROUND,
     ));
 }
 
@@ -180,7 +135,7 @@ pub fn spawn_marker(
         marker_mesh(meshes, color, Visibility::Visible),
         BoardElement(coord, player),
         Marker,
-        FOREGROUND_RENDER_LAYER,
+        FOREGROUND,
     ));
 }
 
@@ -189,9 +144,8 @@ fn setup_graphics(
     mut config_store: ResMut<GizmoConfigStore>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.insert_resource(ClearColor(COLOR_BACKGROUND));
+    apply_stage_clear_color(&mut commands);
 
-    // Render layer 1 is for the grid
     #[cfg_attr(target_arch = "wasm32", allow(unused_mut, unused_variables))]
     let mut bg_camera = commands.spawn((
         Camera2d,
@@ -199,12 +153,11 @@ fn setup_graphics(
             order: 1,
             ..default()
         },
-        BACKGROUND_RENDER_LAYER,
+        BACKGROUND,
     ));
     #[cfg(not(target_arch = "wasm32"))]
     bg_camera.insert((Hdr, Bloom::default(), Msaa::Sample8));
 
-    // Render layer 2 is for the board elements
     #[cfg_attr(target_arch = "wasm32", allow(unused_mut, unused_variables))]
     let mut fg_camera = commands.spawn((
         Camera2d,
@@ -212,31 +165,15 @@ fn setup_graphics(
             order: 2,
             ..default()
         },
-        FOREGROUND_RENDER_LAYER,
+        FOREGROUND,
         MainCamera,
     ));
     #[cfg(not(target_arch = "wasm32"))]
     fg_camera.insert((Hdr, Bloom::default(), Msaa::Sample8));
 
-    commands.insert_resource(PlayerColors {
-        human: materials.add(COLOR_HUMAN),
-        human_highlighted: materials.add(COLOR_HUMAN_HIGHLIGHTED),
-        human_transparent: materials.add(COLOR_HUMAN_TRANSPARENT),
-        ai: materials.add(COLOR_AI),
-        animated_markers: [
-            materials.add(COLOR_AI),
-            materials.add(COLOR_AI),
-            materials.add(COLOR_AI),
-            materials.add(COLOR_AI),
-            materials.add(COLOR_AI),
-            materials.add(COLOR_AI),
-            materials.add(COLOR_AI),
-            materials.add(COLOR_AI),
-        ],
-    });
+    insert_player_color_materials(&mut commands, &mut materials);
 
-    let (config, _) = config_store.config_mut::<DefaultGizmoConfigGroup>();
-    config.render_layers = BACKGROUND_RENDER_LAYER;
+    configure_grid_gizmos(&mut config_store, Some(BACKGROUND));
 }
 
 pub fn set_scale_factor(
@@ -245,11 +182,11 @@ pub fn set_scale_factor(
 ) {
     const BASE_SPACING_AT_800_PIXELS: f32 = 80.0;
 
-    let Ok(window) = window.single() else { return };
+    let Ok(window) = window.single() else {
+        return;
+    };
     let height = (window.physical_height() as f32) / window.scale_factor();
     let width = (window.physical_width() as f32) / window.scale_factor();
-    // Horizontally, budget a bit more than the bare board (872 > 800) so the
-    // scored-ring racks fit between the board edge and the window edge.
     let factor = (height / 800.0).min(width / 872.0).min(1.5);
     scale_factor.factor = factor;
     scale_factor.spacing = BASE_SPACING_AT_800_PIXELS * factor;

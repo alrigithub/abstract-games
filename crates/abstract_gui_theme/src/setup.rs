@@ -4,14 +4,13 @@ use bevy::{
     prelude::{ClearColor, Commands},
 };
 
-use crate::{GRID_LINE_WIDTH, tokens::DARK};
+use crate::{grid::GRID_LINE_WIDTH, palette::STAGE};
 
-/// Inserts [`ClearColor`] for the shared dark stage background.
-pub fn apply_dark_stage_clear_color(commands: &mut Commands) {
-    commands.insert_resource(ClearColor(DARK.stage));
+pub fn apply_stage_clear_color(commands: &mut Commands) {
+    commands.insert_resource(ClearColor(STAGE));
 }
 
-/// Sets default gizmo line width and optional render layer for grid drawing.
+/// Sets gizmo line width and optional render layer for grid drawing (Yinsh-style grid).
 pub fn configure_grid_gizmos(
     config_store: &mut GizmoConfigStore,
     render_layers: Option<RenderLayers>,
@@ -21,4 +20,9 @@ pub fn configure_grid_gizmos(
     if let Some(layers) = render_layers {
         config.render_layers = layers;
     }
+}
+
+/// Back-compat alias for Boop/Gomoku migration.
+pub fn apply_dark_stage_clear_color(commands: &mut Commands) {
+    apply_stage_clear_color(commands);
 }

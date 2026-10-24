@@ -16,7 +16,7 @@ fn setup_information_display(mut commands: Commands) {
             font_size: 16.0,
             ..default()
         },
-        TextColor(Color::hsl(0.0, 0.0, 0.88)),
+        TextColor(abstract_gui_theme::STATUS_TEXT_ON_DARK),
         Node {
             position_type: PositionType::Absolute,
             top: Val::Px(10.),

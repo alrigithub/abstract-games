@@ -1,13 +1,18 @@
-use abstract_gui_theme::{DARK, apply_dark_stage_clear_color, configure_grid_gizmos};
-use bevy::{camera::visibility::RenderLayers, prelude::*, window::PrimaryWindow};
+use abstract_gui_theme::{
+    apply_stage_clear_color, configure_grid_gizmos, insert_player_color_materials,
+    PlayerColorMaterials, BACKGROUND, FOREGROUND,
+};
+use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
 #[cfg(not(target_arch = "wasm32"))]
 use bevy::{post_process::bloom::Bloom, render::view::Hdr};
 use gomoku::{BOARD_SIZE, Coord};
 
 use crate::grid::draw_grid;
 
-pub const FOREGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(2);
-pub const BACKGROUND_RENDER_LAYER: RenderLayers = RenderLayers::layer(1);
+pub use abstract_gui_theme::{
+    BACKGROUND as BACKGROUND_RENDER_LAYER, FOREGROUND as FOREGROUND_RENDER_LAYER,
+};
 
 pub const ANIMATION_DURATION: std::time::Duration = std::time::Duration::from_millis(500);
 
@@ -43,12 +48,7 @@ impl Default for ScaleFactor {
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ScaleFactorSet;
 
-#[derive(Resource)]
-pub struct PlayerColors {
-    pub human: Handle<ColorMaterial>,
-    pub human_transparent: Handle<ColorMaterial>,
-    pub ai: Handle<ColorMaterial>,
-}
+pub type PlayerColors = PlayerColorMaterials;
 
 pub fn stone_mesh(
     meshes: &mut Assets<Mesh>,
@@ -67,7 +67,7 @@ fn setup_graphics(
     mut config_store: ResMut<GizmoConfigStore>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    apply_dark_stage_clear_color(&mut commands);
+    apply_stage_clear_color(&mut commands);
 
     #[cfg_attr(target_arch = "wasm32", allow(unused_mut, unused_variables))]
     let mut bg_camera = commands.spawn((
@@ -76,7 +76,7 @@ fn setup_graphics(
             order: 1,
             ..default()
         },
-        BACKGROUND_RENDER_LAYER,
+        BACKGROUND,
     ));
     #[cfg(not(target_arch = "wasm32"))]
     bg_camera.insert((Hdr, Bloom::default(), Msaa::Sample8));
@@ -88,19 +88,15 @@ fn setup_graphics(
             order: 2,
             ..default()
         },
-        FOREGROUND_RENDER_LAYER,
+        FOREGROUND,
         MainCamera,
     ));
     #[cfg(not(target_arch = "wasm32"))]
     fg_camera.insert((Hdr, Bloom::default(), Msaa::Sample8));
 
-    commands.insert_resource(PlayerColors {
-        human: materials.add(DARK.player_a),
-        human_transparent: materials.add(DARK.player_a_ghost()),
-        ai: materials.add(DARK.player_b),
-    });
+    insert_player_color_materials(&mut commands, &mut materials);
 
-    configure_grid_gizmos(&mut config_store, Some(BACKGROUND_RENDER_LAYER));
+    configure_grid_gizmos(&mut config_store, Some(BACKGROUND));
 }
 
 pub fn set_scale_factor(

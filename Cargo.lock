@@ -4759,6 +4759,7 @@ dependencies = [
 name = "tak_gui"
 version = "0.1.0"
 dependencies = [
+ "abstract_gui_theme",
  "bevy",
  "bevy_async_task",
  "bevy_tweening",
@@ -5059,9 +5060,9 @@ dependencies = [
 name = "tzaar_gui"
 version = "0.1.0"
 dependencies = [
+ "abstract_gui_theme",
  "bevy",
  "bevy_async_task",
- "bevy_tweening",
  "tzaar",
  "tzaar_ai",
 ]
@@ -6108,6 +6109,7 @@ dependencies = [
 name = "yinsh_gui"
 version = "0.1.0"
 dependencies = [
+ "abstract_gui_theme",
  "bevy",
  "bevy_async_task",
  "bevy_tweening",

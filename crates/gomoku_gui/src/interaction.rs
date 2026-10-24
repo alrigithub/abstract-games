@@ -64,7 +64,7 @@ fn setup_cursor_stone(
     commands.spawn((
         stone_mesh(
             &mut meshes,
-            player_colors.human_transparent.clone(),
+            player_colors.human_ghost.clone(),
             Visibility::Hidden,
         ),
         BoardElement(Coord::new(0, 0), PLAYER_HUMAN),

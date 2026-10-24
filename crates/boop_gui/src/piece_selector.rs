@@ -1,3 +1,4 @@
+use abstract_gui_theme::PieceSelectorHud;
 use bevy::prelude::*;
 use boop::PieceKind;
 
@@ -43,7 +44,7 @@ fn setup_piece_selector(mut commands: Commands) {
                     font_size: 13.0,
                     ..default()
                 },
-                TextColor(Color::srgb(0.72, 0.74, 0.78)),
+                TextColor(PieceSelectorHud::HINT),
             ));
             parent
                 .spawn(Node {
@@ -64,8 +65,8 @@ fn setup_piece_selector(mut commands: Commands) {
                                 border: UiRect::all(Val::Px(2.0)),
                                 ..default()
                             },
-                            BorderColor::all(Color::srgb(0.35, 0.38, 0.42)),
-                            BackgroundColor(Color::srgb(0.18, 0.2, 0.24)),
+                            BorderColor::all(PieceSelectorHud::BUTTON_BORDER),
+                            BackgroundColor(PieceSelectorHud::BUTTON_BG),
                         ))
                         .with_child((
                             Text::new(label),
@@ -73,7 +74,7 @@ fn setup_piece_selector(mut commands: Commands) {
                                 font_size: 15.0,
                                 ..default()
                             },
-                            TextColor(Color::srgb(0.9, 0.9, 0.92)),
+                            TextColor(PieceSelectorHud::BUTTON_TEXT),
                             PieceChoiceLabel,
                         ));
                     }
@@ -109,24 +110,24 @@ fn sync_piece_selector(
         let selected_this = selected.0 == button.kind && enabled;
 
         *bg = BackgroundColor(if selected_this {
-            Color::srgb(0.32, 0.38, 0.48)
+            PieceSelectorHud::HOVER_BG
         } else if enabled {
-            Color::srgb(0.18, 0.2, 0.24)
+            PieceSelectorHud::BUTTON_BG
         } else {
-            Color::srgb(0.12, 0.13, 0.15)
+            PieceSelectorHud::PRESSED_BG
         });
         *border = BorderColor::all(if selected_this {
-            Color::srgb(0.85, 0.65, 0.25)
+            PieceSelectorHud::SELECTED_BORDER
         } else {
-            Color::srgb(0.35, 0.38, 0.42)
+            PieceSelectorHud::BUTTON_BORDER
         });
 
         for child in children.iter() {
             if let Ok(mut color) = labels.get_mut(child) {
                 *color = TextColor(if enabled {
-                    Color::srgb(0.9, 0.9, 0.92)
+                    PieceSelectorHud::SELECTED_TEXT
                 } else {
-                    Color::srgb(0.45, 0.47, 0.5)
+                    PieceSelectorHud::IDLE_TEXT
                 });
             }
         }

@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use abstract_gui_theme::feedback;
 use bevy::math::Isometry3d;
 use bevy::prelude::*;
 use boop::{BOARD_SIZE, Coord, LineHighlight, TurnMode};
@@ -8,7 +9,6 @@ use crate::graphics::{ScaleFactor, ScaleFactorSet};
 use crate::interaction::CursorCoord;
 use crate::state_update::{GameState, InteractionState};
 
-/// Keep highlights visible through graduation shrink + a short beat afterward.
 pub const LINE_FEEDBACK_DURATION: Duration = Duration::from_millis(2400);
 
 #[derive(Resource)]
@@ -40,7 +40,6 @@ fn tick_line_feedback(
     }
 }
 
-/// Clear graduation/win connectors once the pulse has been seen, or on any click after game end.
 fn dismiss_line_on_click(
     mouse: Res<ButtonInput<MouseButton>>,
     feedback: Option<Res<ActiveLineFeedback>>,
@@ -73,8 +72,8 @@ fn draw_line_feedback(
 
     match feedback.highlight {
         LineHighlight::Graduation(cells) => {
-            let fill = Color::srgba(1.0, 0.88, 0.15, (0.38 + 0.32 * strength) * fade);
-            let border = Color::srgba(1.0, 0.95, 0.45, (0.85 + 0.15 * pulse) * fade);
+            let fill = feedback::graduation_cell_fill(strength, fade);
+            let border = feedback::graduation_cell_border(pulse, fade);
             for coord in cells {
                 draw_cell_glow(&mut gizmos, &scale_factor, coord, fill, border);
             }
@@ -82,12 +81,12 @@ fn draw_line_feedback(
                 &mut gizmos,
                 &scale_factor,
                 cells,
-                Color::srgba(1.0, 0.92, 0.35, 0.95 * fade),
+                feedback::graduation_connector(fade),
             );
         }
         LineHighlight::Win(cells) => {
-            let fill = Color::srgba(0.15, 0.95, 0.55, (0.35 + 0.35 * strength) * fade);
-            let border = Color::srgba(0.35, 1.0, 0.65, (0.9 + 0.1 * pulse) * fade);
+            let fill = feedback::win_cell_fill(strength, fade);
+            let border = feedback::win_cell_border(pulse, fade);
             for coord in cells {
                 draw_cell_glow(&mut gizmos, &scale_factor, coord, fill, border);
             }
@@ -95,12 +94,12 @@ fn draw_line_feedback(
                 &mut gizmos,
                 &scale_factor,
                 cells,
-                Color::srgba(0.25, 1.0, 0.55, 0.95 * fade),
+                feedback::win_connector(fade),
             );
         }
         LineHighlight::EightCatsOnBed => {
-            let fill = Color::srgba(0.95, 0.55, 0.15, (0.28 + 0.22 * strength) * fade);
-            let border = Color::srgba(1.0, 0.7, 0.25, (0.75 + 0.25 * pulse) * fade);
+            let fill = feedback::eight_cats_fill(strength, fade);
+            let border = feedback::eight_cats_border(pulse, fade);
             let last = (BOARD_SIZE - 1) as u8;
             for coord in [
                 Coord::new(0, 0),
@@ -114,8 +113,6 @@ fn draw_line_feedback(
     }
 }
 
-/// While a graduation choice is pending, outline every candidate line; the line under the
-/// cursor (when it is the human's choice) is drawn solid so the click target is unambiguous.
 fn draw_graduation_choices(
     mut gizmos: Gizmos,
     time: Res<Time>,
@@ -144,15 +141,15 @@ fn draw_graduation_choices(
         let is_hovered = hovered == Some(line);
         let (fill, border, connector) = if is_hovered {
             (
-                Color::srgba(1.0, 0.88, 0.15, 0.55 + 0.2 * pulse),
-                Color::srgba(1.0, 0.95, 0.45, 1.0),
-                Color::srgba(1.0, 0.92, 0.35, 0.95),
+                feedback::graduation_hover_fill(pulse),
+                feedback::graduation_hover_border(),
+                feedback::graduation_hover_connector(pulse),
             )
         } else {
             (
-                Color::srgba(1.0, 0.88, 0.15, 0.10 + 0.08 * pulse),
-                Color::srgba(1.0, 0.9, 0.4, 0.55 + 0.25 * pulse),
-                Color::srgba(1.0, 0.9, 0.4, 0.45),
+                feedback::graduation_idle_fill(pulse),
+                feedback::graduation_idle_border(pulse),
+                feedback::graduation_idle_connector(),
             )
         };
         for coord in line {

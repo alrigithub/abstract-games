@@ -9,6 +9,7 @@ license = "MIT OR Apache-2.0"
 edition = "2024"
 
 [dependencies]
+abstract_gui_theme = { path = "../abstract_gui_theme" }
 yinsh = { path = "../yinsh" }
 yinsh_ai = { path = "../yinsh_ai" }
 

@@ -5,13 +5,14 @@ use bevy_tweening::{Tween, TweenAnim, lens::TransformPositionLens};
 use yinsh::TurnMode;
 
 use crate::board::BoardElement;
+use abstract_gui_theme::{
+    apply_glow_pulse, rack_outline, score_dust_rgb, score_dust_speck, setup_win_glow_materials,
+    GlowPulse, WinGlowMaterials,
+};
 use crate::graphics::{
-    ANIMATION_DURATION, BACKGROUND_RENDER_LAYER, COLOR_GRID, FOREGROUND_RENDER_LAYER, ScaleFactor,
+    ANIMATION_DURATION, BACKGROUND_RENDER_LAYER, FOREGROUND_RENDER_LAYER, ScaleFactor,
     ScaleFactorSet,
 };
-
-#[cfg(target_arch = "wasm32")]
-use crate::graphics::COLOR_WIN_GLOW;
 use crate::state_update::{GameState, InteractionState, StateUpdateSet};
 
 /// How long the scored line stays highlighted after the ring is removed.
@@ -19,11 +20,6 @@ pub const SCORE_LINGER_SECS: f32 = 0.85;
 
 #[derive(Component)]
 pub struct ScoreLineGlow;
-
-#[derive(Component)]
-struct ScoreLineGlowPulse {
-    base_scale: f32,
-}
 
 #[derive(Component)]
 struct ScoreDust {
@@ -62,23 +58,6 @@ impl ScoringPresentation {
     }
 }
 
-#[derive(Resource)]
-pub struct ScoringMaterials {
-    pub glow_core: Handle<ColorMaterial>,
-    pub glow_halo: Handle<ColorMaterial>,
-}
-
-/// HDR-style win flash (see Bevy bloom-2d example); bloom camera picks this up on desktop.
-#[cfg(not(target_arch = "wasm32"))]
-fn score_bloom_color(intensity: f32) -> Color {
-    Color::linear_rgb(1.2 * intensity, 2.4 * intensity, 6.5 * intensity)
-}
-
-#[cfg(target_arch = "wasm32")]
-fn score_bloom_color(intensity: f32) -> Color {
-    COLOR_WIN_GLOW.with_alpha(0.35 + 0.25 * intensity)
-}
-
 #[derive(Component)]
 struct RackSlotOutline {
     player: yinsh::Player,
@@ -91,19 +70,10 @@ fn setup_scoring_materials(
     mut materials: ResMut<Assets<ColorMaterial>>,
     scale_factor: Res<ScaleFactor>,
 ) {
-    commands.insert_resource(ScoringMaterials {
-        glow_core: materials.add(ColorMaterial {
-            color: score_bloom_color(1.0),
-            ..default()
-        }),
-        glow_halo: materials.add(ColorMaterial {
-            color: score_bloom_color(0.55),
-            ..default()
-        }),
-    });
+    commands.insert_resource(setup_win_glow_materials(&mut materials));
 
     let outline = materials.add(ColorMaterial {
-        color: COLOR_GRID.with_alpha(0.55),
+        color: rack_outline(),
         ..default()
     });
 
@@ -178,7 +148,7 @@ fn sync_score_line_glow(
     scoring: Res<ScoringPresentation>,
     game_state: Res<GameState>,
     scale_factor: Res<ScaleFactor>,
-    materials: Res<ScoringMaterials>,
+    materials: Res<WinGlowMaterials>,
     q_glow: Query<(Entity, &Transform), With<ScoreLineGlow>>,
 ) {
     let desired: HashSet<yinsh::Coord> = if scoring.is_blocking() {
@@ -206,8 +176,8 @@ fn sync_score_line_glow(
     for coord in desired {
         let center = scale_factor.screen_point(coord);
         for (radius, mat) in [
-            (34.0, materials.glow_halo.clone()),
-            (18.0, materials.glow_core.clone()),
+            (34.0, materials.halo.clone()),
+            (18.0, materials.core.clone()),
         ] {
             commands.spawn((
                 Mesh2d(meshes.add(Circle::new(radius))),
@@ -215,7 +185,7 @@ fn sync_score_line_glow(
                 Transform::from_translation(center + Vec3::new(0.0, 0.0, -0.2))
                     .with_scale(Vec3::splat(piece_scale)),
                 ScoreLineGlow,
-                ScoreLineGlowPulse {
+                GlowPulse {
                     base_scale: piece_scale,
                 },
                 BACKGROUND_RENDER_LAYER,
@@ -227,19 +197,11 @@ fn sync_score_line_glow(
 fn pulse_score_line_glow(
     time: Res<Time>,
     scoring: Res<ScoringPresentation>,
-    mut q: Query<(&ScoreLineGlowPulse, &mut Transform), With<ScoreLineGlow>>,
+    mut q: Query<(&GlowPulse, &mut Transform), With<ScoreLineGlow>>,
 ) {
-    let pulse = if scoring.is_blocking() {
-        1.0 + 0.12 * (time.elapsed_secs() * 9.0).sin()
-    } else if !scoring.scored_line.is_empty() {
-        1.0 + 0.06 * (time.elapsed_secs() * 7.0).sin()
-    } else {
-        return;
-    };
-
-    for (base, mut transform) in q.iter_mut() {
-        transform.scale = Vec3::splat(base.base_scale * pulse);
-    }
+    let intense = scoring.is_blocking();
+    let active = intense || !scoring.scored_line.is_empty();
+    apply_glow_pulse(time, intense, active, &mut q);
 }
 
 fn dust_rand(seed: u32) -> impl FnMut() -> f32 {
@@ -284,14 +246,10 @@ fn spawn_score_dust_burst(
             let speed = 55.0 + rand() * 95.0;
             let velocity = Vec2::new(angle.cos(), angle.sin()) * speed;
             let offset = Vec2::new((rand() - 0.5) * spread, (rand() - 0.5) * spread);
-            let dust_color = Color::srgb(
-                0.23 + rand() * 0.55,
-                0.45 + rand() * 0.35,
-                0.75 + rand() * 0.2,
-            );
+            let (r, g, b) = score_dust_rgb(&mut rand);
             let start_alpha = 0.55 + rand() * 0.4;
             let material = materials.add(ColorMaterial {
-                color: dust_color.with_alpha(start_alpha),
+                color: score_dust_speck(r, g, b, start_alpha),
                 ..default()
             });
 
