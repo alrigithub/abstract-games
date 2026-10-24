@@ -77,6 +77,8 @@ export interface PieceGeometrySet {
   materialFor?(piece: EnginePiece, tokens: ThemeTokens, selected?: boolean): THREE.Material | THREE.Material[] | null;
   /** GLB-backed sets: swap white/black models when the document theme changes. */
   onThemeChange?(themeId: ThemeId): void;
+  /** Move-assist translucent piece clone (same mesh as {@link createVisual}). */
+  createAssistGhost?(hint: AssistGhostHint, themeId: ThemeId): THREE.Object3D | null;
 }
 
 export interface PieceBuildContext {
@@ -152,6 +154,10 @@ export interface AssistShadowHint {
 export interface AssistGhostHint {
   cell: number;
   player: PlayerId;
+  /** Full GLB / mesh ghost (preferred over flat {@link ring} / {@link marker} footprints). */
+  pieceShape?: 'ring' | 'marker';
+  /** Stack below this ghost in the same cell (for seated-marker Y). Last entry must match {@link pieceShape}. */
+  stack?: readonly ('ring' | 'marker')[];
   ring?: AssistFootprint;
   marker?: { radius: number };
   strength?: 'normal' | 'strong';

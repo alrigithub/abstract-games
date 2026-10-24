@@ -19,12 +19,7 @@ import type { GameState } from './state';
 import type { Player } from './player';
 import { ringDestinationCoords } from './ring-destinations';
 import { coordToIndex, indexToCoord } from './cells';
-import {
-  YINSH_ASSIST_DOT_RADIUS,
-  YINSH_MARKER_GHOST_SURFACE_Y,
-  YINSH_MARKER_WORLD_RADIUS,
-  YINSH_RING_FOOTPRINT,
-} from '../yinsh-piece-models';
+import { YINSH_ASSIST_DOT_RADIUS, YINSH_MARKER_WORLD_RADIUS, YINSH_RING_FOOTPRINT } from '../yinsh-piece-models';
 
 export type { AiMoveHighlight };
 
@@ -32,15 +27,12 @@ function indices(coords: Coord[]): number[] {
   return coords.map(coordToIndex);
 }
 
-function markerGhostRadius(): number {
-  return YINSH_MARKER_WORLD_RADIUS * 0.96;
-}
-
 function markerGhostAt(cell: number, player: Player, strong: boolean): AssistGhostHint {
   return {
     cell,
     player,
-    marker: { radius: markerGhostRadius() },
+    pieceShape: 'marker',
+    stack: ['marker'],
     strength: strong ? 'strong' : 'normal',
   };
 }
@@ -54,17 +46,27 @@ function markerPlayerAt(board: Board, coord: Coord): Player | undefined {
   return undefined;
 }
 
-function ringGhostAt(cell: number, player: Player, board: Board, coord: Coord): AssistGhostHint {
-  const ghost: AssistGhostHint = {
-    cell,
-    player,
-    ring: YINSH_RING_FOOTPRINT,
-    strength: 'normal',
-  };
-  if (markerPlayerAt(board, coord)) {
-    ghost.marker = { radius: markerGhostRadius() };
+function ringGhostsAt(cell: number, player: Player, board: Board, coord: Coord): AssistGhostHint[] {
+  const ghosts: AssistGhostHint[] = [
+    {
+      cell,
+      player,
+      pieceShape: 'ring',
+      stack: ['ring'],
+      strength: 'normal',
+    },
+  ];
+  const markerPlayer = markerPlayerAt(board, coord);
+  if (markerPlayer) {
+    ghosts.push({
+      cell,
+      player: markerPlayer,
+      pieceShape: 'marker',
+      stack: ['ring', 'marker'],
+      strength: 'normal',
+    });
   }
-  return ghost;
+  return ghosts;
 }
 
 function aiLastMoveAssist(last: AiMoveHighlight, aiPlayer: Player): Pick<BoardAssistState, 'ghosts'> {
@@ -73,7 +75,8 @@ function aiLastMoveAssist(last: AiMoveHighlight, aiPlayer: Player): Pick<BoardAs
       {
         cell: last.fromCell,
         player: aiPlayer,
-        ring: YINSH_RING_FOOTPRINT,
+        pieceShape: 'ring',
+        stack: ['ring'],
         strength: 'normal',
       },
     ],
@@ -175,8 +178,6 @@ export function buildYinshAssist(
     const assist: BoardAssistState = {
       destinationDotRadius: YINSH_ASSIST_DOT_RADIUS,
       runGlowStyle: { markerRadius: YINSH_MARKER_WORLD_RADIUS, haloScale: 2.2 },
-      markerGhostRadius: markerGhostRadius(),
-      markerGhostSurfaceY: YINSH_MARKER_GHOST_SURFACE_Y,
       ...runGlowState,
     };
     if (options.lastAiMove) {
@@ -192,8 +193,6 @@ export function buildYinshAssist(
   const assist: BoardAssistState = {
     destinationDotRadius: YINSH_ASSIST_DOT_RADIUS,
     runGlowStyle: { markerRadius: YINSH_MARKER_WORLD_RADIUS, haloScale: 2.2 },
-    markerGhostRadius: markerGhostRadius(),
-    markerGhostSurfaceY: YINSH_MARKER_GHOST_SURFACE_Y,
     shadows: [],
     ghosts: [],
     ...runGlowState,
@@ -240,10 +239,9 @@ export function buildYinshAssist(
       const startCell = coordToIndex(start);
       const destCoords = ringDestinationCoords(board, start);
       assist.destinationCells = indices(destCoords);
-      ghosts.push({
-        ...ringGhostAt(startCell, state.activePlayer, board, start),
-        strength: 'strong',
-      });
+      for (const ghost of ringGhostsAt(startCell, state.activePlayer, board, start)) {
+        ghosts.push({ ...ghost, strength: ghost.pieceShape === 'ring' ? 'strong' : ghost.strength });
+      }
 
       if (options.hoverCell !== null) {
         const hover = indexToCoord(options.hoverCell);

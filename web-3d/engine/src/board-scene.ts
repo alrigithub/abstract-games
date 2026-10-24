@@ -20,7 +20,7 @@ import {
   tagPlayfieldForShadows,
 } from './board-lighting';
 import { applyBoardEnvironment, createBoardWebGLRenderer, measureBoardFrameMs } from './board-renderer';
-import { BoardAssistLayer } from './board-assist';
+import { BoardAssistLayer, type AssistGhostPieceRenderer } from './board-assist';
 import { WIN_ACCENT } from './theme';
 
 const FLIP_HALO_NAME = 'flip-preview-halo';
@@ -35,6 +35,7 @@ import {
 } from './sound/place-sfx';
 import { themeTokens, type ThemeId } from './theme';
 import type {
+  AssistGhostHint,
   BoardAssistState,
   BoardSnapshot,
   EnginePiece,
@@ -204,6 +205,30 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     if (options.pieces.geometryOrigin === 'base') return centerY - height(piece as never) / 2;
     return centerY;
   }
+
+  function assistGhostPositionY(hint: AssistGhostHint): number {
+    if (!hint.pieceShape) return BOARD.PLAYFIELD_SURFACE_Y;
+    const stackShapes = hint.stack ?? [hint.pieceShape];
+    const stack: EnginePiece[] = stackShapes.map((shape, i) => ({
+      id: `assist-ghost-${i}`,
+      player: hint.player,
+      shape,
+    }));
+    const pieceIndex = stack.length - 1;
+    const piece = stack[pieceIndex]!;
+    const centers = layoutStackCenters(stack, stackMeasure, playfieldY);
+    return meshYFromStackCenter(centers[pieceIndex]!, piece);
+  }
+
+  function assistGhostPieceRenderer(): AssistGhostPieceRenderer | null {
+    if (!options.pieces.createAssistGhost) return null;
+    return {
+      createVisual: hint => options.pieces.createAssistGhost!(hint, themeId),
+      positionY: assistGhostPositionY,
+    };
+  }
+
+  assistLayer.setGhostPieceRenderer(assistGhostPieceRenderer());
 
   function pieceUsesOutline(piece: EnginePiece) {
     return options.pieces.useOutline?.(piece) !== false;
@@ -1053,6 +1078,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       refreshPieceMaterials();
       flipHaloMaterial.color.set(tokens.win);
       assistLayer.applyTheme(tokens);
+      assistLayer.setGhostPieceRenderer(assistGhostPieceRenderer());
       assistLayer.update(assistState, cellPosition);
       requestRender();
     },
