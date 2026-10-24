@@ -53,6 +53,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
     {
+      name: 'boop-graduation',
+      testMatch: '**/boop-graduation.spec.ts',
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5194' },
+    },
+    {
       name: 'shadow-lighting-before',
       testMatch: ['**/shadow-lighting-screenshots-before.spec.ts', '**/shadow-lighting-bench-before.spec.ts'],
       use: { ...devices['Desktop Chrome'] },

@@ -14,8 +14,7 @@ import { primaryPoolCellIndex } from './boop-pool-layout';
 import type { BoopController } from './controller';
 import type { PieceKind } from './types';
 
-const GRID = 6;
-const OUTSIDE = 2;
+import { BOOP_GRID as GRID, BOOP_OUTSIDE as OUTSIDE } from './boop-grid';
 
 const EMPTY_VIEW: InteractionView = {
   selection: null,
