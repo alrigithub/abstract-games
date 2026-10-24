@@ -2,10 +2,7 @@ import * as THREE from 'three';
 import { BOARD } from '../constants';
 import { themeTokens } from '../theme';
 import { anchorGeometryBaseToY0 } from './anchor';
-import { createContactShadowBlob } from './contact-shadow';
 import type { PieceGeometrySet, ThemeId } from '../types';
-
-export { createContactShadowBlob };
 
 /** Canonical sizes — see `web-3d/demos/gomoku/IMPLEMENTED.md`. */
 export const GOMOKU_DIMS = {
@@ -84,9 +81,9 @@ export function gomokuThemeMaterials(theme: ThemeId): GomokuThemeMaterials {
   const pieceB = tokens.piece.B!;
   return {
     table: new THREE.Color(tokens.table),
-    board: new THREE.MeshBasicMaterial({ color: tokens.board, side: THREE.DoubleSide }),
-    line: new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.DoubleSide }),
-    star: new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.DoubleSide }),
+    board: new THREE.MeshBasicMaterial({ color: tokens.board, side: THREE.DoubleSide, depthWrite: false }),
+    line: new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.DoubleSide, depthWrite: false }),
+    star: new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.DoubleSide, depthWrite: false }),
     stoneA: new THREE.MeshBasicMaterial({ color: pieceA.fill, toneMapped: false }),
     stoneB: new THREE.MeshBasicMaterial({ color: pieceB.fill, toneMapped: false }),
   };

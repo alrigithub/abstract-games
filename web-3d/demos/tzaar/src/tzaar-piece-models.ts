@@ -7,6 +7,7 @@ import {
   tzaarPieceGeometrySet,
   type EnginePiece,
   type PieceGeometrySet,
+  clonePieceVisualTemplate,
   pieceGlbSideForPlayer,
   type TzaarKind,
   type ThemeId,
@@ -84,7 +85,7 @@ function anchorObjectBaseToY0(object: THREE.Object3D): void {
  * origin is at the piece centre — matching engine stack-layout centers.
  */
 function prepareTemplate(scene: THREE.Object3D): THREE.Object3D {
-  const root = scene.clone(true);
+  const root = clonePieceVisualTemplate(scene);
   root.scale.setScalar(TZAAR_GLB_WORLD_SCALE);
   root.updateMatrixWorld(true);
   anchorObjectBaseToY0(root);
@@ -148,13 +149,13 @@ export async function loadTzaarPieceGeometrySet(): Promise<PieceGeometrySet> {
       materialFor: () => null,
       createVisual(piece) {
         const root = new THREE.Group();
-        const model = templateFor(templates, piece).clone(true);
+        const model = clonePieceVisualTemplate(templateFor(templates, piece));
         configureTzaarStoneMaterials(model);
         mountModel(root, model);
         return root;
       },
       replaceVisual(root, piece) {
-        const model = templateFor(templates, piece).clone(true);
+        const model = clonePieceVisualTemplate(templateFor(templates, piece));
         configureTzaarStoneMaterials(model);
         mountModel(root as THREE.Group, model);
       },

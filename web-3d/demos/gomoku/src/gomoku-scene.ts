@@ -11,18 +11,20 @@ import {
   GOMOKU_DIMS,
   applyBoardEnvironment,
   applyBoardLighting,
+  fitPlayfieldShadowCatcher,
+  syncSceneShadowCatcher,
   createBoardWebGLRenderer,
   createCameraViewController,
   applyPlayfieldBackdrop,
   createPlayfieldGroundMesh,
   measureBoardFrameMs,
+  tagGhostForShadows,
   tagPlayfieldForShadows,
+  tagPieceForShadows,
   gomokuCellWorld,
   gomokuHoshiPoints,
   gomokuStoneRestCenterY,
   gomokuThemeMaterials,
-  makePieceShadow,
-  syncPieceGroundShadowPosition,
   playPiecePlaceSound,
   initPlaceSfx,
   type CameraViewController,
@@ -90,12 +92,11 @@ export async function createGomokuScene(
   const orbitTarget = new THREE.Vector3(0, 0, 0);
 
   const boardGroup = new THREE.Group();
-  const shadowsGroup = new THREE.Group();
   const stonesGroup = new THREE.Group();
   const ghostGroup = new THREE.Group();
   const winGlow = new GomokuWinGlowLayer();
   winGlow.attach(scene);
-  scene.add(boardGroup, shadowsGroup, stonesGroup, ghostGroup);
+  scene.add(boardGroup, stonesGroup, ghostGroup);
 
   const disposables: THREE.BufferGeometry[] = [];
   const stoneMeshes = new Map<string, THREE.Object3D>();
@@ -152,16 +153,22 @@ export async function createGomokuScene(
     }
     tagPlayfieldForShadows(boardGroup);
     syncBoardGridLines();
-    boardLighting.fitToPoints(gomokuFramePoints());
+    syncShadowFrustum();
+  }
+
+  function syncShadowFrustum() {
+    const points = gomokuFramePoints();
+    boardLighting.fitToPoints(points);
+    const bounds = new THREE.Box3();
+    for (const p of points) bounds.expandByPoint(p);
+    bounds.min.y = BOARD.PLAYFIELD_SURFACE_Y;
+    bounds.max.y = BOARD.PLAYFIELD_SURFACE_Y + 0.01;
+    bounds.expandByScalar(0.85);
+    syncSceneShadowCatcher(scene, bounds, 0.55);
+    fitPlayfieldShadowCatcher(boardGroup, bounds, 0.55);
   }
 
   rebuildBoardMesh();
-
-  function makeShadow(rotationY: number) {
-    const shadow = makePieceShadow(stoneAssets.shadowGeometry, shadowsGroup);
-    shadow.rotation.y = rotationY;
-    return shadow;
-  }
 
   function upsertStone(record: StoneRecord, y = restY): THREE.Object3D {
     let mesh = stoneMeshes.get(record.id);
@@ -169,7 +176,7 @@ export async function createGomokuScene(
     const yaw = stoneAssets.yawForId(record.id);
     if (!mesh) {
       mesh = stoneAssets.createVisual(record.player);
-      mesh.userData.shadow = makeShadow(yaw);
+      tagPieceForShadows(mesh, false);
       stonesGroup.add(mesh);
       stoneMeshes.set(record.id, mesh);
     } else if (!stoneAssets.usesGlb) {
@@ -178,9 +185,7 @@ export async function createGomokuScene(
     }
     mesh.userData.player = record.player;
     mesh.rotation.y = yaw;
-    (mesh.userData.shadow as THREE.Mesh).rotation.y = yaw;
     mesh.position.set(p.x, y, p.z);
-    syncPieceGroundShadowPosition(mesh.userData.shadow as THREE.Mesh, mesh, stoneAssets.stoneHeight / 2);
     return mesh;
   }
 
@@ -254,6 +259,7 @@ export async function createGomokuScene(
     ghostMesh = null;
     if (row === null || col === null || !player) return;
     ghostMesh = stoneAssets.createGhostVisual(player, themeId);
+    tagGhostForShadows(ghostMesh);
     const p = gomokuCellWorld(size, row, col);
     ghostMesh.position.set(p.x, restY, p.z);
     ghostGroup.add(ghostMesh);
@@ -347,7 +353,7 @@ export async function createGomokuScene(
     camera.bottom = -halfHeight;
     camera.updateProjectionMatrix();
     syncBoardGridLines();
-    boardLighting.fitToPoints(gomokuFramePoints());
+    syncShadowFrustum();
     render();
   }
 
@@ -375,6 +381,7 @@ export async function createGomokuScene(
         for (const mesh of stoneMeshes.values()) {
           const player = mesh.userData.player as ScenePlayer | undefined;
           if (player) stoneAssets.replaceVisual(mesh, player);
+          tagPieceForShadows(mesh, false);
         }
       }
       rebuildBoardMesh();
@@ -385,7 +392,6 @@ export async function createGomokuScene(
       for (const [id, mesh] of stoneMeshes) {
         if (!keep.has(id)) {
           stonesGroup.remove(mesh);
-          shadowsGroup.remove(mesh.userData.shadow as THREE.Mesh);
           stoneMeshes.delete(id);
         }
       }
@@ -398,14 +404,12 @@ export async function createGomokuScene(
     },
     animateDrop(stone: StoneRecord) {
       const mesh = upsertStone(stone, restY + dropLift);
-      const shadow = mesh.userData.shadow as THREE.Mesh;
       const start = performance.now();
       return new Promise<void>(resolve => {
         const tick = (now: number) => {
           const t = easeOutCubic(Math.min(1, (now - start) / DROP_MS));
           const y = THREE.MathUtils.lerp(restY + dropLift, restY, t);
           mesh.position.y = y;
-          syncPieceGroundShadowPosition(shadow, mesh, stoneAssets.stoneHeight / 2);
           requestRender();
           if (t < 1) requestAnimationFrame(tick);
           else {

@@ -1,6 +1,7 @@
 import {
   BOARD,
   CAMERA,
+  clonePieceVisualTemplate,
   pieceGlbSideForPlayer,
   type EnginePiece,
   type PieceGeometrySet,
@@ -145,7 +146,7 @@ function xzExtent(root: THREE.Object3D): number {
 }
 
 function prepareVisualTemplate(scene: THREE.Group, worldScale: number): StoneTemplate {
-  const visual = scene.clone(true);
+  const visual = clonePieceVisualTemplate(scene);
   visual.scale.setScalar(worldScale);
   visual.updateMatrixWorld(true);
   uprightIfNeeded(visual);
@@ -215,11 +216,11 @@ function createStonePieceSet(templates: Record<PlayerId, Record<StoneCatVariant,
     materialFor: () => null,
     createVisual(piece: EnginePiece) {
       const root = new THREE.Group();
-      mountModel(root, templateFor(piece).visual.clone(true));
+      mountModel(root, clonePieceVisualTemplate(templateFor(piece).visual));
       return root;
     },
     replaceVisual(root: THREE.Object3D, piece: EnginePiece) {
-      mountModel(root as THREE.Group, templateFor(piece).visual.clone(true));
+      mountModel(root as THREE.Group, clonePieceVisualTemplate(templateFor(piece).visual));
     },
     onThemeChange(id) {
       boopPieceTheme = id;
