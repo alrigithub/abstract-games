@@ -907,7 +907,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       return { x: bounds.left + ((position.x + 1) * bounds.width) / 2, y: bounds.top + ((1 - position.y) * bounds.height) / 2 };
     },
     enqueueAnimation(task) {
-      void animQueue.enqueue(task);
+      return animQueue.enqueue(task);
     },
     flipPiece(pieceId) {
       return new Promise<void>(resolve => {

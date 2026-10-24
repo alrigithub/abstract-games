@@ -1,4 +1,5 @@
 import {
+  ANIMATION,
   boopPieceGeometrySet,
   createBoardScene,
   createBoopCatGeometry,
@@ -12,7 +13,11 @@ import {
   type SceneApi,
   type ThemeId,
 } from '@abstract/three-engine';
+import { applyBoopAnimationPacing, BOOP_ANIM } from './game/animation';
+import { cellAt, poolCellIndex, wireBoopInteraction } from './game/boop-interaction';
 import { BoopController } from './game/controller';
+
+applyBoopAnimationPacing(ANIMATION);
 
 const size = 6;
 const OUTSIDE_ROWS = 2;
@@ -23,6 +28,7 @@ const pieces = boopPieceGeometrySet(cat, kitten);
 const topology = createSquareTopology({ size, outsideRows: OUTSIDE_ROWS });
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
+injectBoopUiStyles();
 let theme: ThemeId = readInitialTheme();
 
 const scene = await createBoardScene(board, {
@@ -31,6 +37,8 @@ const scene = await createBoardScene(board, {
   pieces,
   initialTheme: theme,
 });
+
+const stage = board.querySelector('canvas') ?? board;
 
 function applyTheme(id: ThemeId) {
   theme = id;
@@ -47,7 +55,10 @@ const gameButtons = createGameButtons({
   applyTheme,
   aiStrengthStorageKey: BOOP_AI_STRENGTH_STORAGE_KEY,
   onAiStrengthChange: () => controller?.renderStatus(),
-  onNewGameReset: () => controller.newGame(),
+  onNewGameReset: () => {
+    interaction.cancel();
+    controller.newGame();
+  },
 });
 
 controller = new BoopController({
@@ -62,20 +73,26 @@ controller = new BoopController({
   },
 });
 
-await controller.init();
+const interaction = wireBoopInteraction(stage as HTMLElement, board, scene, () => controller);
 
-wirePointerInput(board, scene, () => controller);
+await controller.init();
 
 declare global {
   interface Window {
     __boopScene?: SceneApi;
     __boopSetTheme?: (theme: ThemeId) => void;
     __boopController?: BoopController;
+    __boopSmokePickAndPlace?: () => Promise<void>;
   }
 }
 
 window.__boopScene = scene;
 window.__boopController = controller;
+window.__boopSmokePickAndPlace = async () => {
+  await interaction.dragCellToCell(poolCellIndex(), cellAt(2, 2));
+  await new Promise(r => setTimeout(r, BOOP_ANIM.MOVE_MS + BOOP_ANIM.STEP_GAP_MS + 120));
+};
+
 window.__boopSetTheme = (id: ThemeId) => {
   storeTheme(id);
   applyTheme(id);
@@ -87,27 +104,15 @@ if (forcedTheme === 'light' || forcedTheme === 'dark') {
   window.__boopSetTheme(forcedTheme);
 }
 
-function wirePointerInput(container: HTMLElement, sceneApi: SceneApi, getController: () => BoopController) {
-  const canvas = container.querySelector('canvas');
-  if (!canvas) return;
-  let downX = 0;
-  let downY = 0;
-  let downCell: number | null = null;
-
-  canvas.addEventListener('pointerdown', e => {
-    downX = e.clientX;
-    downY = e.clientY;
-    downCell = sceneApi.hitTest(e.clientX, e.clientY);
-  });
-
-  canvas.addEventListener('pointerup', e => {
-    if (downCell === null) return;
-    const dx = e.clientX - downX;
-    const dy = e.clientY - downY;
-    if (dx * dx + dy * dy > 64) return;
-    const cell = sceneApi.hitTest(e.clientX, e.clientY);
-    if (cell !== downCell) return;
-    void getController().handleCellClick(cell);
-    downCell = null;
-  });
+function injectBoopUiStyles() {
+  if (document.getElementById('boop-demo-ui')) return;
+  const style = document.createElement('style');
+  style.id = 'boop-demo-ui';
+  style.textContent = `
+    [data-testid="board"][data-win-line] {
+      transition: filter 0.45s ease-in-out;
+      filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.45));
+    }
+  `;
+  document.head.append(style);
 }
