@@ -29,6 +29,24 @@ export interface BoardSnapshot {
   reserves?: ReserveSlot[];
 }
 
+/** Optional motion for {@link SceneApi.setSnapshot}. Omitted fields keep the previous instant-remove / default-duration behavior. */
+export interface SnapshotApplyOptions {
+  /** Override the default piece tween duration (ms). `0` snaps. */
+  durationMs?: number;
+  /** Extra lift-arc height (world Y) while a piece travels in XZ. */
+  lift?: number;
+  /**
+   * Fade / sink pieces that disappear from this snapshot instead of removing
+   * them immediately. When `ids` is omitted, every removed piece departs.
+   */
+  departing?: {
+    ids?: readonly string[];
+    durationMs?: number;
+    /** World-Y drop while fading (default a short sink). */
+    sink?: number;
+  };
+}
+
 export interface Point {
   x: number;
   y: number;
@@ -241,7 +259,7 @@ export interface BoardAssistStats {
 }
 
 export interface SceneApi {
-  setSnapshot(snapshot: BoardSnapshot): void;
+  setSnapshot(snapshot: BoardSnapshot, options?: SnapshotApplyOptions): void;
   setInteraction(view: InteractionView): void;
   /** Unlit legal-move overlays (dots, paths, highlights). */
   setBoardAssist(state: BoardAssistState | null): void;
@@ -259,6 +277,8 @@ export interface SceneApi {
   hitReserve(clientX: number, clientY: number): ReservePick | null;
   reserveScreen(pick: ReservePick): Point;
   cellScreen(index: number): Point;
+  /** Project a world-space point onto the canvas (client pixels). */
+  projectToScreen(world: { x: number; y: number; z: number }): Point;
   /** Queue AI / remote moves through the same animation path. */
   enqueueAnimation(task: () => Promise<void>): Promise<void>;
   /** True while {@link enqueueAnimation} tasks or tweens are still running. */

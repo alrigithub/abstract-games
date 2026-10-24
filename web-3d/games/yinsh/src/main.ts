@@ -93,7 +93,7 @@ const stage = board.querySelector('canvas') ?? board;
 function applyTheme(next: ThemeId) {
   theme = next;
   applyDocumentTheme(theme);
-  yinshArena.setTheme(theme);
+  yinshArena?.setTheme(theme);
   scene.setTheme(theme);
 }
 

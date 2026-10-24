@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { AnimationQueue } from './animation-queue';
+import { liftSlidePosition } from './piece-slide';
 import {
   applyBoardGridLineScreenScale,
   boardGridLineScreenScale,
@@ -51,6 +52,7 @@ import type {
   Point,
   ReservePick,
   SceneApi,
+  SnapshotApplyOptions,
   Topology,
 } from './types';
 
@@ -79,6 +81,17 @@ interface PieceObject {
   restZ: number;
   landOnComplete?: PlaceSoundKind;
   lastVertT: number;
+  /** Extra lift-arc height for this tween (0 = straight lerp). */
+  arcLift: number;
+}
+
+interface DepartingObject {
+  mesh: THREE.Object3D;
+  fromY: number;
+  started: number;
+  duration: number;
+  sink: number;
+  materials: { mat: THREE.Material; opacity: number }[];
 }
 
 export interface BoardSceneOptions {
@@ -396,8 +409,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   let selectedIds = new Set<string>();
   let reserveKey = '';
   const objects = new Map<string, PieceObject>();
+  const departing: DepartingObject[] = [];
   const animQueue = new AnimationQueue();
   let inAnimTask = false;
+  let snapshotMoveDuration: number | undefined;
+  let snapshotArcLift = 0;
 
   function runFlipAnimation(work: () => Promise<void>): Promise<void> {
     if (inAnimTask) return work();
@@ -446,7 +462,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     for (const item of objects.values()) {
       const t = reducedMotion.matches ? 1 : Math.min(1, Math.max(0, (now - item.started) / item.duration));
       const prevT = item.lastVertT;
-      item.mesh.position.lerpVectors(item.from, item.to, ANIMATION.easeOutCubic(t));
+      if (item.arcLift > 0 && !item.selected) {
+        item.mesh.position.copy(liftSlidePosition(item.from, item.to, t, ANIMATION.easeOutCubic, item.arcLift));
+      } else {
+        item.mesh.position.lerpVectors(item.from, item.to, ANIMATION.easeOutCubic(t));
+      }
       if (item.selected && !reducedMotion.matches) {
         const horizontalT = Math.min(1, Math.max(0, (now - item.horizontalStarted) / ANIMATION.HORIZONTAL_DURATION));
         const eased = ANIMATION.easeOutCubic(horizontalT);
@@ -476,6 +496,20 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       else if (prevT < 1 && item.landOnComplete) finishLandSound(item);
       item.lastVertT = t;
     }
+    for (let i = departing.length - 1; i >= 0; i--) {
+      const item = departing[i]!;
+      const t = reducedMotion.matches ? 1 : Math.min(1, Math.max(0, (now - item.started) / item.duration));
+      const u = ANIMATION.easeOutCubic(t);
+      item.mesh.position.y = item.fromY - item.sink * u;
+      for (const entry of item.materials) {
+        if ('opacity' in entry.mat) entry.mat.opacity = entry.opacity * (1 - u);
+      }
+      if (t < 1) animated = true;
+      else {
+        piecesGroup.remove(item.mesh);
+        departing.splice(i, 1);
+      }
+    }
     const assistAnim = assistLayer.tick(now);
     renderPipeline.render();
     if (animated || assistAnim) requestRender();
@@ -496,6 +530,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     item.to.copy(target);
     item.started = performance.now();
     item.duration = duration;
+    const xzMovedArc = Math.hypot(target.x - item.from.x, target.z - item.from.z) > 0.04;
+    item.arcLift = !item.selected && xzMovedArc ? snapshotArcLift : 0;
     if (!immediate && !reducedMotion.matches && !item.selected) {
       const dy = target.y - item.from.y;
       const xzMoved = Math.hypot(target.x - item.restX, target.z - item.restZ) > 0.08;
@@ -861,7 +897,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         }
         target.y += lift;
       }
-      targetObject(item, target, immediate, isSelected ? ANIMATION.LIFT_DURATION : ANIMATION.DURATION);
+      targetObject(
+        item,
+        target,
+        immediate,
+        isSelected ? ANIMATION.LIFT_DURATION : (snapshotMoveDuration ?? ANIMATION.DURATION),
+      );
     }
     reserveGroup.visible = !!selection && typeof selection.source !== 'number';
     for (const source of pilesGroup.children) source.visible = true;
@@ -901,7 +942,38 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     requestRender();
   }
 
-  function setSnapshot(next: BoardSnapshot) {
+  function isolateMaterials(root: THREE.Object3D): { mat: THREE.Material; opacity: number }[] {
+    const out: { mat: THREE.Material; opacity: number }[] = [];
+    root.traverse(node => {
+      if (!(node instanceof THREE.Mesh)) return;
+      const mats = Array.isArray(node.material) ? node.material : [node.material];
+      const cloned = mats.map(mat => mat.clone());
+      node.material = Array.isArray(node.material) ? cloned : cloned[0]!;
+      for (const mat of cloned) {
+        mat.transparent = true;
+        mat.depthWrite = false;
+        out.push({ mat, opacity: 'opacity' in mat ? (mat.opacity as number) : 1 });
+      }
+    });
+    return out;
+  }
+
+  function beginDepart(item: PieceObject, duration: number, sink: number) {
+    departing.push({
+      mesh: item.mesh,
+      fromY: item.mesh.position.y,
+      started: performance.now(),
+      duration: reducedMotion.matches ? 0 : duration,
+      sink: reducedMotion.matches ? 0 : sink,
+      materials: isolateMaterials(item.mesh),
+    });
+    objects.delete(item.pieceId);
+    requestRender();
+  }
+
+  function setSnapshot(next: BoardSnapshot, applyOptions?: SnapshotApplyOptions) {
+    snapshotMoveDuration = applyOptions?.durationMs;
+    snapshotArcLift = applyOptions?.lift ?? 0;
     const prevReserves = JSON.stringify(snapshot.reserves);
     const reframeCamera =
       next.cellCount !== snapshot.cellCount ||
@@ -962,6 +1034,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
             restX: destination.x,
             restZ: destination.z,
             lastVertT: 1,
+            arcLift: 0,
           };
           if (!view.selection && !view.dragging) {
             item.landOnComplete = 'place';
@@ -992,13 +1065,23 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         tagPieceForShadows(item.mesh, stackedPiecesReceiveShadow && stackIndex > 0);
       });
     });
-    for (const [id, item] of objects) {
-      if (!present.has(id)) {
+    const removed = [...objects.entries()].filter(([id]) => !present.has(id));
+    const departingIds = applyOptions?.departing
+      ? new Set(applyOptions.departing.ids ?? removed.map(([id]) => id))
+      : new Set<string>();
+    const departDuration = applyOptions?.departing?.durationMs ?? snapshotMoveDuration ?? ANIMATION.DURATION;
+    const departSink = applyOptions?.departing?.sink ?? ANIMATION.LIFT;
+    for (const [id, item] of removed) {
+      if (departingIds.has(id) && !reducedMotion.matches && (departDuration ?? 0) > 0) {
+        beginDepart(item, departDuration, departSink);
+      } else {
         piecesGroup.remove(item.mesh);
         objects.delete(id);
       }
     }
     updateInteraction();
+    snapshotMoveDuration = undefined;
+    snapshotArcLift = 0;
     assistLayer.update(assistState, cellPosition);
     syncFlipHalos();
     for (const item of objects.values()) {
@@ -1060,6 +1143,15 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       };
       wait();
     });
+  }
+
+  function projectWorldToScreen(position: THREE.Vector3): { x: number; y: number } {
+    const projected = position.clone().project(camera);
+    const bounds = renderer.domElement.getBoundingClientRect();
+    return {
+      x: bounds.left + ((projected.x + 1) * bounds.width) / 2,
+      y: bounds.top + ((1 - projected.y) * bounds.height) / 2,
+    };
   }
 
   const api: SceneApi = {
@@ -1142,10 +1234,10 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       return { x: bounds.left + ((position.x + 1) * bounds.width) / 2, y: bounds.top + ((1 - position.y) * bounds.height) / 2 };
     },
     cellScreen(index) {
-      const position = cellPosition(index);
-      position.project(camera);
-      const bounds = renderer.domElement.getBoundingClientRect();
-      return { x: bounds.left + ((position.x + 1) * bounds.width) / 2, y: bounds.top + ((1 - position.y) * bounds.height) / 2 };
+      return projectWorldToScreen(cellPosition(index));
+    },
+    projectToScreen(world) {
+      return projectWorldToScreen(new THREE.Vector3(world.x, world.y, world.z));
     },
     getBoardTopY() {
       return playfieldY;
@@ -1228,6 +1320,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     },
     dispose() {
       disposed = true;
+      departing.length = 0;
       cancelAnimationFrame(frame);
       resizeObserver.disconnect();
       container.removeEventListener('pointerdown', onPointerDownCapture, true);
