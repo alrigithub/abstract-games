@@ -16,7 +16,7 @@ export function gameToSnapshot(game: GameState): BoardSnapshot {
     const idx = cellIndexFor(cell.x, cell.y);
     if (idx < 0) continue;
     boardCells[idx] = stack.pieces.map((p, level) => ({
-      id: `${cell.x},${cell.y},${level}`,
+      id: p.id || `${cell.x},${cell.y},${level}`,
       player: p.player,
       shape: p.kind,
     }));
@@ -32,4 +32,8 @@ export function indexToCoord(index: number): { x: number; y: number } {
   const cell = cells[index];
   if (!cell) throw new RangeError(`cell ${index}`);
   return { x: cell.x, y: cell.y };
+}
+
+export function coordToIndex(coord: { x: number; y: number }): number {
+  return cells.find(cell => cell.x === coord.x && cell.y === coord.y)?.index ?? -1;
 }

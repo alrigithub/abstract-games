@@ -1,4 +1,5 @@
 export * from './animation-queue';
+export * from './piece-slide';
 export * from './board-renderer';
 export * from './board-render-pipeline';
 export * from './clay-materials';
