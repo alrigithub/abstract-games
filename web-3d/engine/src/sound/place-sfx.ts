@@ -194,6 +194,10 @@ export function endBoopPushLandSounds(): void {
   if (boopPushBatchDepth > 0) boopPushBatchDepth--;
 }
 
+export function isBoopPushLandingBatchActive(): boolean {
+  return boopPushBatchDepth > 0;
+}
+
 /**
  * Called when a piece landing would play a place clip.
  * @returns false when the landing sound was handled (boop batch) and place SFX should be skipped.

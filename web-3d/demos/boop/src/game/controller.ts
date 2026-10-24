@@ -13,6 +13,7 @@ import {
 import init, { BoopGame } from '../../wasm/boop_wasm.js';
 import { BOOP_ANIM } from './animation';
 import { poolKindAtCell, primaryPoolCellIndex } from './boop-pool-layout';
+import { boardAfterDisplacements, boardWithOffBoardOnBed } from './boop-push-board';
 import { PieceTracker } from './piece-tracker';
 import type { GameView, MoveJson, PieceKind, PlayerId } from './types';
 import { parseGameView } from './types';
@@ -399,17 +400,27 @@ export class BoopController {
       move.type === 'place' && (effects.displacements.length > 0 || effects.off_board.length > 0);
     if (pushFromPlacement) beginBoopPushLandSounds();
 
-    for (const d of effects.displacements) {
+    const pushBaseView = this.view;
+    for (let i = 0; i < effects.displacements.length; i++) {
+      const d = effects.displacements[i]!;
       this.tracker.moveBoardId(d.from, d.to);
-      this.view = after;
+      this.view = boardAfterDisplacements(pushBaseView, effects.displacements, i + 1, after);
       this.publishSnapshot();
       await sleep(step);
     }
 
-    for (const o of effects.off_board) {
+    const afterDisplacementsView = boardAfterDisplacements(
+      pushBaseView,
+      effects.displacements,
+      effects.displacements.length,
+      after,
+    );
+
+    for (let j = 0; j < effects.off_board.length; j++) {
+      const o = effects.off_board[j]!;
       const id = this.tracker.ensureIdAt(o.from.x, o.from.y, o.player, o.kind);
       const { row, col } = PieceTracker.restingCell(o.from, o);
-      this.view = withBoardPiece(before, o.from.x, o.from.y, o.player, o.kind);
+      this.view = boardWithOffBoardOnBed(afterDisplacementsView, effects.off_board, j);
       this.publishSnapshot();
       await sleep(step);
       this.tracker.removeFromBoard(o.from.x, o.from.y);
@@ -526,6 +537,23 @@ export class BoopController {
     await sleep(stepMs());
     return this.tracker.restingCount() > 0;
   }
+
+  /** Place human corner kitten; used by screenshot tooling before an AI boop push. */
+  async prepareCornerForBoopPush() {
+    this.newGame();
+    const m0 = this.game.move_for_interaction_json(HUMAN, 0, 0, 'kitten');
+    if (!m0) return false;
+    await this.playMoveJson(m0, { scheduleAi: false });
+    return !!this.game.move_for_interaction_json(AI, 1, 0, 'kitten');
+  }
+
+  /** Starts AI boop push animation without awaiting completion (for mid-slide captures). */
+  fireAiBoopPushAnimation() {
+    const boop = this.game.move_for_interaction_json(AI, 1, 0, 'kitten');
+    if (!boop) return false;
+    void this.playMoveJson(boop, { scheduleAi: false });
+    return true;
+  }
 }
 
 function cloneBoardView(before: GameView, after: GameView, x: number, y: number): GameView {
@@ -534,14 +562,3 @@ function cloneBoardView(before: GameView, after: GameView, x: number, y: number)
   return { ...before, board, pools: after.pools, effects: { ...after.effects, displacements: [], off_board: [] } };
 }
 
-function withBoardPiece(
-  base: GameView,
-  x: number,
-  y: number,
-  player: string,
-  kind: string,
-): GameView {
-  const board = base.board.map(row => row.map(c => (c ? { ...c } : null)));
-  board[y]![x] = { player: player as PlayerId, kind: kind as PieceKind };
-  return { ...base, board };
-}

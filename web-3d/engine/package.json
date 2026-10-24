@@ -7,7 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./board-grid-lines": "./src/board-grid-lines.ts",
-    "./tap-interaction": "./src/tap-interaction.ts"
+    "./tap-interaction": "./src/tap-interaction.ts",
+    "./piece-slide": "./src/piece-slide.ts"
   },
   "scripts": {
     "test": "vitest run",
