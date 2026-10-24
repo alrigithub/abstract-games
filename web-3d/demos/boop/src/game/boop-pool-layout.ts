@@ -11,8 +11,8 @@ const POOL_ROWS: number[] = [0, 1, 2, 3, 4, 5, 6, 7];
 
 function sideCols(player: PlayerId): Record<PoolColumn, number> {
   return player === 'A'
-    ? { kitten: -2, cat_hand: -1, cat_reserve: -3 }
-    : { kitten: BOOP_GRID + 1, cat_hand: BOOP_GRID, cat_reserve: BOOP_GRID + 2 };
+    ? { kitten: -2, cat_hand: -1, cat_reserve: -5 }
+    : { kitten: BOOP_GRID + 1, cat_hand: BOOP_GRID, cat_reserve: BOOP_GRID + 4 };
 }
 
 export function playerRestingColumn(player: PlayerId): number {
