@@ -3,20 +3,22 @@ import {
   BOARD,
   createBoardScene,
   createGameButtons,
-  createInteraction,
   createSquareTopology,
   INTERACTION,
   levelToSearchOptions,
   readInitialTheme,
   TAK_AI_STRENGTH_STORAGE_KEY,
+  type InteractionApi,
   type InteractionView,
   type ThemeId,
 } from '@abstract/three-engine';
 import { loadTakPieceGeometrySet } from './tak-piece-models';
 import { toEngineSnapshot, toTakSelection } from './bridge';
 import { createGameUi } from './game-ui';
+import { canFlipSelectedReserve, canPickReserveCell } from './interaction-policy';
 import { stackPickLimit } from './pick-height';
 import { createSandboxState, moveSelection, rotateSelection } from './state';
+import { createTakInteraction } from './tak-interaction';
 import type { BoardState, Color } from './types';
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
@@ -54,10 +56,24 @@ function applyTheme(id: ThemeId) {
 
 const cameraViews = scene.createCameraViews();
 
+let controller!: InteractionApi;
+
 function syncFlipBarButton() {
   const btn = document.querySelector<HTMLButtonElement>('[data-testid="flip-stone"]');
-  if (!btn) return;
-  btn.hidden = !gameUi.isActive() || !gameUi.canFlipStone();
+  if (!btn || !controller) return;
+  const selection = controller.getSelection();
+  const takSel = selection ? toTakSelection(selection) : null;
+  const canFlipGame =
+    gameUi.isActive() &&
+    takSel &&
+    typeof takSel.source === 'number' &&
+    gameUi.canFlipReserveSelection(takSel);
+  const canFlipSandbox =
+    canEditSandbox() &&
+    takSel &&
+    typeof takSel.source === 'number' &&
+    canFlipSelectedReserve(state, null, takSel.source, true);
+  btn.hidden = !canFlipGame && !canFlipSandbox;
 }
 
 const gameButtons = createGameButtons({
@@ -74,8 +90,7 @@ const gameButtons = createGameButtons({
       ariaLabel: 'Flip stone (flat / wall)',
       title: 'Flat ↔ wall',
       onClick: () => {
-        if (gameUi.isActive()) gameUi.toggleStoneOrientation();
-        else void flipSelectedStone();
+        void flipSelectedStone();
       },
     },
   ],
@@ -133,7 +148,14 @@ function canUseBoardInteraction() {
   return canEditSandbox() || (gameUi.isActive() && gameUi.humanTurn());
 }
 
-const controller = createInteraction({
+function humanColor(): Color | null {
+  if (!gameUi.isActive()) return null;
+  const game = gameUi.getGame();
+  if (gameUi.humanTurn()) return game.toMove;
+  return null;
+}
+
+controller = createTakInteraction({
   element: stage as HTMLElement,
   getSnapshot: () => toEngineSnapshot(state),
   canInteract: () => canUseBoardInteraction(),
@@ -143,8 +165,11 @@ const controller = createInteraction({
     if (!stack.length) return 0;
     const playable = boardSize * boardSize;
     if (canEditSandbox()) return stack.length;
-    if (cell >= playable) return 1;
-    if (!gameUi.isActive() || !gameUi.humanTurn()) return stack.length;
+    if (cell >= playable) {
+      if (!canPickReserveCell(state, gameUi.isActive() ? gameUi.getGame() : null, cell, false, humanColor())) return 0;
+      return 1;
+    }
+    if (!gameUi.isActive() || !gameUi.humanTurn()) return 0;
     const mover: Color = gameUi.getGame().toMove;
     return stackPickLimit(stack, mover, true, boardSize);
   },
@@ -258,13 +283,22 @@ document.querySelector('#end-turn')!.addEventListener('click', () => {
 });
 document.querySelector('#done')!.addEventListener('click', cancel);
 async function flipSelectedStone() {
-  if (!canEditSandbox()) return;
   const selection = controller.getSelection();
   if (!selection || typeof selection.source !== 'number') return;
-  const top = state.cells[selection.source]?.at(-1);
-  if (!top || top.kind !== 'stone') return;
   rotateBtn.disabled = true;
   try {
+    if (gameUi.isActive()) {
+      const takSel = toTakSelection(selection);
+      const pieceId = gameUi.flipReserveSelection(takSel);
+      if (!pieceId) return;
+      await scene.flipPiece(pieceId);
+      if (lastView) scene.setInteraction(lastView);
+      syncFlipBarButton();
+      return;
+    }
+    if (!canEditSandbox()) return;
+    const top = state.cells[selection.source]?.at(-1);
+    if (!top || top.kind !== 'stone') return;
     await scene.flipPiece(top.id);
     const next = rotateSelection(state, toTakSelection(selection));
     if (next !== state) {
@@ -299,6 +333,7 @@ if (location.search.includes('human=ivory')) {
       pilePoint(): { x: number; y: number };
       centerPoint(): { x: number; y: number };
       openingReservePoint(): { x: number; y: number };
+      stoneReservePoint(color?: Color): { x: number; y: number };
       capReservePoint(color?: Color): { x: number; y: number };
       seedCapStackDemo(): void;
       seedGlbDemo(): void;
@@ -320,13 +355,16 @@ if (location.search.includes('human=ivory')) {
       return scene.cellScreen(mid);
     },
     openingReservePoint() {
+      return this.stoneReservePoint('charcoal');
+    },
+    stoneReservePoint(color: Color = 'ivory') {
       const playable = boardSize * boardSize;
       let index = playable;
       let height = 0;
       state.cells.forEach((stack, i) => {
         if (i < playable || !stack.length) return;
         const top = stack.at(-1);
-        if (top?.color !== 'charcoal' || top.kind !== 'stone') return;
+        if (top?.color !== color || top.kind !== 'stone') return;
         if (stack.length >= height) {
           height = stack.length;
           index = i;

@@ -79,19 +79,25 @@ export function createGameUi(options: GameUiOptions) {
   function placementMove(target: number, source?: number): Move | null {
     if (target < 0 || target >= playableCells() || game.board.cells[target]!.length) return null;
     const reserveSource = source !== undefined && source >= playableCells() ? source : undefined;
-    const pieceId =
-      reserveSource !== undefined ? game.board.cells[reserveSource]?.at(-1)?.id : undefined;
+    const reserveTop = reserveSource !== undefined ? game.board.cells[reserveSource]?.at(-1) : undefined;
+    const pieceId = reserveTop?.id;
     if (game.ply < 2) {
       return { type: 'place', to: target, kind: 'stone', orientation: 'flat', source: reserveSource, pieceId };
     }
-    if (piece === 'capstone') {
+    if (reserveTop?.kind === 'capstone' || piece === 'capstone') {
       return { type: 'place', to: target, kind: 'capstone', orientation: 'flat', source: reserveSource, pieceId };
     }
+    const orientation =
+      reserveTop?.kind === 'stone'
+        ? reserveTop.orientation
+        : piece === 'standing'
+          ? 'standing'
+          : 'flat';
     return {
       type: 'place',
       to: target,
       kind: 'stone',
-      orientation: piece === 'standing' ? 'standing' : 'flat',
+      orientation,
       source: reserveSource,
       pieceId,
     };
@@ -234,6 +240,26 @@ export function createGameUi(options: GameUiOptions) {
       maybeAi();
     },
     refresh: () => render(),
+    canFlipReserveSelection(selection: Selection | null) {
+      if (!active || !humanTurn() || draft || !selection || typeof selection.source !== 'number') return false;
+      if (selection.source < playableCells()) return false;
+      const top = game.board.cells[selection.source]?.at(-1);
+      return !!top && top.kind === 'stone' && game.ply >= 2;
+    },
+    flipReserveSelection(selection: Selection) {
+      if (!this.canFlipReserveSelection(selection)) return null;
+      const source = selection.source as number;
+      const stack = game.board.cells[source]!;
+      const top = stack.at(-1)!;
+      const cells = game.board.cells.slice();
+      cells[source] = [
+        ...stack.slice(0, -1),
+        { ...top, orientation: top.orientation === 'flat' ? 'standing' : 'flat' },
+      ];
+      game = { ...game, board: { ...game.board, cells } };
+      render();
+      return top.id;
+    },
     canFlipStone() {
       return active && humanTurn() && !draft && game.ply >= 2 && piece !== 'capstone';
     },
