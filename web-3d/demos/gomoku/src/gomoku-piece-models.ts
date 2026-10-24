@@ -4,6 +4,8 @@ import {
   GOMOKU_DIMS,
   GOMOKU_GLB_WORLD_SCALE,
   createGomokuStoneGeometry,
+  applyGhostOpacity,
+  clonePieceVisualTemplate,
   gomokuGlbStoneHeight,
   pieceGlbSideForPlayer,
   tagGhostForShadows,
@@ -52,7 +54,7 @@ function anchorObjectBaseToY0(object: THREE.Object3D): void {
 }
 
 function prepareTemplate(scene: THREE.Object3D): THREE.Object3D {
-  const root = scene.clone(true);
+  const root = clonePieceVisualTemplate(scene);
   root.scale.setScalar(GOMOKU_GLB_WORLD_SCALE);
   root.updateMatrixWorld(true);
   anchorObjectBaseToY0(root);
@@ -92,21 +94,6 @@ function ghostOpacity(themeId: ThemeId): number {
   return themeTokens(themeId).ghostOpacity;
 }
 
-function applyGhostOpacity(root: THREE.Object3D, opacity: number) {
-  root.traverse(node => {
-    if (!(node instanceof THREE.Mesh)) return;
-    const materials = Array.isArray(node.material) ? node.material : [node.material];
-    node.material = materials.map(mat => {
-      const clone = mat.clone();
-      clone.transparent = true;
-      clone.opacity = opacity;
-      clone.depthWrite = false;
-      return clone;
-    });
-    if (node.material.length === 1) node.material = node.material[0]!;
-  });
-}
-
 function createProceduralVisual(
   player: StonePlayer,
   geometry: THREE.BufferGeometry,
@@ -132,7 +119,7 @@ export async function loadGomokuStoneAssets(
     const stoneHeight = gomokuGlbStoneHeight();
     const createVisual = (player: StonePlayer) => {
       const root = new THREE.Group();
-      mountModel(root, templateFor(templates, player).clone(true));
+      mountModel(root, clonePieceVisualTemplate(templateFor(templates, player)));
       tagPieceForShadows(root, false);
       return root;
     };
@@ -149,7 +136,7 @@ export async function loadGomokuStoneAssets(
         return ghost;
       },
       replaceVisual(root, player) {
-        mountModel(root as THREE.Group, templateFor(templates, player).clone(true));
+        mountModel(root as THREE.Group, clonePieceVisualTemplate(templateFor(templates, player)));
         tagPieceForShadows(root, false);
       },
       onThemeChange(id) {
