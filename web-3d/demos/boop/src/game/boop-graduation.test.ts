@@ -38,27 +38,18 @@ describe('Boop graduation bookkeeping (wasm)', () => {
     expect(view.to_move).toBe('B');
   });
 
-  it('renders graduated hand cats in the hand column without overlapping reserve slots', () => {
+  it('renders only in-hand cats (no reserve pool vases)', () => {
     const game = playHumanFirstGraduation(new BoopGame());
     const view = parseGameView(game.view_json());
     const tracker = new PieceTracker();
     tracker.resetFromNewGame();
     tracker.syncBoard(view);
     const snap = tracker.buildSnapshot(view);
-    const reserveIds = new Set(
-      snap.cells.flat().filter(p => p.shape === 'cat' && p.player === 'A').map(p => p.id),
-    );
-    expect(reserveIds.size).toBe(view.pools[0]!.cats_in_hand + view.pools[0]!.cats_in_reserve);
-    const handCols = new Set<number>();
-    snap.cells.forEach((stack, idx) => {
-      stack.forEach(p => {
-        if (p.player === 'A' && p.shape === 'cat') {
-          const col = idx; // coarse — detailed col check in pool-layout tests
-          handCols.add(col);
-        }
-      });
-    });
-    expect(handCols.size).toBeGreaterThan(1);
+    const handCats = snap.cells
+      .flat()
+      .filter(p => p.shape === 'cat' && p.player === 'A').length;
+    expect(handCats).toBe(view.pools[0]!.cats_in_hand);
+    expect(handCats).toBe(3);
   });
 
   it('AI has a legal reply immediately after human graduation', () => {
