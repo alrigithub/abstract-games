@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   GIPF_CHIP,
+  createGipfMarkerBodyGeometry,
   GIPF_SPACING,
   createGipfChipGeometry,
   gipfNeighborPairs,
@@ -47,6 +48,17 @@ describe('gipf chip', () => {
     const box = geo.boundingBox!;
     expect(box.max.y - box.min.y).toBeCloseTo(GIPF_CHIP.HEIGHT, 4);
     expect(box.max.x).toBeCloseTo(GIPF_CHIP.RADIUS, 3);
+    geo.dispose();
+  });
+
+  it('marker body merges disc and rim with two material groups', () => {
+    const geo = createGipfMarkerBodyGeometry();
+    geo.computeBoundingBox();
+    expect(geo.groups).toHaveLength(2);
+    const h = geo.boundingBox!.max.y - geo.boundingBox!.min.y;
+    expect(h).toBeGreaterThan(GIPF_CHIP.HEIGHT - 0.001);
+    expect(h).toBeLessThan(GIPF_CHIP.HEIGHT + 0.012);
+    expect(geo.boundingBox!.min.y).toBeCloseTo(0, 3);
     geo.dispose();
   });
 });

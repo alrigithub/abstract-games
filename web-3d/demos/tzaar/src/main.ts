@@ -31,6 +31,9 @@ const STACKS: Record<string, number> = {
 
 const params = new URLSearchParams(location.search);
 const requested = params.get('theme');
+const discCloseupShot = params.get('shot') === 'disc-closeup';
+/** Shared with Yinsh GIPF close-up comparison shots. */
+const GIPF_CLOSEUP_CAMERA = { elevationDeg: 35, azimuthDeg: 38 } as const;
 
 const boardEl = document.querySelector<HTMLDivElement>('#board')!;
 
@@ -107,6 +110,23 @@ function render() {
 
 controls.addEventListener('change', requestRender);
 
+function setCameraView(target: THREE.Vector3) {
+  const elevation = (GIPF_CLOSEUP_CAMERA.elevationDeg * Math.PI) / 180;
+  const azimuth = (GIPF_CLOSEUP_CAMERA.azimuthDeg * Math.PI) / 180;
+  const polar = Math.PI / 2 - elevation;
+  const dist = 6;
+  camera.position.set(
+    target.x + Math.sin(polar) * Math.cos(azimuth) * dist,
+    target.y + Math.cos(polar) * dist,
+    target.z + Math.sin(polar) * Math.sin(azimuth) * dist,
+  );
+  camera.up.set(0, 1, 0);
+  camera.lookAt(target);
+  controls.target.copy(target);
+  controls.update();
+  camera.updateMatrixWorld();
+}
+
 function fit(reframe = false) {
   const bounds = boardEl.getBoundingClientRect();
   const width = Math.max(1, Math.round(bounds.width));
@@ -147,6 +167,41 @@ function fit(reframe = false) {
   requestRender();
 }
 
+function fitDiscCloseup(focus: THREE.Vector3) {
+  const bounds = boardEl.getBoundingClientRect();
+  const width = Math.max(1, Math.round(bounds.width));
+  const height = Math.max(1, Math.round(bounds.height));
+  renderer.setSize(width, height, true);
+  const aspect = width / height;
+  framed = true;
+  setCameraView(focus);
+  const pad = 0.48;
+  const points = [
+    new THREE.Vector3(focus.x - pad, 0, focus.z - pad),
+    new THREE.Vector3(focus.x + pad, GIPF_CHIP.HEIGHT * 1.05, focus.z + pad),
+  ];
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const point of points) {
+    point.applyMatrix4(camera.matrixWorldInverse);
+    minX = Math.min(minX, point.x);
+    maxX = Math.max(maxX, point.x);
+    minY = Math.min(minY, point.y);
+    maxY = Math.max(maxY, point.y);
+  }
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+  const halfHeight = Math.max((maxY - minY) / 2, (maxX - minX) / (2 * aspect)) * 1.12;
+  camera.left = centerX - halfHeight * aspect;
+  camera.right = centerX + halfHeight * aspect;
+  camera.top = centerY + halfHeight;
+  camera.bottom = centerY - halfHeight;
+  camera.updateProjectionMatrix();
+  requestRender();
+}
+
 function applyTheme(id: ThemeId) {
   document.documentElement.dataset.theme = id;
   const tokens = themeTokens(id);
@@ -166,9 +221,15 @@ function applyTheme(id: ThemeId) {
     side: THREE.DoubleSide,
   });
   const surface = BOARD.PLAYFIELD_SURFACE_Y;
-  for (const piece of start) {
-    const height = STACKS[`${piece.x},${piece.y}`] ?? 1;
+  const closeupCell = cells.find(c => c.x === 3 && c.y === 2);
+  const layoutPieces = discCloseupShot && closeupCell
+    ? [{ index: closeupCell.index, x: 3, y: 2, player: 'A' as const, kind: 'tott' as const }]
+    : start;
+  let closeupFocus: THREE.Vector3 | null = null;
+  for (const piece of layoutPieces) {
+    const height = discCloseupShot ? 1 : (STACKS[`${piece.x},${piece.y}`] ?? 1);
     const pos = topology.cellPosition(piece.index, snapshot);
+    if (discCloseupShot) closeupFocus = new THREE.Vector3(pos.x, GIPF_CHIP.HEIGHT * 0.42, pos.z);
     let y = surface;
     for (let level = 0; level < height; level++) {
       const isTop = level === height - 1;
@@ -198,14 +259,15 @@ function applyTheme(id: ThemeId) {
       labels.push({ el, world: new THREE.Vector3(pos.x, y + 0.02, pos.z) });
     }
   }
-  requestRender();
+  if (discCloseupShot && closeupFocus) fitDiscCloseup(closeupFocus);
+  else requestRender();
 }
 
 const initial: ThemeId = requested === 'light' || requested === 'dark' ? requested : 'light';
 applyTheme(initial);
 bindThemeToggle(document.querySelector('#theme-toggle')!, applyTheme);
 if (requested === 'light' || requested === 'dark') applyTheme(requested);
-fit();
+if (!discCloseupShot) fit();
 
 const resize = new ResizeObserver(() => fit());
 resize.observe(boardEl);

@@ -19,8 +19,8 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: 'npm run dev -w tak-3d',
-      url: 'http://127.0.0.1:5190',
+      command: 'npm run dev -w tzaar-3d-demo',
+      url: 'http://127.0.0.1:5198',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

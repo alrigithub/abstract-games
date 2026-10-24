@@ -66,8 +66,26 @@ export interface PieceGeometrySet {
   verticalOffset?(piece: EnginePiece, stackIndex: number, stack: EnginePiece[]): number;
   /** When false, skip inverted-hull outline (e.g. solid Yinsh markers). */
   useOutline?(piece: EnginePiece): boolean;
+  /** When false, keep edge lines but skip hull outline (e.g. ring inner bore). */
+  hullOutline?(piece: EnginePiece): boolean;
+  /** When false, skip EdgesGeometry line work (e.g. lathe rings). */
+  edgeLines?(piece: EnginePiece): boolean;
+  /** Draw order when geometry overlaps (e.g. marker over ring). */
+  renderOrder?(piece: EnginePiece): number;
   /** Override fill material(s); return null to use theme player color. */
   materialFor?(piece: EnginePiece, tokens: ThemeTokens, selected?: boolean): THREE.Material | THREE.Material[] | null;
+  /** Build multi-mesh GIPF pieces (e.g. Yinsh marker = Tzaar disc + rim). */
+  assemblePiece?(piece: EnginePiece, ctx: PieceBuildContext): THREE.Object3D | null;
+  /** Update materials after theme / flip (when {@link assemblePiece} is used). */
+  refreshPiece?(root: THREE.Object3D, piece: EnginePiece, ctx: PieceBuildContext): void;
+}
+
+export interface PieceBuildContext {
+  tokens: ThemeTokens;
+  edgeCache: Map<THREE.BufferGeometry, THREE.EdgesGeometry>;
+  edgeMaterial: THREE.LineBasicMaterial;
+  outlineMaterial: THREE.MeshBasicMaterial;
+  edgeThreshold: number;
 }
 
 export interface YinshCoord {
@@ -132,6 +150,8 @@ export interface SceneApi {
   flipPieces(pieceIds: string[], staggerMs?: number): Promise<void>;
   /** Recompute orthographic framing from {@link Topology.frameCorners}. */
   reframe(): void;
+  /** Aim the camera before {@link reframe} (orthographic zoom still comes from fit). */
+  setCameraView(options?: { elevationDeg?: number; azimuthDeg?: number; target?: { x: number; y: number; z: number } }): void;
   dispose(): void;
 }
 

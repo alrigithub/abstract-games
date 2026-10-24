@@ -20,7 +20,7 @@ describe('yinsh pieces vs GIPF chip', () => {
     const geo = createYinshMarkerGeometry();
     geo.computeBoundingBox();
     const h = geo.boundingBox!.max.y - geo.boundingBox!.min.y;
-    expect(h).toBeCloseTo(GIPF_CHIP.HEIGHT, 4);
+    expect(h).toBeCloseTo(GIPF_CHIP.HEIGHT, 3);
     geo.dispose();
   });
 
@@ -29,7 +29,7 @@ describe('yinsh pieces vs GIPF chip', () => {
     ring.computeBoundingBox();
     const h = ring.boundingBox!.max.y - ring.boundingBox!.min.y;
     expect(h).toBeCloseTo(YINSH.RING_HEIGHT, 3);
-    expect(YINSH.LATHE_SEGMENTS).toBeGreaterThanOrEqual(64);
+    expect(YINSH.LATHE_SEGMENTS).toBeGreaterThanOrEqual(GIPF_CHIP.SEGMENTS);
     ring.dispose();
   });
 });

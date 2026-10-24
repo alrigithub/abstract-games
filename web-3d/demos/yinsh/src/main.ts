@@ -14,6 +14,7 @@ import {
   THEME_STORAGE_KEY,
   YINSH_AI_STRENGTH_STORAGE_KEY,
   yinshPieceGeometrySet,
+  yinshWorldPoint,
   type ReservePick,
   type ThemeId,
   type Topology,
@@ -292,7 +293,7 @@ function loadRingCloseupShot() {
   const idx = coordToIndex({ x: 0, y: 0 });
   const cells = Array.from({ length: YINSH_COORDS.length }, () => [] as import('@abstract/three-engine').EnginePiece[]);
   cells[idx] = [
-    { id: 'ring-A-0,0', player: 'A', shape: 'ring' },
+    { id: 'ring-B-0,0', player: 'B', shape: 'ring' },
     { id: 'marker-A-0,0', player: 'A', shape: 'marker' },
   ];
   scene.setSnapshot({
@@ -301,15 +302,107 @@ function loadRingCloseupShot() {
     cells,
     reserves: [],
   });
+  const focus = yinshWorldPoint({ x: 0, y: 0 });
+  focus.y = YINSH.RING_HEIGHT * 0.42;
+  scene.setCameraView({ elevationDeg: 35, azimuthDeg: 38, target: focus });
   scene.reframe();
   gameButtons.setStatus('Ring close-up · GIPF marker in hole');
   document.body.dataset.shotMode = 'ring-closeup';
 }
 
-if (new URLSearchParams(location.search).get('shot') === 'ring-closeup') {
+const urlParams = new URLSearchParams(location.search);
+
+if (urlParams.get('shot') === 'ring-closeup') {
   loadRingCloseupShot();
-} else {
+} else if (!urlParams.has('e2e')) {
   startGame('A');
+}
+
+function waitForSettled(timeoutMs = 20_000): Promise<void> {
+  const start = performance.now();
+  return new Promise((resolve, reject) => {
+    const tick = () => {
+      if (aiPending) {
+        if (performance.now() - start > timeoutMs) reject(new Error('AI timeout'));
+        else requestAnimationFrame(tick);
+        return;
+      }
+      resolve();
+    };
+    tick();
+  });
+}
+
+function pickPriorityMove(moves: Move[]): Move | null {
+  if (!moves.length) return null;
+  const rank = (m: Move) => {
+    switch (m.tag) {
+      case 'RemoveRing':
+        return 0;
+      case 'RemoveRun':
+        return 1;
+      case 'MoveRing':
+        return 2;
+      case 'PlaceMarker':
+        return 3;
+      case 'PlaceRing':
+        return 4;
+      default:
+        return 9;
+    }
+  };
+  return [...moves].sort((a, b) => rank(a) - rank(b))[0] ?? null;
+}
+
+function suggestHumanMove(): Move | null {
+  if (!humanTurn()) return null;
+  const all = possibleMoves(game);
+  const pool = all.filter(m => m.tag !== 'Wait');
+  return pickPriorityMove(pool.length ? pool : all);
+}
+
+function drainAutoWaitsSync() {
+  for (;;) {
+    const waits = possibleMoves(game);
+    if (waits.length !== 1 || waits[0]!.tag !== 'Wait') break;
+    game.performMove({ tag: 'Wait' });
+  }
+}
+
+function engineStep(): boolean {
+  if (game.winner()) return true;
+  drainAutoWaitsSync();
+  const moves = possibleMoves(game).filter(m => m.tag !== 'Wait');
+  const pick = pickPriorityMove(moves);
+  if (!pick) return !!game.winner();
+  game.performMove(pick);
+  drainAutoWaitsSync();
+  return !!game.winner();
+}
+
+function finishGameEngine(maxSteps = 5000): Player | undefined {
+  stopAi();
+  for (let i = 0; i < maxSteps; i++) {
+    if (engineStep()) break;
+  }
+  syncSnapshot();
+  return game.winner();
+}
+
+if (urlParams.has('e2e')) {
+  startGame('A');
+  (window as unknown as { __yinshE2e?: Record<string, unknown> }).__yinshE2e = {
+    winner: () => game.winner(),
+    humanTurn: () => humanTurn(),
+    aiPending: () => aiPending,
+    turnMode: () => game.turnMode.tag,
+    suggestMove: () => suggestHumanMove(),
+    applyMove: (move: Move) => humanMove(move),
+    waitForSettled,
+    finishGameEngine,
+    pointsA: () => game.pointsA,
+    pointsB: () => game.pointsB,
+  };
 }
 
 export { scene, game, humanPlayer };

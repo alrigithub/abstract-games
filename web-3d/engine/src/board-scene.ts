@@ -21,7 +21,7 @@ import type {
 const EMPTY_VIEW: InteractionView = { selection: null, dragging: false, pointer: null, origin: null, target: null, progress: 0 };
 
 interface PieceObject {
-  mesh: THREE.Mesh;
+  mesh: THREE.Object3D;
   shadow: THREE.Mesh;
   pieceId: string;
   position: THREE.Vector3;
@@ -139,16 +139,54 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     return options.pieces.useOutline?.(piece) !== false;
   }
 
-  function applyPieceMaterial(mesh: THREE.Mesh, piece: EnginePiece, selected = false) {
-    const custom = options.pieces.materialFor?.(piece, tokens, selected);
-    mesh.material = custom ?? pieceMaterials[`${piece.player}${selected ? 'Selected' : ''}`] ?? pieceMaterials.A!;
+  function pieceUsesHullOutline(piece: EnginePiece) {
+    if (!pieceUsesOutline(piece)) return false;
+    return options.pieces.hullOutline?.(piece) !== false;
   }
 
-  function createPieceMesh(piece: EnginePiece, selected = false): THREE.Mesh {
+  function pieceUsesEdgeLines(piece: EnginePiece) {
+    if (!pieceUsesOutline(piece)) return false;
+    return options.pieces.edgeLines?.(piece) !== false;
+  }
+
+  function pieceBuildContext(): import('./types').PieceBuildContext {
+    return {
+      tokens,
+      edgeCache,
+      edgeMaterial: edgeMaterials.A!,
+      outlineMaterial,
+      edgeThreshold: pieceEdgeThreshold,
+    };
+  }
+
+  function applyPieceMaterial(root: THREE.Object3D, piece: EnginePiece, selected = false) {
+    const ctx = pieceBuildContext();
+    ctx.edgeMaterial = edgeMaterials[piece.player]!;
+    if (options.pieces.refreshPiece && root.userData.gipfMarker) {
+      options.pieces.refreshPiece(root, piece, ctx);
+      return;
+    }
+    if (!(root instanceof THREE.Mesh)) return;
+    const custom = options.pieces.materialFor?.(piece, tokens, selected);
+    root.material = custom ?? pieceMaterials[`${piece.player}${selected ? 'Selected' : ''}`] ?? pieceMaterials.A!;
+  }
+
+  function createPieceMesh(piece: EnginePiece, selected = false): THREE.Object3D {
+    const ctx = pieceBuildContext();
+    ctx.edgeMaterial = edgeMaterials[piece.player]!;
+    const assembled = options.pieces.assemblePiece?.(piece, ctx);
+    if (assembled) {
+      assembled.renderOrder = options.pieces.renderOrder?.(piece) ?? 0;
+      return assembled;
+    }
     const mesh = new THREE.Mesh(geometry(piece as never));
     applyPieceMaterial(mesh, piece, selected);
+    mesh.renderOrder = options.pieces.renderOrder?.(piece) ?? 0;
     if (pieceUsesOutline(piece)) {
-      decoratePieceMesh(mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache, pieceEdgeThreshold);
+      decoratePieceMesh(mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache, pieceEdgeThreshold, {
+        hullOutline: pieceUsesHullOutline(piece),
+        edgeLines: pieceUsesEdgeLines(piece),
+      });
     }
     return mesh;
   }
@@ -196,7 +234,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     item.mesh.geometry = geometry(piece as never);
     item.shadow.geometry = geometry(piece as never);
     item.mesh.userData.shape = nextShape;
-    decoratePieceMesh(item.mesh, edgeMaterials[player]!, outlineMaterial, edgeCache, pieceEdgeThreshold);
+    decoratePieceMesh(item.mesh, edgeMaterials[player]!, outlineMaterial, edgeCache, pieceEdgeThreshold, {
+      hullOutline: pieceUsesHullOutline(piece as EnginePiece),
+    });
   }
 
   let snapshot: BoardSnapshot = { playableCells: options.gridSize ** 2, cellCount: options.gridSize ** 2, cells: [] };
@@ -764,11 +804,14 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         }
         item.pieceId = piece.id;
         item.pieceHeight = h;
-        if (item.mesh.geometry !== geometry(piece as never)) {
+        if (item.mesh instanceof THREE.Mesh && item.mesh.geometry !== geometry(piece as never)) {
           item.mesh.geometry = geometry(piece as never);
           item.shadow.geometry = geometry(piece as never);
           if (pieceUsesOutline(piece as EnginePiece)) {
-            decoratePieceMesh(item.mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache, pieceEdgeThreshold);
+            decoratePieceMesh(item.mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache, pieceEdgeThreshold, {
+              hullOutline: pieceUsesHullOutline(piece as EnginePiece),
+              edgeLines: pieceUsesEdgeLines(piece as EnginePiece),
+            });
           }
         }
         item.mesh.userData.player = piece.player;
@@ -895,6 +938,26 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     },
     reframe() {
       fit(true);
+    },
+    setCameraView(options = {}) {
+      const elevation = ((options.elevationDeg ?? 35) * Math.PI) / 180;
+      const azimuth = ((options.azimuthDeg ?? 42) * Math.PI) / 180;
+      const polar = Math.PI / 2 - elevation;
+      const target = options.target
+        ? new THREE.Vector3(options.target.x, options.target.y, options.target.z)
+        : controls.target.clone();
+      controls.target.copy(target);
+      const dist = 6;
+      camera.position.set(
+        target.x + Math.sin(polar) * Math.cos(azimuth) * dist,
+        target.y + Math.cos(polar) * dist,
+        target.z + Math.sin(polar) * Math.sin(azimuth) * dist,
+      );
+      camera.up.set(0, 1, 0);
+      camera.lookAt(target);
+      controls.update();
+      camera.updateMatrixWorld();
+      requestRender();
     },
     flipPiece(pieceId) {
       return new Promise<void>(resolve => {

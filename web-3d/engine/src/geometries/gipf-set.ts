@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BOARD } from '../constants';
 import type { ThemeTokens } from '../types';
 import { createContactShadowBlob } from './contact-shadow';
+import { anchorGeometryBaseToY0 } from './anchor';
 
 /**
  * Shared GIPF Project chip (Tzaar discs / Yinsh markers).
@@ -187,6 +188,17 @@ export function createGipfChipGeometry(segments: number = GIPF_CHIP.SEGMENTS): T
   geo.computeBoundingBox();
   geo.computeBoundingSphere();
   return geo;
+}
+
+/** GIPF chip body + printed rim ring (groups 0 = lathe body, 1 = rim), base at y=0. */
+export function createGipfMarkerBodyGeometry(): THREE.BufferGeometry {
+  const disc = createGipfChipGeometry().toNonIndexed();
+  const rim = createGipfChipRimGeometry().toNonIndexed();
+  const merged = mergeGeometries([disc, rim], true);
+  if (!merged) throw new Error('merge GIPF marker body failed');
+  merged.computeBoundingBox();
+  merged.computeBoundingSphere();
+  return anchorGeometryBaseToY0(merged);
 }
 
 export function createGipfChipRimGeometry(): THREE.BufferGeometry {
