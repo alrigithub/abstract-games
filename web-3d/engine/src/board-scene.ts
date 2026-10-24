@@ -1063,35 +1063,6 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       camera.updateMatrixWorld();
       requestRender();
     },
-    animationsBusy() {
-      return animQueue.busy;
-    },
-    drainAnimations() {
-      return animQueue.drain();
-    },
-    reframe() {
-      fit(true);
-    },
-    setCameraView(options = {}) {
-      const elevation = ((options.elevationDeg ?? 35) * Math.PI) / 180;
-      const azimuth = ((options.azimuthDeg ?? 42) * Math.PI) / 180;
-      const polar = Math.PI / 2 - elevation;
-      const target = options.target
-        ? new THREE.Vector3(options.target.x, options.target.y, options.target.z)
-        : controls.target.clone();
-      controls.target.copy(target);
-      const dist = 6;
-      camera.position.set(
-        target.x + Math.sin(polar) * Math.cos(azimuth) * dist,
-        target.y + Math.cos(polar) * dist,
-        target.z + Math.sin(polar) * Math.sin(azimuth) * dist,
-      );
-      camera.up.set(0, 1, 0);
-      camera.lookAt(target);
-      controls.update();
-      camera.updateMatrixWorld();
-      requestRender();
-    },
     flipPiece(pieceId) {
       return runFlipAnimation(async () => {
         await runFlipPiece(pieceId);

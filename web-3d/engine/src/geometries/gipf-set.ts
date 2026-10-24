@@ -41,12 +41,6 @@ export const GIPF_SPACING = 1;
 const SQRT3_2 = Math.sqrt(3) / 2;
 const YINSH_RADIUS_SQ = 4.6 * 4.6;
 
-export function isYinshPlayfieldAxial(q: number, r: number): boolean {
-  const x = SQRT3_2 * q;
-  const z = 0.5 * q - r;
-  return x * x + z * z <= YINSH_RADIUS_SQ + 1e-9;
-}
-
 /** Axial steps that are true neighbours of {@link gipfWorldPoint}. */
 export const GIPF_AXIAL_STEPS = [
   [1, 0],
