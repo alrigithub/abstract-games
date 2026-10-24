@@ -70,7 +70,7 @@ interface StackLabel {
 
 const labelScratch = new THREE.Vector3();
 const LABEL_RIM_SAMPLES = 16;
-const LABEL_GAP_PX = 7;
+const LABEL_GAP_PX = 22;
 
 const labels: StackLabel[] = [];
 
@@ -210,7 +210,7 @@ function applyTheme(id: ThemeId) {
       el.textContent = String(height);
       el.dataset.testid = `stack-height-${piece.x}-${piece.y}`;
       boardEl.appendChild(el);
-      labels.push({ el, world: new THREE.Vector3(pos.x, y + 0.04, pos.z) });
+      labels.push({ el, world: new THREE.Vector3(pos.x, y + GIPF_CHIP.HEIGHT * 0.35, pos.z) });
     }
   }
   requestRender();

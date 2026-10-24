@@ -31,8 +31,8 @@ export const GIPF_BOARD = {
   MARGIN: 1.4,
   /** Perpendicular margin outside the outer point ring (regular-hex slab). */
   HEX_MARGIN: 0.6,
-  CENTER_HEX: 0.48,
-  CENTER_HEX_INNER: 0.26,
+  CENTER_HEX: 0.52,
+  CENTER_HEX_INNER: 0.28,
 } as const;
 
 export const GIPF_SPACING = 1;
