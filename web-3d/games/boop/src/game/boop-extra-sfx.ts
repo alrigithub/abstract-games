@@ -1,9 +1,12 @@
 import { isPlaceSoundEnabled } from '@abstract/three-engine';
 import { BOOP_UPGRADE_SFX_URL } from './boop-sfx-manifest';
 
+const UPGRADE_OVERLAP_FADE_MS = 110;
+
 let audioContext: AudioContext | null = null;
 let loadPromise: Promise<AudioBuffer | null> | null = null;
 let buffer: AudioBuffer | null = null;
+let activeUpgrade: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
 
 function ensureContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -22,6 +25,24 @@ function unlockAudioContext(): void {
   void ctx.resume();
 }
 
+function fadeOutActiveUpgrade(): void {
+  const ctx = audioContext;
+  const active = activeUpgrade;
+  if (!ctx || !active) return;
+  activeUpgrade = null;
+  const { source, gain } = active;
+  const now = ctx.currentTime;
+  const fadeSec = UPGRADE_OVERLAP_FADE_MS / 1000;
+  gain.gain.cancelScheduledValues(now);
+  gain.gain.setValueAtTime(gain.gain.value, now);
+  gain.gain.linearRampToValueAtTime(0, now + fadeSec);
+  try {
+    source.stop(now + fadeSec + 0.02);
+  } catch {
+    /* already stopped */
+  }
+}
+
 async function loadUpgradeBuffer(): Promise<AudioBuffer | null> {
   if (buffer) return buffer;
   const ctx = ensureContext();
@@ -33,7 +54,7 @@ async function loadUpgradeBuffer(): Promise<AudioBuffer | null> {
   return buffer;
 }
 
-/** Graduation sting (kitten → cat in hand); respects Sound toggle and audio unlock. */
+/** Graduation ding (kitten vanish); respects Sound toggle and audio unlock. Retriggers per piece. */
 export function playBoopUpgradeSound(): void {
   if (!isPlaceSoundEnabled() || typeof window === 'undefined') return;
   const run = async () => {
@@ -44,6 +65,8 @@ export function playBoopUpgradeSound(): void {
     unlockAudioContext();
     if (ctx.state !== 'running') return;
 
+    fadeOutActiveUpgrade();
+
     const source = ctx.createBufferSource();
     source.buffer = clip;
     const gain = ctx.createGain();
@@ -51,6 +74,10 @@ export function playBoopUpgradeSound(): void {
     source.playbackRate.value = 0.98 + Math.random() * 0.04;
     source.connect(gain);
     gain.connect(ctx.destination);
+    activeUpgrade = { source, gain };
+    source.onended = () => {
+      if (activeUpgrade?.source === source) activeUpgrade = null;
+    };
     source.start(0);
   };
   void run();

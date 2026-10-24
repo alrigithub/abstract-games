@@ -29,6 +29,7 @@ import { BOOP_GRID as GRID, BOOP_OUTSIDE as OUTSIDE } from './boop-grid';
 import { poolKindAtCell, primaryPoolCellIndex, type PoolCounts } from './boop-pool-layout';
 import {
   boardBeforeGraduationClear,
+  graduationHandPoolSteps,
   poolsDuringMoveAnimation,
   viewAfterPlacementStep,
   viewDuringMechanicalEffects,
@@ -471,18 +472,11 @@ export class BoopController {
 
     if (graduated?.length) {
       const removeMs = lineClearRemovalMs();
-      const perPiece = Math.max(120, Math.floor(removeMs / graduated.length));
-      let upgradeSoundStarted = false;
+      const perPiece = Math.max(BOOP_LINE_CLEAR.VANISH_MIN_MS, Math.floor(removeMs / graduated.length));
       for (const [x, y] of graduated) {
         const kind = baselineBoard[y]?.[x]?.kind;
-        if (kind === 'kitten') {
-          if (!upgradeSoundStarted) {
-            playBoopUpgradeSound();
-            upgradeSoundStarted = true;
-          }
-        } else if (kind === 'cat') {
-          playBoopSound();
-        }
+        if (kind === 'kitten') playBoopUpgradeSound();
+        else if (kind === 'cat') playBoopSound();
         this.tracker.removeFromBoard(x, y);
         this.view = {
           ...viewHoldingLineOnBed(
@@ -495,10 +489,24 @@ export class BoopController {
         this.publishSnapshot({ durationMs: perPiece });
         await sleep(perPiece);
       }
-    } else {
-      await sleep(lineClearRemovalMs());
+
+      this.scene.setBoardAssist?.(null);
+      const handSteps = graduationHandPoolSteps(before, after, move, actor, graduated, baselineBoard);
+      const appearMs = Math.max(
+        BOOP_LINE_CLEAR.HAND_APPEAR_MIN_MS,
+        Math.floor(900 / Math.max(1, handSteps.length)),
+      );
+      for (const pools of handSteps) {
+        this.view = { ...after, pools };
+        this.publishSnapshot({ durationMs: appearMs });
+        await sleep(appearMs);
+      }
+      this.view = after;
+      this.publishSnapshot();
+      return;
     }
 
+    await sleep(lineClearRemovalMs());
     this.scene.setBoardAssist?.(null);
     this.view = after;
     this.publishSnapshot();
