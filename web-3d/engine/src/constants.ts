@@ -36,7 +36,7 @@ export const BOARD = {
   LINE_Y: 0.002,
   /** Contact shadow sits this far above the piece base (world Y). */
   SHADOW_CONTACT_EPSILON: 0.001,
-  LINE_W: 0.018,
+  LINE_W: 0.009,
   RADIAL_SEGMENTS: 32,
   EDGE_THRESHOLD_TAK: 20,
   EDGE_THRESHOLD_GOMOKU: 25,

@@ -181,8 +181,8 @@ describe('tzaar hex board', () => {
     expect((box.max.z + box.min.z) / 2).toBeCloseTo(hex.center.z, 5);
     expect(box.max.y).toBeCloseTo(BOARD.PLAYFIELD_SURFACE_Y, 5);
     expect(box.min.y).toBeCloseTo(BOARD.PLAYFIELD_SURFACE_Y, 5);
-    expect(TZAAR_LINE_W).toBeGreaterThanOrEqual(0.04);
-    expect(TZAAR_LINE_W).toBeLessThan(0.08);
+    expect(TZAAR_LINE_W).toBeGreaterThanOrEqual(0.018);
+    expect(TZAAR_LINE_W).toBeLessThan(0.04);
     slab.dispose();
 
     const geo = createTzaarBoardLineGeometry();

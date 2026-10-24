@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BOARD } from '../constants';
 import type { ThemeTokens } from '../types';
+import { tagBoardGridLine } from '../board-grid-lines';
 import { createContactShadowBlob } from './contact-shadow';
 import { anchorGeometryBaseToY0 } from './anchor';
 
@@ -26,8 +27,8 @@ export const GIPF_CHIP = {
 /** Shared printed-hex board treatment for the GIPF set. */
 export const GIPF_BOARD = {
   SLAB: BOARD.SLAB,
-  /** Printed line weight — readable at default ortho zoom on a 1280px viewport. */
-  LINE_W: 0.044,
+  /** Printed line weight (geometry base; screen width via {@link boardGridLineScreenScale}). */
+  LINE_W: 0.022,
   RIM_W: 0.09,
   /** Yinsh hull pad. Tzaar uses {@link GIPF_BOARD.HEX_MARGIN} on a regular hex. */
   MARGIN: 1.4,
@@ -498,6 +499,7 @@ export function createGipfHexBoard(layout: GipfHexLayout, tokens: ThemeTokens): 
 
   const lines = new THREE.Mesh(createGipfLineGeometry(layout), basic(print.lines));
   lines.renderOrder = 2;
+  tagBoardGridLine(lines);
   group.add(field, lines);
 
   if (layout.centreMotif) {
@@ -507,6 +509,8 @@ export function createGipfHexBoard(layout: GipfHexLayout, tokens: ThemeTokens): 
       createCenterRingGeometry(GIPF_BOARD.CENTER_HEX_INNER, GIPF_BOARD.LINE_W * 0.85),
       basic(print.lines),
     );
+    tagBoardGridLine(ring);
+    tagBoardGridLine(inner);
     fill.renderOrder = 1;
     ring.renderOrder = 2;
     inner.renderOrder = 2;

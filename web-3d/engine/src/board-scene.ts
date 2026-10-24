@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { AnimationQueue } from './animation-queue';
+import {
+  applyBoardGridLineScreenScale,
+  boardGridLineScreenScale,
+  tagBoardGridLine,
+} from './board-grid-lines';
 import { createCameraViewController, fitOrthographicToWorldPoints, type CameraViewController } from './camera-views';
 import { ANIMATION, BOARD, CAMERA } from './constants';
 import { createContactShadowBlob } from './geometries/contact-shadow';
@@ -490,8 +495,13 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
   controls.touches.ONE = THREE.TOUCH.PAN;
   controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+  function syncBoardGridLines() {
+    applyBoardGridLineScreenScale(board, boardGridLineScreenScale(camera, viewportHeight));
+  }
+
   controls.addEventListener('change', () => {
     camera.updateMatrixWorld();
+    syncBoardGridLines();
     requestRender();
     container.dispatchEvent(new CustomEvent('camera-change'));
   });
@@ -561,6 +571,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     camera.updateMatrixWorld();
     const points = collectFramePoints().map(p => p.clone());
     fitOrthographicToWorldPoints(camera, points, aspect, CAMERA.framePadding);
+    syncBoardGridLines();
     requestRender();
   }
 
@@ -579,6 +590,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       })
     ) {
       buildPiles();
+      syncBoardGridLines();
       requestRender();
       return;
     }
@@ -598,10 +610,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         const line = new THREE.Mesh(geo, gridMaterial);
         line.rotation.x = -Math.PI / 2;
         line.position.set(axis === 'x' ? offset : 0, BOARD.LINE_Y, axis === 'z' ? offset : 0);
+        tagBoardGridLine(line);
         board.add(line);
       }
     }
     buildPiles();
+    syncBoardGridLines();
     requestRender();
   }
 

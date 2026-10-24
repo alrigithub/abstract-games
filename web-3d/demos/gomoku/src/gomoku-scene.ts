@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
+  applyBoardGridLineScreenScale,
+  boardGridLineScreenScale,
+  tagBoardGridLine,
+} from '@abstract/three-engine/board-grid-lines';
+import {
   BOARD,
   CAMERA,
   GOMOKU_DIMS,
@@ -90,13 +95,20 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const hit = new THREE.Vector3();
+  let viewportW = 1;
+  let viewportH = 1;
 
   function lineMesh(w: number, d: number): THREE.Mesh {
     const geo = new THREE.PlaneGeometry(w, d);
     disposables.push(geo);
     const mesh = new THREE.Mesh(geo, materials.line);
     mesh.rotation.x = -Math.PI / 2;
+    tagBoardGridLine(mesh);
     return mesh;
+  }
+
+  function syncBoardGridLines() {
+    applyBoardGridLineScreenScale(boardGroup, boardGridLineScreenScale(camera, viewportH));
   }
 
   function rebuildBoardMesh() {
@@ -127,6 +139,7 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
       star.position.set(p.x, yLine + 0.001, p.z);
       boardGroup.add(star);
     }
+    syncBoardGridLines();
   }
 
   rebuildBoardMesh();
@@ -285,10 +298,11 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
   controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
   controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
   controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
-  controls.addEventListener('change', requestRender);
+  controls.addEventListener('change', () => {
+    syncBoardGridLines();
+    requestRender();
+  });
 
-  let viewportW = 1;
-  let viewportH = 1;
   let cameraViewsRef: CameraViewController | null = null;
 
   function gomokuFramePoints(): THREE.Vector3[] {
@@ -314,6 +328,7 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
     syncViewport();
     if (cameraViewsRef) {
       cameraViewsRef.refit();
+      syncBoardGridLines();
       render();
       return;
     }
@@ -325,6 +340,7 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
     camera.top = halfHeight;
     camera.bottom = -halfHeight;
     camera.updateProjectionMatrix();
+    syncBoardGridLines();
     render();
   }
 
