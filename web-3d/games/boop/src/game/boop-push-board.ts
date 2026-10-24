@@ -81,6 +81,35 @@ export function boardBeforeGraduationClear(
 }
 
 /** Hold pool counts until graduation removal finishes (rules state updates cats early). */
+/** One pool snapshot per graduating line cell, in vanish order (hand cats after bed clears). */
+export function graduationHandPoolSteps(
+  before: GameView,
+  after: GameView,
+  move: MoveJson,
+  actor: PlayerId,
+  graduated: readonly [number, number][],
+  baselineBoard: GameView['board'],
+): GameView['pools'][] {
+  const idx = actor === 'A' ? 0 : 1;
+  let pools = poolsDuringMoveAnimation(before, after, move, actor);
+  const steps: GameView['pools'][] = [];
+  for (const [x, y] of graduated) {
+    const kind = baselineBoard[y]?.[x]?.kind;
+    const next: GameView['pools'] = [{ ...pools[0]! }, { ...pools[1]! }];
+    const pool = { ...next[idx]! };
+    if (kind === 'kitten') {
+      pool.cats_in_hand += 1;
+      pool.cats_in_reserve = Math.max(0, pool.cats_in_reserve - 1);
+    } else if (kind === 'cat') {
+      pool.cats_in_hand += 1;
+    }
+    next[idx] = pool;
+    steps.push(next);
+    pools = next;
+  }
+  return steps;
+}
+
 export function poolsDuringMoveAnimation(
   before: GameView,
   after: GameView,

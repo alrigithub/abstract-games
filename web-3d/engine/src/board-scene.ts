@@ -170,7 +170,10 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
   camera.position.set(...CAMERA.position);
   camera.lookAt(0, 0, 0);
-  const renderPipeline = createBoardRenderPipeline(renderer, scene, camera);
+  const renderPipeline = createBoardRenderPipeline(renderer, scene, camera, {
+    aoEnabled: prerendered ? false : undefined,
+    postprocessWithoutAo: !!prerendered,
+  });
 
   const board = new THREE.Group();
   const piecesGroup = new THREE.Group();
@@ -770,9 +773,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     viewportHeight = Math.max(1, Math.round(bounds.height));
     const dpr = window.devicePixelRatio || 1;
     const renderScale = Math.min(
-      Math.max(CAMERA.minRenderScale, dpr),
+      prerendered ? Math.min(dpr, 1.5) : Math.max(CAMERA.minRenderScale, dpr),
       CAMERA.maxPixelRatio,
-      Math.sqrt(CAMERA.maxBufferPixels / (width * viewportHeight)),
+      Math.sqrt((prerendered ? 1_500_000 : CAMERA.maxBufferPixels) / (width * viewportHeight)),
     );
     const nextBufferWidth = Math.max(1, Math.round(width * renderScale));
     const nextBufferHeight = Math.max(1, Math.round(viewportHeight * renderScale));

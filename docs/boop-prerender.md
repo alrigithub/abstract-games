@@ -32,6 +32,9 @@ Light and dark plates use Blender's Standard output. The shared game pipeline
 applies its final AgX/sRGB conversion once to the image and live objects.
 Do not bake AgX into these plates, or the game will tone-map them twice.
 The plate's corner color supplies the surrounding canvas backdrop.
+The pre-rendered mode omits realtime N8AO because the scenery already contains
+baked occlusion; SMAA, final color conversion, and live soft shadows remain.
+Its rendering buffer is capped at 1.5 million pixels and 1.5× device scale.
 
 ## Regeneration
 

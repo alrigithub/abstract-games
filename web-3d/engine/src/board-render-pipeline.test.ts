@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({ passes: [] as { kind: string; dispose: () => void }[], resize: vi.fn(), dispose: vi.fn() }));
 vi.mock('three/addons/postprocessing/EffectComposer.js', () => ({
@@ -16,10 +16,18 @@ vi.mock('n8ao', () => ({ N8AOPass: class {
 } }));
 vi.mock('three/addons/postprocessing/SMAAPass.js', () => ({ SMAAPass: class { kind = 'smaa'; dispose = vi.fn(); } }));
 vi.mock('three/addons/postprocessing/OutputPass.js', () => ({ OutputPass: class { kind = 'output'; dispose = vi.fn(); } }));
+vi.mock('three/addons/postprocessing/RenderPass.js', () => ({ RenderPass: class { kind = 'beauty'; dispose = vi.fn(); } }));
 
 import { createBoardRenderPipeline } from './board-render-pipeline';
 
 describe('board postprocessing', () => {
+  beforeEach(() => vi.clearAllMocks());
+  it('retains antialiasing and color conversion for pre-rendered scenes without realtime AO', () => {
+    const renderer = { getSize: (size: THREE.Vector2) => size.set(800, 600), setSize: vi.fn() };
+    const pipeline = createBoardRenderPipeline(renderer as unknown as THREE.WebGLRenderer, new THREE.Scene(), new THREE.Camera(), { aoEnabled: false, postprocessWithoutAo: true });
+    expect(state.passes.map(pass => pass.kind)).toEqual(['beauty', 'smaa', 'output']);
+    pipeline.dispose();
+  });
   it('smooths linear AO output before a single display conversion, and releases passes', () => {
     const renderer = { getSize: (size: THREE.Vector2) => size.set(800, 600), setSize: vi.fn() };
     const pipeline = createBoardRenderPipeline(renderer as unknown as THREE.WebGLRenderer, new THREE.Scene(), new THREE.Camera(), { aoEnabled: true });
