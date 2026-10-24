@@ -34,6 +34,7 @@ let sandbox = true;
 let lastView: InteractionView | null = null;
 
 const scene = await createBoardScene(board, { gridSize: boardSize, topology, pieces, initialTheme: theme });
+const stage = board.querySelector('canvas') ?? board;
 
 function refresh() {
   scene.setSnapshot(toEngineSnapshot(state));
@@ -57,9 +58,8 @@ const gameUi = createGameUi({
 });
 
 const controller = createInteraction({
-  element: board,
+  element: stage as HTMLElement,
   getSnapshot: () => toEngineSnapshot(state),
-  getHoldInterval: () => 400,
   canInteract: () => canEditSandbox(),
   hitTest: (x, y) => (canEditSandbox() ? scene.hitTest(x, y) : null),
   hitReserve: (x, y) => (canEditSandbox() ? scene.hitReserve(x, y) : null),
@@ -156,14 +156,24 @@ document.querySelector('#end-turn')!.addEventListener('click', () => {
 });
 document.querySelector('#done')!.addEventListener('click', cancel);
 rotateBtn.addEventListener('click', () => {
-  if (!canEditSandbox()) return;
-  const selection = controller.getSelection();
-  if (!selection || typeof selection.source !== 'number') return;
-  const next = rotateSelection(state, toTakSelection(selection));
-  if (next !== state) {
-    commit(next);
-    if (lastView) scene.setInteraction(lastView);
-  }
+  void (async () => {
+    if (!canEditSandbox()) return;
+    const selection = controller.getSelection();
+    if (!selection || typeof selection.source !== 'number') return;
+    const top = state.cells[selection.source]?.at(-1);
+    if (!top || top.kind !== 'stone') return;
+    rotateBtn.disabled = true;
+    try {
+      await scene.flipPiece(top.id);
+      const next = rotateSelection(state, toTakSelection(selection));
+      if (next !== state) {
+        commit(next);
+        if (lastView) scene.setInteraction(lastView);
+      }
+    } finally {
+      rotateBtn.disabled = false;
+    }
+  })();
 });
 
 let cameraMode: 'pan' | 'orbit' = 'pan';
@@ -177,3 +187,23 @@ document.querySelector('#camera-mode')!.addEventListener('click', () => {
 document.documentElement.dataset.theme = theme;
 refresh();
 menu.showModal();
+
+if (location.search.includes('human=ivory')) {
+  (window as unknown as { __takE2e?: { pilePoint(): { x: number; y: number }; centerPoint(): { x: number; y: number } } }).__takE2e = {
+    pilePoint() {
+      let index = 0;
+      let height = 0;
+      state.cells.forEach((stack, i) => {
+        if (stack.length > height) {
+          height = stack.length;
+          index = i;
+        }
+      });
+      return scene.cellScreen(index);
+    },
+    centerPoint() {
+      const mid = Math.floor((boardSize * boardSize) / 2);
+      return scene.cellScreen(mid);
+    },
+  };
+}

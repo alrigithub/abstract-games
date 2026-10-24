@@ -136,3 +136,14 @@ main {
   color: #e8e4dc;
   background: #16171a;
 }
+[data-theme='dark'] .game-controls .game-status {
+  color: #f0ede6;
+  background: #2a2d34ee;
+}
+[data-theme='dark'] .icon-button,
+[data-theme='dark'] .board-actions button,
+[data-theme='dark'] .piece-action {
+  background: #2a2d34;
+  border-color: #4a5058;
+  color: #e8e4dc;
+}

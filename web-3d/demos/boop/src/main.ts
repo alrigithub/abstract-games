@@ -5,6 +5,7 @@ import {
   createBoopCatGeometry,
   createBoopKittenGeometry,
   createSquareTopology,
+  bindThemeToggle,
   readStoredTheme,
   storeTheme,
   type BoardSnapshot,
@@ -14,7 +15,7 @@ import {
 } from '@abstract/three-engine';
 
 const size = 6;
-/** Exterior ring columns for side pools (same pattern as Tak sandbox). */
+/** Exterior ring columns for side pools (framed via Topology.frameCorners on the base engine). */
 const OUTSIDE_ROWS = 2;
 const cellTotal = (size + OUTSIDE_ROWS * 2) ** 2;
 
@@ -39,7 +40,7 @@ function pushStack(
   }
 }
 
-/** Side pools on exterior cells (left = A, right = B) so stacks use board FLOOR + contact shadows. */
+/** Side pools on exterior cells (left = A, right = B). */
 function sidePoolStacks(cells: EnginePiece[][]) {
   const leftCol = -2;
   const rightCol = size + 1;
@@ -82,9 +83,10 @@ const scene = await createBoardScene(board, {
   topology,
   pieces,
   initialTheme: readStoredTheme(),
-  initialSnapshot: snapshot,
-} as Parameters<typeof createBoardScene>[1] & { initialSnapshot: BoardSnapshot });
+});
 scene.setSnapshot(snapshot);
+
+bindThemeToggle(document.querySelector('#theme-toggle')!, t => scene.setTheme(t));
 
 declare global {
   interface Window {
@@ -97,6 +99,7 @@ window.__boopScene = scene;
 window.__boopSetTheme = (theme: ThemeId) => {
   storeTheme(theme);
   scene.setTheme(theme);
+  document.documentElement.dataset.theme = theme;
 };
 
 const params = new URLSearchParams(location.search);

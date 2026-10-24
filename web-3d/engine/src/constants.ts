@@ -14,17 +14,20 @@ export const ANIMATION = {
   HORIZONTAL_DURATION: 60,
   /** Out cubic ease: `1 - (1 - t) ** 3` */
   easeOutCubic: (t: number) => 1 - (1 - t) ** 3,
+  /** Marker / stone flip duration (ms), matched to Bevy Yinsh GUI and Tak studio. */
+  FLIP_DURATION: 500,
 } as const;
 
 export const INTERACTION = {
-  HOLD_INTERVAL: 400,
+  /** Ms between each additional piece picked up from a held stack. */
+  HOLD_INTERVAL: 500,
   DRAG_THRESHOLD: 6,
   RESERVE_STACK_SIZE: 7,
 } as const;
 
 export const BOARD = {
-  /** Slab thickness (~10 mm at pitch 1). */
-  SLAB: 0.25,
+  /** Thin visual slab (grid lines sit on y≈0). */
+  SLAB: 0.06,
   LINE_W: 0.018,
   RADIAL_SEGMENTS: 32,
   EDGE_THRESHOLD_TAK: 20,
@@ -47,7 +50,7 @@ export const CAMERA = {
   maxPolarAngle: 1.18,
   minZoom: 0.3,
   maxZoom: 2.8,
-  framePadding: 1.1,
+  framePadding: 1.18,
   maxPixelRatio: 2,
   minRenderScale: 1.5,
   maxBufferPixels: 3_000_000,

@@ -7,8 +7,8 @@ const piece = (id: string): EnginePiece => ({ id, player: 'A', shape: 'flat' });
 describe('stack helpers', () => {
   it('countSelected respects hold interval', () => {
     expect(countSelected(0, 5, 400)).toBe(1);
-    expect(countSelected(399, 5, 400)).toBe(1);
-    expect(countSelected(400, 5, 400)).toBe(2);
+    expect(countSelected(499, 5, 500)).toBe(1);
+    expect(countSelected(500, 5, 500)).toBe(2);
     expect(countSelected(2000, 5, 400)).toBe(5);
   });
 

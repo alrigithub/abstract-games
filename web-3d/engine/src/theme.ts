@@ -17,7 +17,7 @@ export function themeTokens(id: ThemeId): ThemeTokens {
       shadow: '#000000',
       piece: {
         A: { fill: '#f5f5f5', rim: '#2a2a2a', edge: '#2a2a2a' },
-        B: { fill: '#111111', rim: '#d8d8d8', edge: '#d8d8d8' },
+        B: { fill: '#111111', rim: '#d0d0d0', edge: '#d0d0d0' },
       },
     };
   }
@@ -47,6 +47,20 @@ export function readStoredTheme(): ThemeId {
     /* storage disabled */
   }
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+export function bindThemeToggle(button: HTMLElement, apply: (theme: ThemeId) => void): () => void {
+  let theme = readStoredTheme();
+  apply(theme);
+  document.documentElement.dataset.theme = theme;
+  const onClick = () => {
+    theme = theme === 'light' ? 'dark' : 'light';
+    storeTheme(theme);
+    apply(theme);
+    document.documentElement.dataset.theme = theme;
+  };
+  button.addEventListener('click', onClick);
+  return () => button.removeEventListener('click', onClick);
 }
 
 export function storeTheme(id: ThemeId): void {

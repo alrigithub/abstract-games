@@ -3,6 +3,7 @@ import {
   createGomokuStoneGeometry,
   createSquareTopology,
   gomokuPieceGeometrySet,
+  bindThemeToggle,
   readStoredTheme,
 } from '@abstract/three-engine';
 import type { BoardSnapshot, EnginePiece } from '@abstract/three-engine';
@@ -32,3 +33,4 @@ const scene = await createBoardScene(board, {
   initialTheme: readStoredTheme(),
 });
 scene.setSnapshot(snapshot);
+bindThemeToggle(document.querySelector('#theme-toggle')!, t => scene.setTheme(t));
