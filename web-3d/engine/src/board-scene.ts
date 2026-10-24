@@ -18,6 +18,7 @@ import {
   tagPlayfieldForShadows,
 } from './board-lighting';
 import { applyBoardEnvironment, createBoardWebGLRenderer, measureBoardFrameMs } from './board-renderer';
+import { applyFlipEmphasis, BoardAssistLayer, type BoardAssistState } from './board-assist';
 import { consumeBoopPushLandingSound, initPlaceSfx, playPiecePlaceSound, type PlaceSoundKind } from './sound/place-sfx';
 import { themeTokens, type ThemeId } from './theme';
 import type {
@@ -106,6 +107,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const pilesGroup = new THREE.Group();
   const shadowsGroup = new THREE.Group();
   scene.add(board, shadowsGroup, piecesGroup, ghostGroup, reserveGroup, pilesGroup);
+  const assistLayer = new BoardAssistLayer();
+  assistLayer.attach(scene);
+  assistLayer.applyTheme(tokens);
+  let assistState: BoardAssistState | null = null;
+  let flipPreviewIds = new Set<string>();
 
   const edgeCache = new Map<THREE.BufferGeometry, THREE.EdgesGeometry>();
   let outlineMaterial = new THREE.MeshBasicMaterial({ color: '#000000', side: THREE.BackSide });
@@ -922,7 +928,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       }
     }
     updateInteraction();
+    assistLayer.update(assistState, cellPosition);
     for (const item of objects.values()) {
+      applyFlipEmphasis(item.mesh, flipPreviewIds.has(item.pieceId));
       if (item.landOnComplete && item.lastVertT >= 1) finishLandSound(item);
     }
     if (reframeCamera) {
@@ -1011,6 +1019,20 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       themeId = id;
       rebuildMaterials();
       refreshPieceMaterials();
+      assistLayer.applyTheme(tokens);
+      assistLayer.update(assistState, cellPosition);
+      requestRender();
+    },
+    setBoardAssist(state) {
+      assistState = state;
+      assistLayer.update(assistState, cellPosition);
+      requestRender();
+    },
+    setFlipPreview(pieceIds) {
+      flipPreviewIds = new Set(pieceIds);
+      for (const item of objects.values()) {
+        applyFlipEmphasis(item.mesh, flipPreviewIds.has(item.pieceId));
+      }
       requestRender();
     },
     setCameraMode(mode) {
@@ -1131,6 +1153,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       controls.dispose();
       disposeEnvironment();
       boardLighting.dispose();
+      assistLayer.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },

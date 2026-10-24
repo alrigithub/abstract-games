@@ -131,9 +131,25 @@ export interface GameRules {
   toggleTop?(snapshot: BoardSnapshot, source: number): BoardSnapshot | null;
 }
 
+/** Unlit overlays for legal moves (dots, paths, highlights). */
+export interface BoardAssistState {
+  destinationCells?: readonly number[];
+  pathCells?: readonly number[];
+  highlightCells?: readonly number[];
+  pickableCells?: readonly number[];
+  selectedCell?: number;
+  hoverCell?: number;
+  lastMove?: { fromCell: number; toCell: number; pathCells?: readonly number[] };
+  flipPieceIds?: readonly string[];
+}
+
 export interface SceneApi {
   setSnapshot(snapshot: BoardSnapshot): void;
   setInteraction(view: InteractionView): void;
+  /** Unlit legal-move overlays (dots, paths, highlights). */
+  setBoardAssist(state: BoardAssistState | null): void;
+  /** Tint PBR pieces that would flip on a previewed move. */
+  setFlipPreview(pieceIds: readonly string[]): void;
   setTheme(theme: ThemeId): void;
   /** Shared top / axo camera presets (Back-to-Lobby bar Camera button). */
   createCameraViews(options?: { getBounds?: () => THREE.Vector3[] }): CameraViewController;
