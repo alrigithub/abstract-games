@@ -6,12 +6,8 @@ import {
   createBoopKittenGeometry,
   createGameButtons,
   createSquareTopology,
-  DEFAULT_LOBBY_HREF,
-  GOMOKU_AI_STRENGTH_STORAGE_KEY,
-  readStoredTheme,
-  bindThemeToggle,
+  readInitialTheme,
   storeTheme,
-  THEME_STORAGE_KEY,
   type BoardSnapshot,
   type EnginePiece,
   type SceneApi,
@@ -78,9 +74,10 @@ function buildSnapshot(emptyBoard: boolean): BoardSnapshot {
   };
 }
 
+let snapshot = buildSnapshot(false);
+
 const board = document.querySelector<HTMLDivElement>('#board')!;
-let theme: ThemeId = readStoredTheme();
-document.documentElement.dataset.theme = theme;
+let theme: ThemeId = readInitialTheme();
 
 const scene = await createBoardScene(board, {
   gridSize: size,
@@ -88,60 +85,27 @@ const scene = await createBoardScene(board, {
   pieces,
   initialTheme: theme,
 });
+scene.setSnapshot(snapshot);
 
 function applyTheme(id: ThemeId) {
   theme = id;
   scene.setTheme(id);
 }
 
+const cameraViews = scene.createCameraViews();
+
 const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
-  lobbyHref: DEFAULT_LOBBY_HREF,
-  aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
-  onFirstPlayerSelected: () => {},
+  cameraViews,
+  applyTheme,
+  onNewGameReset: () => {
+    snapshot = buildSnapshot(true);
+    scene.setSnapshot(snapshot);
+    gameButtons.setStatus(STATUS);
+  },
 });
 
-gameButtons.root.querySelector('[data-testid="first-player-popover"]')?.remove();
-gameButtons.aiStrength.destroy();
-
-const row = gameButtons.root.querySelector('.game-button-row')!;
-const themeBtn = document.createElement('button');
-themeBtn.type = 'button';
-themeBtn.dataset.testid = 'theme-toggle';
-themeBtn.setAttribute('aria-label', 'Toggle theme');
-themeBtn.textContent = '◐';
-row.insertBefore(themeBtn, row.querySelector('.game-button-ai-slot'));
-
-bindThemeToggle(themeBtn, applyTheme);
-
-const newGameBtn = row.querySelector<HTMLButtonElement>('[data-testid="new-game"]')!;
-const newGame = newGameBtn.cloneNode(true) as HTMLButtonElement;
-newGameBtn.replaceWith(newGame);
-newGame.addEventListener('click', () => resetBoard());
-
-function resetBoard() {
-  scene.setSnapshot(buildSnapshot(true));
-  gameButtons.setStatus(STATUS);
-}
-
-function loadPreview() {
-  scene.setSnapshot(buildSnapshot(false));
-  gameButtons.setStatus(STATUS);
-}
-
-loadPreview();
-
-try {
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    try {
-      if (localStorage.getItem(THEME_STORAGE_KEY) === null) applyTheme(readStoredTheme());
-    } catch {
-      /* ignore */
-    }
-  });
-} catch {
-  /* ignore */
-}
+gameButtons.setStatus(STATUS);
 
 declare global {
   interface Window {

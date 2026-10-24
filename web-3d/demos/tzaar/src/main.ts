@@ -4,12 +4,14 @@ import {
   BOARD,
   CAMERA,
   GIPF_CHIP,
-  bindThemeToggle,
+  createCameraViewController,
+  createGameButtons,
   createGipfChipGeometry,
   createGipfHexBoard,
   createTzaarHexTopology,
   createTzaarPieceMesh,
   gipfLayoutFrameCorners,
+  readInitialTheme,
   tzaarFixedStart,
   tzaarLayout,
   tzaarPlayableCells,
@@ -28,9 +30,6 @@ const STACKS: Record<string, number> = {
   '0,0': 3,
   '8,8': 2,
 };
-
-const params = new URLSearchParams(location.search);
-const requested = params.get('theme');
 
 const boardEl = document.querySelector<HTMLDivElement>('#board')!;
 
@@ -71,6 +70,7 @@ interface StackLabel {
 const labels: StackLabel[] = [];
 
 const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0);
 controls.enableDamping = false;
 controls.enablePan = true;
 controls.rotateSpeed = CAMERA.rotateSpeed;
@@ -87,6 +87,8 @@ controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
 
 let frame = 0;
 let framed = false;
+let viewportW = 1;
+let viewportH = 1;
 function requestRender() {
   if (!document.hidden && !frame) frame = requestAnimationFrame(render);
 }
@@ -107,48 +109,29 @@ function render() {
 
 controls.addEventListener('change', requestRender);
 
-function fit(reframe = false) {
+function tzaarFramePoints(): THREE.Vector3[] {
+  return (topology.frameCorners?.(snapshot) ?? gipfLayoutFrameCorners(layout)).map(p => p.clone());
+}
+
+const cameraViews = createCameraViewController({
+  camera,
+  controls,
+  getBounds: tzaarFramePoints,
+  getAspect: () => viewportW / viewportH,
+  onUpdate: requestRender,
+});
+framed = true;
+
+function fit() {
   const bounds = boardEl.getBoundingClientRect();
-  const width = Math.max(1, Math.round(bounds.width));
-  const height = Math.max(1, Math.round(bounds.height));
-  renderer.setSize(width, height, true);
-  const aspect = width / height;
-  if (framed && !reframe) {
-    const centerX = (camera.left + camera.right) / 2;
-    const halfHeight = (camera.top - camera.bottom) / 2;
-    camera.left = centerX - halfHeight * aspect;
-    camera.right = centerX + halfHeight * aspect;
-    camera.updateProjectionMatrix();
-    requestRender();
-    return;
-  }
-  framed = true;
-  camera.updateMatrixWorld();
-  const points = topology.frameCorners?.(snapshot) ?? gipfLayoutFrameCorners(layout);
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-  for (const point of points) {
-    point.applyMatrix4(camera.matrixWorldInverse);
-    minX = Math.min(minX, point.x);
-    maxX = Math.max(maxX, point.x);
-    minY = Math.min(minY, point.y);
-    maxY = Math.max(maxY, point.y);
-  }
-  const centerX = (minX + maxX) / 2;
-  const centerY = (minY + maxY) / 2;
-  const halfHeight = Math.max((maxY - minY) / 2, (maxX - minX) / (2 * aspect)) * 1.08;
-  camera.left = centerX - halfHeight * aspect;
-  camera.right = centerX + halfHeight * aspect;
-  camera.top = centerY + halfHeight;
-  camera.bottom = centerY - halfHeight;
-  camera.updateProjectionMatrix();
+  viewportW = Math.max(1, Math.round(bounds.width));
+  viewportH = Math.max(1, Math.round(bounds.height));
+  renderer.setSize(viewportW, viewportH, true);
+  cameraViews.refit();
   requestRender();
 }
 
 function applyTheme(id: ThemeId) {
-  document.documentElement.dataset.theme = id;
   const tokens = themeTokens(id);
   scene.background = new THREE.Color(tokens.table);
   boardRoot.clear();
@@ -201,10 +184,16 @@ function applyTheme(id: ThemeId) {
   requestRender();
 }
 
-const initial: ThemeId = requested === 'light' || requested === 'dark' ? requested : 'light';
+const initial: ThemeId = readInitialTheme();
 applyTheme(initial);
-bindThemeToggle(document.querySelector('#theme-toggle')!, applyTheme);
-if (requested === 'light' || requested === 'dark') applyTheme(requested);
+
+createGameButtons({
+  mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  cameraViews,
+  applyTheme,
+  onNewGameReset: () => applyTheme(initial),
+});
+
 fit();
 
 const resize = new ResizeObserver(() => fit());

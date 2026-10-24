@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tzaar pieces demo</title>
     <style>
-      html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; }
-      #board { width: 100%; height: 100%; touch-action: none; position: relative; }
+      #board { position: relative; }
       .stack-height {
         position: absolute; transform: translate(-50%, -130%);
         min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
@@ -15,19 +14,11 @@
       }
       [data-theme='light'] .stack-height { background: #ffffff; color: #000000; }
       [data-theme='dark'] .stack-height { background: #111111; color: #f5f5f5; }
-      .corner-controls { position: fixed; top: 12px; right: 12px; z-index: 2; }
-      .icon-button {
-        width: 36px; height: 36px; border-radius: 8px; border: 1px solid #5c564c;
-        background: #e8e4dc; color: #16171a; cursor: pointer; font-size: 18px;
-      }
-      [data-theme='dark'] .icon-button { background: #22242a; color: #f5f5f5; border-color: #8a8f98; }
     </style>
   </head>
   <body>
     <div id="app">
-      <nav class="corner-controls" aria-label="View controls">
-        <button class="icon-button" id="theme-toggle" data-testid="theme-toggle" aria-label="Toggle theme" title="Toggle theme">◐</button>
-      </nav>
+      <div id="game-buttons-mount"></div>
       <div id="board" data-testid="board"></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
