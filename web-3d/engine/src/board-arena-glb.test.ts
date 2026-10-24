@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { applyArenaGlbThemeMaterials, tagArenaGlbForShadows } from './board-arena-glb';
+import {
+  applyArenaGlbAuthoredMaterials,
+  applyArenaGlbThemeMaterials,
+  tagArenaGlbForShadows,
+} from './board-arena-glb';
 import { DARK_ARENA_SURFACE, LIGHT_ARENA_SURFACE } from './theme';
 
 describe('board arena glb helpers', () => {
@@ -27,6 +31,17 @@ describe('board arena glb helpers', () => {
     expect(mat.aoMap).toBeNull();
     expect(mat.lightMap).toBeNull();
     ao.dispose();
+  });
+
+  it('preserves authored albedo when stripping baked maps', () => {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshStandardMaterial({ color: 0x73806a }),
+    );
+    const root = new THREE.Group();
+    root.add(mesh);
+    applyArenaGlbAuthoredMaterials(root);
+    expect(`#${(mesh.material as THREE.MeshStandardMaterial).color.getHexString()}`).toBe('#73806a');
   });
 
   it('retints standard materials from theme arenaSurface tokens', () => {

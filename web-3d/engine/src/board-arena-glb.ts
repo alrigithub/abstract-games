@@ -3,7 +3,7 @@ import { themeTokens, type ThemeId } from './theme';
 
 const ARENA_ROUGHNESS = 0.82;
 
-function retintStandardMaterial(source: THREE.Material, color: THREE.Color): THREE.Material {
+function matteArenaStandardMaterial(source: THREE.Material, color?: THREE.Color): THREE.Material {
   if (source instanceof THREE.MeshStandardMaterial || source instanceof THREE.MeshPhysicalMaterial) {
     const mat = source.clone();
     mat.map = null;
@@ -12,7 +12,7 @@ function retintStandardMaterial(source: THREE.Material, color: THREE.Color): THR
     mat.metalnessMap = null;
     mat.emissiveMap = null;
     mat.alphaMap = null;
-    mat.color.copy(color);
+    if (color) mat.color.copy(color);
     mat.emissive.setHex(0x000000);
     mat.metalness = 0;
     mat.roughness = ARENA_ROUGHNESS;
@@ -25,13 +25,18 @@ function retintStandardMaterial(source: THREE.Material, color: THREE.Color): THR
     return mat;
   }
   if (source instanceof THREE.MeshBasicMaterial || source instanceof THREE.MeshLambertMaterial) {
+    const resolved = color ?? source.color;
     return new THREE.MeshStandardMaterial({
-      color,
+      color: resolved,
       roughness: ARENA_ROUGHNESS,
       metalness: 0,
     });
   }
   return source.clone();
+}
+
+function retintStandardMaterial(source: THREE.Material, color: THREE.Color): THREE.Material {
+  return matteArenaStandardMaterial(source, color);
 }
 
 function assignMeshMaterial(mesh: THREE.Mesh, next: THREE.Material | THREE.Material[]) {
@@ -63,6 +68,22 @@ export function applyArenaGlbThemeMaterials(root: THREE.Object3D, themeId: Theme
       );
     } else {
       assignMeshMaterial(mesh, retintStandardMaterial(mesh.material, color));
+    }
+  });
+}
+
+/** Matte PBR for arena GLBs that keep authored albedo (strips baked maps that tint under scene lighting). */
+export function applyArenaGlbAuthoredMaterials(root: THREE.Object3D): void {
+  root.traverse(node => {
+    if (!(node instanceof THREE.Mesh)) return;
+    const mesh = node;
+    if (Array.isArray(mesh.material)) {
+      assignMeshMaterial(
+        mesh,
+        mesh.material.map(mat => matteArenaStandardMaterial(mat)),
+      );
+    } else {
+      assignMeshMaterial(mesh, matteArenaStandardMaterial(mesh.material));
     }
   });
 }

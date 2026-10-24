@@ -1,7 +1,7 @@
 import {
   BOARD,
   GOMOKU_DIMS,
-  applyArenaGlbThemeMaterials,
+  applyArenaGlbAuthoredMaterials,
   gomokuCellWorld,
   tagArenaGlbForShadows,
   tagExcludeFromBounds,
@@ -14,8 +14,8 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 /** Verified SHA-256 of the meshopt-compressed arena in `public/models/`. */
 export const GOMOKU_ARENA_GLB_SHA256 =
-  '4fc63280520261ade1d95cf37bc2ed29bfecd11141b3db58097973b1ae8e5414';
-export const GOMOKU_ARENA_GLB_FILE = 'arena-15x15-white-150mm.glb';
+  '7cfd339c4ada7e530c80980dd263e759825579d812574e9a3e73727db37dddf5';
+export const GOMOKU_ARENA_GLB_FILE = 'ari-arena-visible-sage.glb';
 
 /** Real-world tile pitch (150 mm) mapped to one world unit per intersection. */
 export const GOMOKU_ARENA_TILE_PITCH_M = 0.15;
@@ -38,7 +38,8 @@ export interface GomokuArenaLayout {
   readonly root: THREE.Group;
   surfaceY(row: number, col: number): number;
   frameBounds(): THREE.Box3;
-  setTheme(themeId: ThemeId): void;
+  /** Arena keeps authored sage albedo; theme only affects stones and chrome. */
+  setTheme(_themeId: ThemeId): void;
 }
 
 function arenaAssetUrl(): string {
@@ -90,7 +91,7 @@ function alignArenaVertical(root: THREE.Group, surfaceByCell: Map<string, number
   root.updateMatrixWorld(true);
 }
 
-function prepareArenaScene(scene: THREE.Group, themeId: ThemeId): THREE.Group {
+function prepareArenaScene(scene: THREE.Group): THREE.Group {
   tagExcludeFromBounds(scene);
   const remove: THREE.Object3D[] = [];
   scene.traverse(obj => {
@@ -98,7 +99,7 @@ function prepareArenaScene(scene: THREE.Group, themeId: ThemeId): THREE.Group {
   });
   for (const obj of remove) obj.parent?.remove(obj);
 
-  applyArenaGlbThemeMaterials(scene, themeId);
+  applyArenaGlbAuthoredMaterials(scene);
   tagArenaGlbForShadows(scene);
   return scene;
 }
@@ -122,12 +123,12 @@ export function gomokuArenaPlacementError(row: number, col: number): number {
   return Math.hypot(arena.x - target.x, arena.y - target.z);
 }
 
-export async function loadGomokuArenaLayout(initialTheme: ThemeId = 'light'): Promise<GomokuArenaLayout> {
+export async function loadGomokuArenaLayout(_initialTheme: ThemeId = 'light'): Promise<GomokuArenaLayout> {
   await MeshoptDecoder.ready;
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
   const gltf = await loader.loadAsync(arenaAssetUrl());
-  const root = prepareArenaScene(gltf.scene, initialTheme);
+  const root = prepareArenaScene(gltf.scene);
   root.name = 'gomoku-arena-15x15';
   applyArenaTransform(root);
 
@@ -146,8 +147,8 @@ export async function loadGomokuArenaLayout(initialTheme: ThemeId = 'light'): Pr
       _box.setFromObject(root);
       return _box.clone();
     },
-    setTheme(themeId: ThemeId) {
-      applyArenaGlbThemeMaterials(root, themeId);
+    setTheme(_themeId: ThemeId) {
+      /* authored sage albedo — no arenaSurface retint */
     },
   };
 }
