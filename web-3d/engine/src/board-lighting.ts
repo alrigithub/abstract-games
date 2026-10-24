@@ -19,20 +19,18 @@ const LIGHT_DIR = new THREE.Vector3(-1, Math.SQRT2, 1).normalize();
 
 const BOX_CORNERS = Array.from({ length: 8 }, () => new THREE.Vector3());
 const PLAYFIELD_CATCHER_NAME = '__playfieldShadowCatcher';
+const SCENE_SHADOW_CATCHER_NAME = '__sceneShadowCatcher';
 const playfieldBounds = new THREE.Box3();
 
 function chooseShadowMapSize(): number {
-  if (typeof window === 'undefined') return 2048;
-  const dpr = window.devicePixelRatio || 1;
-  const mobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
-  return mobile || dpr < 1.5 ? 1024 : 2048;
+  return 2048;
 }
 
 function applyShadowMapSettings(light: THREE.DirectionalLight, size: number) {
   light.shadow.mapSize.set(size, size);
-  light.shadow.bias = -0.00028;
-  light.shadow.normalBias = 0.018;
-  light.shadow.radius = 1.5;
+  light.shadow.bias = -0.00015;
+  light.shadow.normalBias = 0.004;
+  light.shadow.radius = 1.25;
 }
 
 function fillBoxCorners(box: THREE.Box3, out: THREE.Vector3[]) {
@@ -162,18 +160,21 @@ export function setMeshShadowFlags(
 }
 
 /** Drop-shadow strength on unlit (MeshBasic) boards. */
-export const PIECE_DROP_SHADOW_OPACITY = 0.38;
+export const PIECE_DROP_SHADOW_OPACITY = 0.35;
 
 function createPlayfieldShadowCatcher(): THREE.Mesh {
   const catcher = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
     new THREE.ShadowMaterial({
+      color: 0x000000,
       opacity: PIECE_DROP_SHADOW_OPACITY,
       transparent: true,
       depthWrite: false,
+      depthTest: true,
+      side: THREE.DoubleSide,
       polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
     }),
   );
   catcher.name = PLAYFIELD_CATCHER_NAME;
@@ -181,9 +182,26 @@ function createPlayfieldShadowCatcher(): THREE.Mesh {
   catcher.userData.isShadowCatcher = true;
   catcher.receiveShadow = true;
   catcher.castShadow = false;
-  catcher.renderOrder = 0;
+  catcher.renderOrder = 6;
   catcher.raycast = () => {};
   return catcher;
+}
+
+function ensurePlayfieldShadowCatcher(boardRoot: THREE.Object3D): THREE.Mesh {
+  let catcher = boardRoot.getObjectByName(PLAYFIELD_CATCHER_NAME) as THREE.Mesh | undefined;
+  if (!catcher) {
+    catcher = createPlayfieldShadowCatcher();
+    boardRoot.add(catcher);
+  }
+  return catcher;
+}
+
+function layoutPlayfieldShadowCatcher(catcher: THREE.Mesh, bounds: THREE.Box3, pad: number) {
+  if (bounds.isEmpty()) return;
+  const center = bounds.getCenter(new THREE.Vector3());
+  const size = bounds.getSize(new THREE.Vector3());
+  catcher.position.set(center.x, BOARD.LINE_Y + 0.004, center.z);
+  catcher.scale.set(Math.max(size.x, 0.5) + pad * 2, Math.max(size.z, 0.5) + pad * 2, 1);
 }
 
 function syncPlayfieldShadowCatcher(boardRoot: THREE.Object3D) {
@@ -195,24 +213,29 @@ function syncPlayfieldShadowCatcher(boardRoot: THREE.Object3D) {
     playfieldBounds.expandByObject(node);
   });
   if (playfieldBounds.isEmpty()) return;
+  layoutPlayfieldShadowCatcher(ensurePlayfieldShadowCatcher(boardRoot), playfieldBounds, 0.12);
+}
 
-  let catcher = boardRoot.getObjectByName(PLAYFIELD_CATCHER_NAME) as THREE.Mesh | undefined;
+/** Size the board shadow receiver to visible playfield XZ bounds (includes reserves / margins). */
+export function fitPlayfieldShadowCatcher(boardRoot: THREE.Object3D, worldBounds: THREE.Box3, pad = 0.35) {
+  const catcher = ensurePlayfieldShadowCatcher(boardRoot);
+  layoutPlayfieldShadowCatcher(catcher, worldBounds, pad);
+}
+
+/** Full-scene shadow receiver (covers reserves / margins outside the board group). */
+export function syncSceneShadowCatcher(scene: THREE.Scene, worldBounds: THREE.Box3, pad = 0.5) {
+  let catcher = scene.getObjectByName(SCENE_SHADOW_CATCHER_NAME) as THREE.Mesh | undefined;
   if (!catcher) {
     catcher = createPlayfieldShadowCatcher();
-    boardRoot.add(catcher);
+    catcher.name = SCENE_SHADOW_CATCHER_NAME;
+    scene.add(catcher);
   }
-
-  const center = playfieldBounds.getCenter(new THREE.Vector3());
-  const size = playfieldBounds.getSize(new THREE.Vector3());
-  const pad = 0.12;
-  catcher.position.set(center.x, BOARD.PLAYFIELD_SURFACE_Y + 0.0008, center.z);
-  catcher.scale.set(Math.max(size.x, 0.5) + pad * 2, Math.max(size.z, 0.5) + pad * 2, 1);
+  layoutPlayfieldShadowCatcher(catcher, worldBounds, pad);
 }
 
 /** Playfield receives directional shadows; thin grid lines and decals do not. */
 export function tagPlayfieldForShadows(boardRoot: THREE.Object3D) {
   setMeshShadowFlags(boardRoot, { cast: false, receive: false });
-  syncPlayfieldShadowCatcher(boardRoot);
   boardRoot.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;
     if (node.userData.boardGridLine || node.userData.isShadowCatcher) return;
@@ -228,4 +251,9 @@ export function tagPieceForShadows(root: THREE.Object3D, receiveInStack: boolean
       node.receiveShadow = false;
     }
   });
+}
+
+/** Hint / placement ghosts must not cast directional shadows. */
+export function tagGhostForShadows(root: THREE.Object3D) {
+  setMeshShadowFlags(root, { cast: false, receive: false });
 }
