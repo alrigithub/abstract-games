@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createTakPieceGeometries, takPieceGeometrySet } from './tak-pieces';
+import { createTakPieceGeometries, geometryBoundingBoxHeight, takPieceGeometrySet } from './tak-pieces';
 
 describe('tak piece geometries', () => {
   it('anchors every silhouette so the base rests on y=0', () => {
@@ -13,9 +13,13 @@ describe('tak piece geometries', () => {
   });
 
   it('reports stack heights from bounding boxes', () => {
-    const set = takPieceGeometrySet(createTakPieceGeometries());
-    expect(set.height({ id: 'a', player: 'A', shape: 'flat' })).toBeCloseTo(0.18, 4);
-    expect(set.height({ id: 'b', player: 'A', shape: 'standing' })).toBeCloseTo(0.68, 4);
-    expect(set.height({ id: 'c', player: 'A', shape: 'capstone' })).toBeCloseTo(0.78, 4);
+    const geos = createTakPieceGeometries();
+    expect(geometryBoundingBoxHeight(geos.flat)).toBeCloseTo(0.18, 4);
+    expect(geometryBoundingBoxHeight(geos.standing)).toBeCloseTo(0.68, 4);
+    expect(geometryBoundingBoxHeight(geos.capstone)).toBeCloseTo(0.78, 4);
+    const set = takPieceGeometrySet(geos);
+    expect(set.height({ id: 'a', player: 'A', shape: 'flat' })).toBeCloseTo(geometryBoundingBoxHeight(geos.flat), 6);
+    expect(set.height({ id: 'b', player: 'A', shape: 'standing' })).toBeCloseTo(geometryBoundingBoxHeight(geos.standing), 6);
+    expect(set.height({ id: 'c', player: 'A', shape: 'capstone' })).toBeCloseTo(geometryBoundingBoxHeight(geos.capstone), 6);
   });
 });
