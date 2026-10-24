@@ -154,13 +154,6 @@ export function createGameUi(options: GameUiOptions) {
     humanTurn,
     playableCells,
     getGame: () => game,
-    tapEmptyCell(target: number) {
-      if (!active || !humanTurn() || draft || target < 0 || target >= playableCells()) return false;
-      if (game.board.cells[target]!.length) return false;
-      const move = placementMove(target);
-      if (!move) return false;
-      return stage(move);
-    },
     commitDrag(selection: Selection, target: number) {
       if (!active || !humanTurn() || draft || target < 0 || target >= playableCells()) return;
       const source = selection.source;
