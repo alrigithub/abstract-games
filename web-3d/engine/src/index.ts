@@ -9,3 +9,5 @@ export * from './topology/square-grid';
 export * from './geometries/tak-pieces';
 export * from './geometries/gomoku-pieces';
 export * from './geometries/boop-pieces';
+export * from './geometries/hex-board';
+export * from './geometries/tzaar-pieces';
