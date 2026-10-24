@@ -3,6 +3,7 @@ import {
   BOOP_DEMO_BOOP_SFX_URLS,
   BOOP_DEMO_PLACE_SFX_URLS,
   BOOP_DEMO_SFX_MANIFEST,
+  BOOP_UPGRADE_SFX_URL,
 } from './boop-sfx-manifest';
 
 describe('boop sfx manifest', () => {
@@ -22,5 +23,6 @@ describe('boop sfx manifest', () => {
       expect(url).toContain('assets/sfx/boop/swoosh-');
       expect(url).toMatch(/swoosh-\d{2}\.mp3$/);
     }
+    expect(BOOP_UPGRADE_SFX_URL).toContain('assets/sfx/boop/boop-upgrade.mp3');
   });
 });

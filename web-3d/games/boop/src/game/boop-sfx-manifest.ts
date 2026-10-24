@@ -24,6 +24,8 @@ export const BOOP_DEMO_PLACE_SFX_URLS: readonly string[] = PLACE_HIT_FILES.map(f
 
 export const BOOP_DEMO_BOOP_SFX_URLS: readonly string[] = BOOP_SWOOSH_FILES.map(f => assetUrl('boop', f));
 
+export const BOOP_UPGRADE_SFX_URL = assetUrl('boop', 'boop-upgrade.mp3');
+
 export const BOOP_DEMO_SFX_MANIFEST = {
   place: PLACE_HIT_FILES,
   boop: BOOP_SWOOSH_FILES,
