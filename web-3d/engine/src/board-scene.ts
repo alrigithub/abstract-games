@@ -7,6 +7,7 @@ import { createContactShadowBlob } from './geometries/contact-shadow';
 import { decoratePieceMesh, makePieceShadow } from './geometries/piece-outlines';
 import { stackHeight } from './stack';
 import { layoutStackCenters, stackExtent, type StackMeasure } from './stack-layout';
+import { configureBoardWebGLRenderer } from './board-renderer';
 import { themeTokens, type ThemeId } from './theme';
 import type {
   BoardSnapshot,
@@ -67,11 +68,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(tokens.table);
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
-  renderer.setPixelRatio(1);
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.NoToneMapping;
-  renderer.domElement.setAttribute('aria-hidden', 'true');
-  renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none;';
+  configureBoardWebGLRenderer(renderer);
   container.appendChild(renderer.domElement);
 
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);

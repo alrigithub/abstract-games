@@ -1,4 +1,5 @@
 export * from './animation-queue';
+export * from './board-renderer';
 export * from './board-scene';
 export * from './camera-views';
 export * from './constants';
@@ -16,6 +17,7 @@ export * from './geometries/gomoku-pieces';
 export * from './geometries/boop-pieces';
 export * from './geometries/yinsh-pieces';
 export * from './geometries/anchor';
+export * from './geometries/piece-outlines';
 export * from './topology/yinsh-hex-grid';
 export * from './geometries/gipf-set';
 export * from './geometries/hex-board';
