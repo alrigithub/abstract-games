@@ -14,8 +14,8 @@ export const GOMOKU_DIMS = {
   STAR_R: 0.055,
   STONE_R: 0.47,
   STONE_H: 0.21,
-  /** Board surface is y=0; stone center sits at half height (flush, no air gap). */
-  STONE_CENTER_Y: 0.105,
+  /** Lower resting center by this fraction of stone height (visual seat on board). */
+  REST_Y_DROP: 0.25,
 } as const;
 
 const HOSHI_15: readonly (readonly [number, number])[] = [
@@ -48,8 +48,14 @@ export function createGomokuStoneGeometry(
   return geo;
 }
 
+/** World Y of stone mesh center at rest: `STONE_H/2 − REST_Y_DROP×STONE_H`. */
+export function gomokuStoneRestCenterY(height = GOMOKU_DIMS.STONE_H): number {
+  return height / 2 - GOMOKU_DIMS.REST_Y_DROP * height;
+}
+
+/** @deprecated Use {@link gomokuStoneRestCenterY}. */
 export function gomokuStoneCenterY(): number {
-  return GOMOKU_DIMS.STONE_H / 2;
+  return gomokuStoneRestCenterY();
 }
 
 export interface GomokuThemeMaterials {
