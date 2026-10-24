@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import {
   GOMOKU_DIMS,
   GOMOKU_GLB_WORLD_SCALE,
@@ -7,6 +6,7 @@ import {
   applyGhostOpacity,
   clonePieceVisualTemplate,
   gomokuGlbStoneHeight,
+  loadGltfAsync,
   pieceGlbSideForPlayer,
   tagGhostForShadows,
   tagPieceForShadows,
@@ -62,8 +62,7 @@ function prepareTemplate(scene: THREE.Object3D): THREE.Object3D {
 }
 
 async function loadScene(url: string): Promise<THREE.Object3D> {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(url);
+  const gltf = await loadGltfAsync(url);
   return gltf.scene;
 }
 

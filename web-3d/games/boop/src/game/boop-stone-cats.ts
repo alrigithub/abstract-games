@@ -2,13 +2,14 @@ import {
   BOARD,
   CAMERA,
   clonePieceVisualTemplate,
+  ensureMeshoptDecoderReady,
+  createMeshoptGltfLoader,
   pieceGlbSideForPlayer,
   type EnginePiece,
   type PieceGeometrySet,
   type ThemeId,
 } from '@abstract/three-engine';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createGroundedBoopPieces } from './boop-grounding';
 import { boopVaseGlbFor, type BoopVasePlayerId, type BoopVaseVariant } from './boop-vase-assets';
@@ -33,13 +34,21 @@ interface StoneTemplate {
   height: number;
 }
 
-const loader = new GLTFLoader();
 const _box = new THREE.Box3();
+let loaderReady: Promise<void> | undefined;
+
+async function getLoader() {
+  if (!loaderReady) loaderReady = ensureMeshoptDecoderReady();
+  await loaderReady;
+  return createMeshoptGltfLoader();
+}
 
 function loadGltfScene(url: string): Promise<THREE.Group> {
-  return new Promise((resolve, reject) => {
-    loader.load(url, gltf => resolve(gltf.scene), undefined, reject);
-  });
+  return getLoader().then(loader =>
+    new Promise((resolve, reject) => {
+      loader.load(url, gltf => resolve(gltf.scene), undefined, reject);
+    }),
+  );
 }
 
 function collectMeshes(root: THREE.Object3D): THREE.Mesh[] {

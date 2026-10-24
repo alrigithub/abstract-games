@@ -3,18 +3,17 @@ import {
   GOMOKU_DIMS,
   applyArenaGlbThemeMaterials,
   gomokuCellWorld,
+  loadGltfAsync,
   tagArenaGlbForShadows,
   tagExcludeFromBounds,
   type ThemeId,
 } from '@abstract/three-engine';
 import * as THREE from 'three';
 import { PropertyBinding } from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 /** Verified SHA-256 of the meshopt-compressed arena in `public/models/`. */
 export const GOMOKU_ARENA_GLB_SHA256 =
-  '4fc63280520261ade1d95cf37bc2ed29bfecd11141b3db58097973b1ae8e5414';
+  'c9039302c8ae352efd8a1ed3aaa28b8587a4168a8d7fa46f2a1e849e1681e6fa';
 export const GOMOKU_ARENA_GLB_FILE = 'arena-15x15-white-150mm.glb';
 
 /** Real-world tile pitch (150 mm) mapped to one world unit per intersection. */
@@ -123,10 +122,7 @@ export function gomokuArenaPlacementError(row: number, col: number): number {
 }
 
 export async function loadGomokuArenaLayout(initialTheme: ThemeId = 'light'): Promise<GomokuArenaLayout> {
-  await MeshoptDecoder.ready;
-  const loader = new GLTFLoader();
-  loader.setMeshoptDecoder(MeshoptDecoder);
-  const gltf = await loader.loadAsync(arenaAssetUrl());
+  const gltf = await loadGltfAsync(arenaAssetUrl());
   const root = prepareArenaScene(gltf.scene, initialTheme);
   root.name = 'gomoku-arena-15x15';
   applyArenaTransform(root);
