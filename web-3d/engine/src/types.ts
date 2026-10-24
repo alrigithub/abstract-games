@@ -96,7 +96,7 @@ export interface YinshCoord {
 
 export interface BoardBuildContext {
   board: THREE.Group;
-  boardMaterial: THREE.MeshBasicMaterial;
+  boardMaterial: THREE.Material;
   gridMaterial: THREE.MeshBasicMaterial;
   boardGeometries: THREE.BufferGeometry[];
   gridSize: number;

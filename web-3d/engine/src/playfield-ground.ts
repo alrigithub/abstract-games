@@ -24,9 +24,9 @@ export function createPlayfieldGroundMesh(material: THREE.Material): THREE.Mesh 
   return mesh;
 }
 
-/** Match scene background and fog to the playfield so the horizon blends seamlessly. */
+/** Match scene background and fog to the playfield / ENV clay so the horizon blends seamlessly. */
 export function applyPlayfieldBackdrop(scene: THREE.Scene, tableColor: THREE.Color | string): void {
-  const color = tableColor instanceof THREE.Color ? tableColor : new THREE.Color(tableColor);
-  scene.background = color.clone();
-  scene.fog = new THREE.Fog(color.getHex(), BOARD.PLAYFIELD_FOG_NEAR, BOARD.PLAYFIELD_FOG_FAR);
+  const backdrop = new THREE.Color(tableColor);
+  scene.background = backdrop;
+  scene.fog = new THREE.Fog(backdrop.getHex(), BOARD.PLAYFIELD_FOG_NEAR, BOARD.PLAYFIELD_FOG_FAR);
 }

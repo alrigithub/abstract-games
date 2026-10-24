@@ -24,6 +24,8 @@ import {
   tagPieceForShadows,
   tagPlayfieldForShadows,
 } from './board-lighting';
+import { createBoardRenderPipeline } from './board-render-pipeline';
+import { clayEnvMaterial, clayMaterialForPlayer, syncClayMaterialTheme } from './clay-materials';
 import { applyBoardEnvironment, createBoardWebGLRenderer, measureBoardFrameMs } from './board-renderer';
 import { BoardAssistLayer, type AssistGhostPieceRenderer } from './board-assist';
 import { WIN_ACCENT } from './theme';
@@ -112,7 +114,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   applyPlayfieldBackdrop(scene, tokens.table);
   const renderer = createBoardWebGLRenderer();
   const disposeEnvironment = applyBoardEnvironment(scene, renderer);
-  const boardLighting = applyBoardLighting(scene, renderer);
+  const boardLighting = applyBoardLighting(scene, renderer, { ambientFill: true });
   const stackedPiecesReceiveShadow = options.stackedPiecesReceiveShadow ?? false;
   container.appendChild(renderer.domElement);
 
@@ -133,6 +135,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
   camera.position.set(...CAMERA.position);
   camera.lookAt(0, 0, 0);
+  const renderPipeline = createBoardRenderPipeline(renderer, scene, camera);
 
   const board = new THREE.Group();
   const piecesGroup = new THREE.Group();
@@ -156,13 +159,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const edgeCache = new Map<THREE.BufferGeometry, THREE.EdgesGeometry>();
   let outlineMaterial = new THREE.MeshBasicMaterial({ color: '#000000', side: THREE.BackSide });
   let edgeMaterials: Record<string, THREE.LineBasicMaterial> = {};
-  let pieceMaterials: Record<string, THREE.MeshBasicMaterial> = {};
+  let pieceMaterials: Record<string, THREE.MeshStandardMaterial> = {};
   let ghostMaterials: Record<string, THREE.MeshBasicMaterial> = {};
-  let boardMaterial = new THREE.MeshBasicMaterial({
-    color: tokens.board,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-  });
+  let boardMaterial: THREE.MeshStandardMaterial = clayEnvMaterial();
   let gridMaterial = new THREE.MeshBasicMaterial({
     color: tokens.lines,
     side: THREE.DoubleSide,
@@ -170,22 +169,23 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   });
   function rebuildMaterials() {
     tokens = themeTokens(themeId);
+    syncClayMaterialTheme(themeId);
+    boardMaterial = clayEnvMaterial();
     applyPlayfieldBackdrop(scene, tokens.table);
-    boardMaterial.color.set(tokens.board);
     gridMaterial.color.set(tokens.lines);
     outlineMaterial.dispose();
     outlineMaterial = new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.BackSide });
     for (const m of Object.values(edgeMaterials)) m.dispose();
-    for (const m of Object.values(pieceMaterials)) m.dispose();
     for (const m of Object.values(ghostMaterials)) m.dispose();
     edgeMaterials = {};
-    pieceMaterials = {};
     ghostMaterials = {};
+    pieceMaterials = {};
     for (const player of players) {
       const t = tokens.piece[player] ?? tokens.piece.A!;
       edgeMaterials[player] = new THREE.LineBasicMaterial({ color: t.edge, transparent: true, opacity: 0.85 });
-      pieceMaterials[player] = new THREE.MeshBasicMaterial({ color: t.fill, toneMapped: false });
-      pieceMaterials[`${player}Selected`] = new THREE.MeshBasicMaterial({ color: t.fill, toneMapped: false });
+      const clay = clayMaterialForPlayer(player);
+      pieceMaterials[player] = clay;
+      pieceMaterials[`${player}Selected`] = clay;
       ghostMaterials[player] = new THREE.MeshBasicMaterial({
         color: t.fill,
         transparent: true,
@@ -477,7 +477,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       item.lastVertT = t;
     }
     const assistAnim = assistLayer.tick(now);
-    renderer.render(scene, camera);
+    renderPipeline.render();
     if (animated || assistAnim) requestRender();
   }
 
@@ -675,7 +675,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     if (nextBufferWidth !== bufferWidth || nextBufferHeight !== bufferHeight) {
       bufferWidth = nextBufferWidth;
       bufferHeight = nextBufferHeight;
-      renderer.setSize(bufferWidth, bufferHeight, false);
+      renderPipeline.setSize(bufferWidth, bufferHeight);
     }
     return width / viewportHeight;
   }
@@ -1087,6 +1087,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     setTheme(id) {
       themeId = id;
       rebuildMaterials();
+      boardLighting.syncThemeAmbientFill(id);
       options.pieces.onThemeChange?.(id);
       refreshPieceVisuals();
       refreshPieceMaterials();
@@ -1235,6 +1236,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       window.removeEventListener('pointercancel', onPointerRelease);
       controls.dispose();
       disposeEnvironment();
+      renderPipeline.dispose();
       boardLighting.dispose();
       assistLayer.dispose();
       flipHaloMaterial.dispose();
@@ -1245,7 +1247,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
 
   if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('bench')) {
     (window as unknown as { __benchOneFrame?: () => number }).__benchOneFrame = () =>
-      measureBoardFrameMs(renderer, scene, camera);
+      measureBoardFrameMs(renderer, scene, camera, () => renderPipeline.render());
   }
   return api;
 }
