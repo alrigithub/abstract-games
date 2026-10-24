@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@abstract/pixi-interact demo</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #f3f1ec;
+        font-family:
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          sans-serif;
+        color: #5c564c;
+      }
+      #app {
+        width: 100%;
+        height: 100%;
+      }
+      .hud {
+        position: fixed;
+        z-index: 2;
+        left: 16px;
+        top: 12px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .hud button {
+        min-height: 40px;
+        padding: 0 14px;
+        border: 1px solid currentColor;
+        background: transparent;
+        cursor: pointer;
+        font-size: 13px;
+        color: inherit;
+      }
+      .hud button.primary {
+        background: currentColor;
+        color: var(--btn-on, #f3f1ec);
+      }
+      .hud p {
+        margin: 0;
+        font-size: 12px;
+        opacity: 0.65;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hud">
+      <button type="button" id="ai" class="primary">Fake AI move</button>
+      <button type="button" id="gallery">Piece gallery</button>
+      <button type="button" id="theme" aria-label="Toggle theme">Light</button>
+      <p>Soft / dark themes · click or drag · hold to split stack</p>
+    </div>
+    <div id="app"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
