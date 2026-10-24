@@ -56,6 +56,21 @@ function createWarmCelebrationDiscTexture(): THREE.CanvasTexture | null {
 
 type CellPosition = (index: number) => THREE.Vector3;
 
+export interface AssistGhostPieceRenderer {
+  createVisual(hint: AssistGhostHint): THREE.Object3D | null;
+  positionY(hint: AssistGhostHint): number;
+}
+
+function disposeObject3D(root: THREE.Object3D) {
+  root.traverse(node => {
+    if (node instanceof THREE.Mesh) {
+      node.geometry.dispose();
+      const materials = Array.isArray(node.material) ? node.material : [node.material];
+      for (const mat of materials) mat.dispose();
+    }
+  });
+}
+
 function footprintGeometry(footprint: AssistFootprint): THREE.BufferGeometry {
   if (footprint.shape === 'ring') {
     const inner = footprint.innerRadius ?? footprint.outerRadius * 0.72;
@@ -71,6 +86,8 @@ export class BoardAssistLayer {
   private readonly shadowPool: THREE.Mesh[] = [];
   private readonly ghostRingPool: THREE.Mesh[] = [];
   private readonly ghostMarkerPool: THREE.Mesh[] = [];
+  private readonly ghostPiecePool: THREE.Object3D[] = [];
+  private ghostPieceRenderer: AssistGhostPieceRenderer | null = null;
   private readonly runMarkerPool: THREE.Mesh[] = [];
   private readonly runMarkerOuterPool: THREE.Mesh[] = [];
   private readonly ringPickPool: THREE.Mesh[] = [];
@@ -205,6 +222,10 @@ export class BoardAssistLayer {
     parent.add(this.root);
   }
 
+  setGhostPieceRenderer(renderer: AssistGhostPieceRenderer | null) {
+    this.ghostPieceRenderer = renderer;
+  }
+
   getStats(): BoardAssistStats {
     return this.lastStats;
   }
@@ -238,6 +259,10 @@ export class BoardAssistLayer {
     for (const m of this.ringPool) m.geometry.dispose();
     for (const m of this.ghostRingPool) m.geometry.dispose();
     for (const m of this.ghostMarkerPool) m.geometry.dispose();
+    for (const obj of this.ghostPiecePool) {
+      this.root.remove(obj);
+      disposeObject3D(obj);
+    }
     for (const m of this.runMarkerPool) m.geometry.dispose();
     for (const m of this.runMarkerOuterPool) m.geometry.dispose();
     for (const m of this.ringPickPool) m.geometry.dispose();
@@ -354,14 +379,22 @@ export class BoardAssistLayer {
   private collectMarkerGhostStats(): Pick<BoardAssistStats, 'markerGhostCount' | 'markerGhostMinOpacity'> {
     let count = 0;
     let minOpacity = 1;
-    for (const mesh of this.ghostMarkerPool) {
-      if (!mesh.visible) continue;
+    const tally = (root: THREE.Object3D) => {
+      if (!root.visible) return;
+      if (root.userData.assistGhostShape !== 'marker') return;
       count++;
-      const mat = mesh.material;
-      if (mat instanceof THREE.MeshBasicMaterial) {
-        minOpacity = Math.min(minOpacity, mat.opacity);
-      }
-    }
+      root.traverse(node => {
+        if (!(node instanceof THREE.Mesh)) return;
+        const materials = Array.isArray(node.material) ? node.material : [node.material];
+        for (const mat of materials) {
+          if ('opacity' in mat && typeof mat.opacity === 'number') {
+            minOpacity = Math.min(minOpacity, mat.opacity);
+          }
+        }
+      });
+    };
+    for (const mesh of this.ghostMarkerPool) tally(mesh);
+    for (const obj of this.ghostPiecePool) tally(obj);
     return { markerGhostCount: count, markerGhostMinOpacity: count ? minOpacity : 0 };
   }
 
@@ -383,6 +416,7 @@ export class BoardAssistLayer {
     count(this.shadowPool);
     count(this.ghostRingPool);
     count(this.ghostMarkerPool);
+    for (const obj of this.ghostPiecePool) if (obj.visible) n++;
     count(this.runMarkerPool);
     count(this.runMarkerOuterPool);
     count(this.ringPickPool);
@@ -443,6 +477,7 @@ export class BoardAssistLayer {
   private hideAllGhosts() {
     for (const m of this.ghostRingPool) m.visible = false;
     for (const m of this.ghostMarkerPool) m.visible = false;
+    for (const obj of this.ghostPiecePool) obj.visible = false;
   }
 
   private hideAllRunMarkers() {
@@ -592,9 +627,35 @@ export class BoardAssistLayer {
     this.hideAllGhosts();
     let ringIdx = 0;
     let markerIdx = 0;
+    let pieceIdx = 0;
     for (const hint of ghosts) {
       const p = cellPosition(hint.cell);
       const strong = hint.strength === 'strong';
+      if (hint.pieceShape && this.ghostPieceRenderer) {
+        let obj = this.ghostPiecePool[pieceIdx];
+        const key = `${hint.player}:${hint.pieceShape}:${(hint.stack ?? [hint.pieceShape]).join(',')}`;
+        if (!obj || obj.userData.assistGhostKey !== key) {
+          if (obj) {
+            this.root.remove(obj);
+            disposeObject3D(obj);
+          }
+          const visual = this.ghostPieceRenderer.createVisual(hint);
+          if (!visual) continue;
+          visual.userData.assistGhostKey = key;
+          visual.userData.assistGhostShape = hint.pieceShape;
+          visual.castShadow = false;
+          visual.receiveShadow = false;
+          visual.renderOrder = hint.pieceShape === 'marker' ? MARKER_GHOST_RENDER_ORDER : ASSIST_RENDER_ORDER;
+          this.root.add(visual);
+          this.ghostPiecePool[pieceIdx] = visual;
+          obj = visual;
+        }
+        obj.visible = true;
+        const y = this.ghostPieceRenderer.positionY(hint);
+        obj.position.set(p.x, y, p.z);
+        pieceIdx++;
+        continue;
+      }
       if (hint.ring) {
         let mesh = this.ghostRingPool[ringIdx];
         const geo = footprintGeometry(hint.ring);

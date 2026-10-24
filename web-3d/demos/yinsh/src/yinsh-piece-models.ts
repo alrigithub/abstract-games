@@ -6,8 +6,10 @@ import {
   createYinshRingGeometry,
   yinshPieceGeometrySet,
   type EnginePiece,
+  applyGhostOpacity,
   clonePieceVisualTemplate,
   pieceGlbSideForPlayer,
+  type AssistGhostHint,
   type PieceGeometrySet,
   type ThemeId,
 } from '@abstract/three-engine';
@@ -154,6 +156,21 @@ function mountModel(root: THREE.Group, model: THREE.Object3D) {
   root.add(model);
 }
 
+function buildAssistGhostVisual(
+  templates: YinshTemplates,
+  hint: AssistGhostHint,
+): THREE.Object3D | null {
+  const shape = hint.pieceShape;
+  if (!shape) return null;
+  const piece: EnginePiece = { id: 'assist-ghost', player: hint.player, shape };
+  const model = clonePieceVisualTemplate(templateFor(templates, piece));
+  configureStoneMeshes(model, shape === 'marker' ? 'marker' : 'ring');
+  applyGhostOpacity(model, 0.5);
+  const root = new THREE.Group();
+  mountModel(root, model);
+  return root;
+}
+
 /** Load Alex stone Yinsh GLBs; falls back to procedural geometry on failure. */
 export async function loadYinshPieceGeometrySet(): Promise<PieceGeometrySet> {
   const ringGeo = createYinshRingGeometry();
@@ -196,6 +213,9 @@ export async function loadYinshPieceGeometrySet(): Promise<PieceGeometrySet> {
       },
       onThemeChange(id) {
         yinshPieceTheme = id;
+      },
+      createAssistGhost(hint, _themeId) {
+        return buildAssistGhostVisual(templates, hint);
       },
     };
   } catch (error) {
