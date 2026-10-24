@@ -1,9 +1,11 @@
 import {
   BOARD,
   GOMOKU_DIMS,
+  applyArenaGlbThemeMaterials,
   gomokuCellWorld,
+  tagArenaGlbForShadows,
   tagExcludeFromBounds,
-  tagPlayfieldForShadows,
+  type ThemeId,
 } from '@abstract/three-engine';
 import * as THREE from 'three';
 import { PropertyBinding } from 'three';
@@ -36,6 +38,7 @@ export interface GomokuArenaLayout {
   readonly root: THREE.Group;
   surfaceY(row: number, col: number): number;
   frameBounds(): THREE.Box3;
+  setTheme(themeId: ThemeId): void;
 }
 
 function arenaAssetUrl(): string {
@@ -87,7 +90,7 @@ function alignArenaVertical(root: THREE.Group, surfaceByCell: Map<string, number
   root.updateMatrixWorld(true);
 }
 
-function prepareArenaScene(scene: THREE.Group): THREE.Group {
+function prepareArenaScene(scene: THREE.Group, themeId: ThemeId): THREE.Group {
   tagExcludeFromBounds(scene);
   const remove: THREE.Object3D[] = [];
   scene.traverse(obj => {
@@ -95,13 +98,8 @@ function prepareArenaScene(scene: THREE.Group): THREE.Group {
   });
   for (const obj of remove) obj.parent?.remove(obj);
 
-  scene.traverse(node => {
-    if (!(node as THREE.Mesh).isMesh) return;
-    const mesh = node as THREE.Mesh;
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-  });
-  tagPlayfieldForShadows(scene);
+  applyArenaGlbThemeMaterials(scene, themeId);
+  tagArenaGlbForShadows(scene);
   return scene;
 }
 
@@ -124,12 +122,12 @@ export function gomokuArenaPlacementError(row: number, col: number): number {
   return Math.hypot(arena.x - target.x, arena.y - target.z);
 }
 
-export async function loadGomokuArenaLayout(): Promise<GomokuArenaLayout> {
+export async function loadGomokuArenaLayout(initialTheme: ThemeId = 'light'): Promise<GomokuArenaLayout> {
   await MeshoptDecoder.ready;
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
   const gltf = await loader.loadAsync(arenaAssetUrl());
-  const root = prepareArenaScene(gltf.scene);
+  const root = prepareArenaScene(gltf.scene, initialTheme);
   root.name = 'gomoku-arena-15x15';
   applyArenaTransform(root);
 
@@ -147,6 +145,9 @@ export async function loadGomokuArenaLayout(): Promise<GomokuArenaLayout> {
     frameBounds() {
       _box.setFromObject(root);
       return _box.clone();
+    },
+    setTheme(themeId: ThemeId) {
+      applyArenaGlbThemeMaterials(root, themeId);
     },
   };
 }

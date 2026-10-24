@@ -13,10 +13,17 @@ const PIECE_LIGHT = {
 } as const;
 
 /** Canonical light palette; dark theme is always derived via {@link invertThemeTokens}. */
+/** Warm off-white arena tiles in light mode (not pure #fff). */
+export const LIGHT_ARENA_SURFACE = '#e8e3da';
+
+/** Warm mid-grey slate for dark-mode arena (not colour-inverted white). */
+export const DARK_ARENA_SURFACE = '#5a5652';
+
 export const LIGHT_THEME_TOKENS: ThemeTokens = {
   table: '#ffffff',
   board: '#ffffff',
   lines: '#5c564c',
+  arenaSurface: LIGHT_ARENA_SURFACE,
   win: WIN_ACCENT,
   runCelebration: '#ffb347',
   ghostOpacity: 0.24,
@@ -35,6 +42,7 @@ export function themeTokensFromBoardContext(ctx: BoardBuildContext): ThemeTokens
     table: board,
     board,
     lines,
+    arenaSurface: board,
     win: LIGHT_THEME_TOKENS.win,
     runCelebration: LIGHT_THEME_TOKENS.runCelebration,
     ghostOpacity: LIGHT_THEME_TOKENS.ghostOpacity,
@@ -98,6 +106,8 @@ export function invertThemeTokens(light: ThemeTokens = LIGHT_THEME_TOKENS): Them
     table: invertHex(light.table),
     board: invertHex(light.board),
     lines: invertHex(light.lines),
+    arenaSurface:
+      light.arenaSurface === LIGHT_ARENA_SURFACE ? DARK_ARENA_SURFACE : LIGHT_ARENA_SURFACE,
     win: invertHex(light.win),
     runCelebration: invertHex(light.runCelebration),
     ghostOpacity: 1 - light.ghostOpacity,

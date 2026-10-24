@@ -69,7 +69,7 @@ export async function createGomokuScene(
 
   const [stoneAssets, arenaLayout] = await Promise.all([
     options.stoneAssets ?? loadGomokuStoneAssets(materials),
-    options.arenaLayout ?? loadGomokuArenaLayout(),
+    options.arenaLayout ?? loadGomokuArenaLayout(themeId),
   ]);
   stoneAssets.onThemeChange(themeId);
 
@@ -80,7 +80,8 @@ export async function createGomokuScene(
 
   const renderer = createBoardWebGLRenderer();
   const disposeEnvironment = applyBoardEnvironment(scene, renderer);
-  const boardLighting = applyBoardLighting(scene, renderer);
+  const boardLighting = applyBoardLighting(scene, renderer, { ambientFill: true });
+  boardLighting.syncThemeAmbientFill(themeId);
   container.appendChild(renderer.domElement);
 
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
@@ -341,6 +342,8 @@ export async function createGomokuScene(
       materials.stoneB.dispose();
       materials = gomokuThemeMaterials(themeId);
       applyPlayfieldBackdrop(scene, materials.table);
+      arenaLayout.setTheme(themeId);
+      boardLighting.syncThemeAmbientFill(themeId);
       stoneAssets.onThemeChange(themeId);
       if (stoneAssets.usesGlb) {
         for (const mesh of stoneMeshes.values()) {

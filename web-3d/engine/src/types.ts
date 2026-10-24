@@ -308,6 +308,8 @@ export interface ThemeTokens {
   table: string;
   board: string;
   lines: string;
+  /** Matte PBR tint for 3D arena GLBs (off-white light, warm slate dark). */
+  arenaSurface: string;
   win: string;
   /** Warm gold/amber accent for five-in-a-row celebration halos. */
   runCelebration: string;
