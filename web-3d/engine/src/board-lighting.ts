@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BOARD } from './constants';
+import { expandBoxByPlayfieldContent, tagExcludeFromBounds } from './playfield-bounds';
 import { PLAYFIELD_GROUND_USER_DATA } from './playfield-ground';
 
 export interface BoardLightingOptions {
@@ -15,8 +16,8 @@ export interface BoardLightingHandle {
   dispose(): void;
 }
 
-/** 45° elevation, 45° diagonal azimuth (shadows on the board fall at ~45°). */
-const LIGHT_DIR = new THREE.Vector3(-1, Math.SQRT2, 1).normalize();
+/** 45° elevation, 45° azimuth — rotated 180° about Y to match baked piece shadow direction. */
+const LIGHT_DIR = new THREE.Vector3(1, Math.SQRT2, -1).normalize();
 
 const BOX_CORNERS = Array.from({ length: 8 }, () => new THREE.Vector3());
 const PLAYFIELD_CATCHER_NAME = '__playfieldShadowCatcher';
@@ -88,7 +89,7 @@ export function applyBoardLighting(
 
   const pieceHeightMargin = options.pieceHeightMargin ?? 1.35;
   const light = new THREE.DirectionalLight(0xffffff, 1.05);
-  light.position.set(-7, 11, 8);
+  light.position.set(7, 11, -8);
   light.castShadow = true;
   applyShadowMapSettings(light, chooseShadowMapSize());
 
@@ -182,6 +183,7 @@ function createPlayfieldShadowCatcher(): THREE.Mesh {
   catcher.name = PLAYFIELD_CATCHER_NAME;
   catcher.rotation.x = -Math.PI / 2;
   catcher.userData.isShadowCatcher = true;
+  tagExcludeFromBounds(catcher);
   catcher.receiveShadow = true;
   catcher.castShadow = false;
   catcher.renderOrder = 6;
@@ -209,12 +211,7 @@ function layoutPlayfieldShadowCatcher(catcher: THREE.Mesh, bounds: THREE.Box3, p
 function syncPlayfieldShadowCatcher(boardRoot: THREE.Object3D) {
   boardRoot.updateMatrixWorld(true);
   playfieldBounds.makeEmpty();
-  boardRoot.traverse(node => {
-    if (!(node instanceof THREE.Mesh)) return;
-    if (node.userData.isShadowCatcher) return;
-    if (node.userData[PLAYFIELD_GROUND_USER_DATA]) return;
-    playfieldBounds.expandByObject(node);
-  });
+  expandBoxByPlayfieldContent(playfieldBounds, boardRoot);
   if (playfieldBounds.isEmpty()) return;
   layoutPlayfieldShadowCatcher(ensurePlayfieldShadowCatcher(boardRoot), playfieldBounds, 0.12);
 }

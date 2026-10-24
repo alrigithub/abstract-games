@@ -19,6 +19,7 @@ import {
   createPlayfieldGroundMesh,
   measureBoardFrameMs,
   tagGhostForShadows,
+  tagExcludeFromBounds,
   tagPlayfieldForShadows,
   tagPieceForShadows,
   gomokuCellWorld,
@@ -106,6 +107,7 @@ export async function createGomokuScene(
     new THREE.MeshBasicMaterial({ visible: false }),
   );
   pickPlane.rotation.x = -Math.PI / 2;
+  tagExcludeFromBounds(pickPlane);
   boardGroup.add(pickPlane);
 
   const raycaster = new THREE.Raycaster();

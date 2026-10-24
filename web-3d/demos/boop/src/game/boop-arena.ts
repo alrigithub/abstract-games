@@ -2,12 +2,14 @@ import {
   BOARD,
   createSquareTopology,
   tagBoardGridLine,
+  tagExcludeFromBounds,
   type BoardBuildContext,
   type BoardSnapshot,
   type Topology,
 } from '@abstract/three-engine';
 import type { SquareGridOptions } from '@abstract/three-engine';
 import * as THREE from 'three';
+import { PropertyBinding } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /** Verified SHA-256 of Alex's all-white arena (see repo `public/assets/` copy). */
@@ -24,7 +26,12 @@ export const BOOP_ARENA_WORLD_CORRECTION = {
   z: -0.105,
 } as const;
 
-const SKIP_ARENA_NODES = new Set(['Infinite light ground']);
+const INFINITE_LIGHT_GROUND_RAW = 'Infinite light ground';
+const INFINITE_LIGHT_GROUND_SANITIZED = PropertyBinding.sanitizeNodeName(INFINITE_LIGHT_GROUND_RAW);
+
+function isInfiniteLightGroundNode(obj: THREE.Object3D): boolean {
+  return obj.name === INFINITE_LIGHT_GROUND_RAW || obj.name === INFINITE_LIGHT_GROUND_SANITIZED;
+}
 
 function arenaAssetUrl(): string {
   return new URL(`assets/${BOOP_ARENA_GLB_FILE}`, document.baseURI).toString();
@@ -32,9 +39,10 @@ function arenaAssetUrl(): string {
 
 function prepareArenaScene(scene: THREE.Group): THREE.Group {
   scene.name = 'boop-overgrown-arena';
+  tagExcludeFromBounds(scene);
   const remove: THREE.Object3D[] = [];
   scene.traverse(obj => {
-    if (SKIP_ARENA_NODES.has(obj.name)) remove.push(obj);
+    if (isInfiniteLightGroundNode(obj)) remove.push(obj);
   });
   for (const obj of remove) obj.parent?.remove(obj);
 
@@ -85,11 +93,8 @@ export function addBoopPlayGridLines(ctx: BoardBuildContext): void {
   }
 }
 
-const _frameBox = new THREE.Box3();
-
 export function createBoopTopology(options: SquareGridOptions, arenaTemplate: THREE.Group): Topology {
   const base = createSquareTopology(options);
-  const framePoints = computeArenaFramePoints(arenaTemplate);
 
   return {
     ...base,
@@ -99,22 +104,7 @@ export function createBoopTopology(options: SquareGridOptions, arenaTemplate: TH
       return true;
     },
     frameCorners(snapshot: BoardSnapshot) {
-      const points = base.frameCorners?.(snapshot) ?? [];
-      return points.concat(framePoints.map(p => p.clone()));
+      return base.frameCorners?.(snapshot) ?? [];
     },
   };
-}
-
-function computeArenaFramePoints(arenaTemplate: THREE.Group): THREE.Vector3[] {
-  _frameBox.setFromObject(arenaTemplate);
-  if (_frameBox.isEmpty()) return [];
-  const pad = 0.35;
-  const y = 0;
-  const points: THREE.Vector3[] = [];
-  for (const x of [_frameBox.min.x - pad, _frameBox.max.x + pad]) {
-    for (const z of [_frameBox.min.z - pad, _frameBox.max.z + pad]) {
-      points.push(new THREE.Vector3(x, y, z));
-    }
-  }
-  return points;
 }

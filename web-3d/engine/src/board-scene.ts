@@ -9,6 +9,11 @@ import {
 import { createCameraViewController, fitOrthographicToWorldPoints, type CameraViewController } from './camera-views';
 import { ANIMATION, BOARD, CAMERA } from './constants';
 import { applyPlayfieldBackdrop, createPlayfieldGroundMesh } from './playfield-ground';
+import {
+  box3CornerPoints,
+  expandBoxByPlayfieldContent,
+  squareGridFrameCorners,
+} from './playfield-bounds';
 import { decoratePieceMesh } from './geometries/piece-outlines';
 import { stackHeight } from './stack';
 import { layoutStackCenters, stackExtent, type StackMeasure } from './stack-layout';
@@ -77,6 +82,8 @@ interface PieceObject {
 export interface BoardSceneOptions {
   /** Playable grid extent (cells per side). */
   gridSize: number;
+  /** Exterior sandbox ring (Tak reserve rows on the board). */
+  outsideRows?: number;
   topology: Topology;
   pieces: PieceGeometrySet;
   /** Players used for materials (default A/B). */
@@ -624,11 +631,18 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
 
   function collectFramePoints(): THREE.Vector3[] {
     const size = options.gridSize;
-    const points: THREE.Vector3[] = options.topology.frameCorners?.(snapshot) ?? [];
-    if (!points.length) {
-      const half = size / 2 + 0.04;
-      for (const x of [-half, half]) for (const z of [-half, half]) points.push(new THREE.Vector3(x, 0, z));
+    const outsideRows = options.outsideRows ?? 0;
+    const points: THREE.Vector3[] = [...squareGridFrameCorners(size, outsideRows)];
+    const fromTopology = options.topology.frameCorners?.(snapshot) ?? [];
+    points.push(...fromTopology);
+
+    const playfieldBox = new THREE.Box3();
+    expandBoxByPlayfieldContent(playfieldBox, board);
+    for (const root of [piecesGroup, pilesGroup, reserveGroup]) {
+      expandBoxByPlayfieldContent(playfieldBox, root);
     }
+    points.push(...box3CornerPoints(playfieldBox, 0.12));
+
     for (const slot of snapshot.reserves ?? []) {
       const top =
         stackHeight(
