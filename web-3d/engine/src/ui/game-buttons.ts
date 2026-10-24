@@ -5,9 +5,13 @@ import {
   DEFAULT_AI_STRENGTH_LEVELS,
 } from './ai-strength';
 import { bindThemeToggle, type ThemeId } from '../theme';
+import { ensureBasePageStyles } from './page-styles';
 
 /** Hub lobby when serving the monorepo `web/` tree from the site root. */
 export const DEFAULT_LOBBY_HREF = '/web/index.html';
+
+/** Shared top-bar CSS; exported so tooling/tests can read the single source. */
+export { GAME_BUTTONS_CSS };
 
 const STYLE_ID = 'abstract-game-buttons-styles';
 
@@ -144,7 +148,18 @@ export interface FirstPlayerChoice {
   testId: string;
 }
 
+export interface ExtraGameButton {
+  label: string;
+  testId: string;
+  onClick: () => void;
+  title?: string;
+}
+
 export interface CreateGameButtonsOptions {
+  /** Game-specific buttons appended to the shared row (e.g. Yinsh "Flip run"). */
+  extraButtons?: ExtraGameButton[];
+  /** Inject the shared page shell CSS (default true). */
+  basePageStyles?: boolean;
   mount?: HTMLElement;
   lobbyHref?: string;
   /** When set, shows the shared AI strength stepper in the bar. */
@@ -178,6 +193,7 @@ export interface GameButtonsBar {
 }
 
 export function createGameButtons(options: CreateGameButtonsOptions): GameButtonsBar {
+  if (options.basePageStyles !== false) ensureBasePageStyles();
   ensureGameButtonStyles();
   const mount = options.mount ?? document.body;
   const fullscreenEl = options.fullscreenElement ?? document.documentElement;
@@ -225,7 +241,17 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   lobby.dataset.testid = 'back-to-lobby';
   lobby.textContent = 'Back to Lobby';
 
-  row.append(fullscreenBtn, ...(themeApply ? [themeBtn] : []), newGameBtn, aiSlot, lobby);
+  const extras = (options.extraButtons ?? []).map(extra => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.testid = extra.testId;
+    btn.textContent = extra.label;
+    if (extra.title) btn.title = extra.title;
+    btn.addEventListener('click', () => extra.onClick());
+    return btn;
+  });
+
+  row.append(fullscreenBtn, ...(themeApply ? [themeBtn] : []), newGameBtn, aiSlot, lobby, ...extras);
 
   const status = document.createElement('p');
   status.className = 'game-button-status';

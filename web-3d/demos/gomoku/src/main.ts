@@ -3,8 +3,7 @@ import {
   DEFAULT_LOBBY_HREF,
   GOMOKU_AI_STRENGTH_STORAGE_KEY,
   levelToSearchOptions,
-  readStoredTheme,
-  THEME_STORAGE_KEY,
+  readInitialTheme,
   type ThemeId,
 } from '@abstract/three-engine';
 import { createGomokuScene, type ScenePlayer, type StoneRecord } from './gomoku-scene';
@@ -20,8 +19,7 @@ import {
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 
-let theme: ThemeId = readStoredTheme();
-document.documentElement.dataset.theme = theme;
+let theme: ThemeId = readInitialTheme();
 
 let humanColor: Player = 'black';
 let game: GameState = createGame();
@@ -40,22 +38,10 @@ const gameButtons = createGameButtons({
 
 function applyTheme(id: ThemeId) {
   theme = id;
-  document.documentElement.dataset.theme = id;
   scene.setTheme(id);
   syncBoard();
 }
 
-try {
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    try {
-      if (localStorage.getItem(THEME_STORAGE_KEY) === null) applyTheme(readStoredTheme());
-    } catch {
-      /* ignore */
-    }
-  });
-} catch {
-  /* ignore */
-}
 
 function toScenePlayer(player: Player): ScenePlayer {
   return player === 'white' ? 'A' : 'B';

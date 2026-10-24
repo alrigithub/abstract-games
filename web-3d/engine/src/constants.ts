@@ -20,7 +20,7 @@ export const ANIMATION = {
 
 export const INTERACTION = {
   /** Ms between each additional piece picked up from a held stack. */
-  HOLD_INTERVAL: 500,
+  HOLD_INTERVAL: 370,
   DRAG_THRESHOLD: 6,
   RESERVE_STACK_SIZE: 7,
 } as const;

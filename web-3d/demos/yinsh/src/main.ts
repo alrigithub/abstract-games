@@ -2,11 +2,11 @@ import {
   YINSH_COORDS,
   createBoardScene,
   createGameButtons,
+  DEFAULT_LOBBY_HREF,
   createYinshMarkerGeometry,
   createYinshRingGeometry,
   createYinshTopology,
-  readStoredTheme,
-  THEME_STORAGE_KEY,
+  readInitialTheme,
   yinshIndex,
   yinshPieceGeometrySet,
   yinshRackPosition,
@@ -77,8 +77,7 @@ function buildDemoSnapshot(): BoardSnapshot {
 let snapshot: BoardSnapshot = buildDemoSnapshot();
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
-let theme: ThemeId = readStoredTheme();
-document.documentElement.dataset.theme = theme;
+let theme: ThemeId = readInitialTheme();
 
 const scene = await createBoardScene(board, {
   gridSize: 11,
@@ -90,21 +89,9 @@ scene.setSnapshot(snapshot);
 
 function applyTheme(next: ThemeId) {
   theme = next;
-  document.documentElement.dataset.theme = theme;
   scene.setTheme(theme);
 }
 
-try {
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    try {
-      if (localStorage.getItem(THEME_STORAGE_KEY) === null) applyTheme(readStoredTheme());
-    } catch {
-      /* ignore */
-    }
-  });
-} catch {
-  /* ignore */
-}
 
 function renderStatus(extra?: string) {
   gameButtons.setStatus(extra ?? 'Piece showcase — rings, GIPF chips, scored racks (no 3D AI yet)');
@@ -112,20 +99,16 @@ function renderStatus(extra?: string) {
 
 const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
-  lobbyHref: '/web/index.html',
+  lobbyHref: DEFAULT_LOBBY_HREF,
   applyTheme,
   onNewGameReset: () => {
     snapshot = buildDemoSnapshot();
     scene.setSnapshot(snapshot);
     renderStatus('Demo layout reset');
   },
+  extraButtons: [{ label: 'Flip run', testId: 'flip-demo', onClick: () => void flipRun() }],
 });
 
-const flipBtn = document.createElement('button');
-flipBtn.type = 'button';
-flipBtn.dataset.testid = 'flip-demo';
-flipBtn.textContent = 'Flip run';
-gameButtons.root.querySelector('.game-button-row')!.append(flipBtn);
 
 renderStatus();
 
@@ -139,12 +122,12 @@ function toggleMarkerOwner(id: string) {
   }
 }
 
-flipBtn.addEventListener('click', async () => {
+async function flipRun() {
   const ids = ['marker-flip-a', 'marker-flip-b', 'marker-flip-c'];
   await scene.flipPieces(ids, 90);
   for (const id of ids) toggleMarkerOwner(id);
   scene.setSnapshot(snapshot);
   renderStatus('Markers flipped');
-});
+}
 
 export { scene, applyTheme, snapshot };

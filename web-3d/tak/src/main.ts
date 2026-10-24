@@ -9,10 +9,9 @@ import {
   DEFAULT_LOBBY_HREF,
   INTERACTION,
   levelToSearchOptions,
-  readStoredTheme,
+  readInitialTheme,
   TAK_AI_STRENGTH_STORAGE_KEY,
   takPieceGeometrySet,
-  THEME_STORAGE_KEY,
   type InteractionView,
   type ThemeId,
 } from '@abstract/three-engine';
@@ -34,7 +33,7 @@ const geos = createTakPieceGeometries();
 const pieces = takPieceGeometrySet(geos);
 let boardSize = 5;
 let topology = createSquareTopology({ size: boardSize, outsideRows: 6 });
-let theme: ThemeId = readStoredTheme();
+let theme: ThemeId = readInitialTheme();
 let state: BoardState = createSandboxState(boardSize);
 const history: BoardState[] = [];
 let sandbox = true;
@@ -51,7 +50,6 @@ const stage = board.querySelector('canvas') ?? board;
 
 function applyTheme(id: ThemeId) {
   theme = id;
-  document.documentElement.dataset.theme = id;
   scene.setTheme(id);
 }
 
@@ -72,17 +70,6 @@ const gameButtons = createGameButtons({
   onAiStrengthChange: () => gameUi.refresh(),
 });
 
-try {
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    try {
-      if (localStorage.getItem(THEME_STORAGE_KEY) === null) applyTheme(readStoredTheme());
-    } catch {
-      /* ignore */
-    }
-  });
-} catch {
-  /* ignore */
-}
 
 function refresh() {
   scene.setSnapshot(toEngineSnapshot(state));
