@@ -5,16 +5,20 @@ import { tagExcludeFromBounds } from './playfield-bounds';
 export const PLAYFIELD_GROUND_USER_DATA = 'playfieldGround' as const;
 
 /** Single shared ground extent — larger than any camera pan/zoom in {@link CAMERA} limits. */
-export function createPlayfieldGroundGeometry(): THREE.PlaneGeometry {
-  const size = BOARD.PLAYFIELD_GROUND_SIZE;
+export function createPlayfieldGroundGeometry(
+  size: number = BOARD.PLAYFIELD_GROUND_SIZE,
+): THREE.PlaneGeometry {
   const geo = new THREE.PlaneGeometry(size, size);
   geo.rotateX(-Math.PI / 2);
   geo.computeBoundingBox();
   return geo;
 }
 
-export function createPlayfieldGroundMesh(material: THREE.Material): THREE.Mesh {
-  const mesh = new THREE.Mesh(createPlayfieldGroundGeometry(), material);
+export function createPlayfieldGroundMesh(
+  material: THREE.Material,
+  size: number = BOARD.PLAYFIELD_GROUND_SIZE,
+): THREE.Mesh {
+  const mesh = new THREE.Mesh(createPlayfieldGroundGeometry(size), material);
   mesh.userData[PLAYFIELD_GROUND_USER_DATA] = true;
   tagExcludeFromBounds(mesh);
   mesh.position.y = BOARD.PLAYFIELD_SURFACE_Y;

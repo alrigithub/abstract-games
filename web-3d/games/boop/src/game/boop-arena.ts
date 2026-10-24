@@ -6,7 +6,6 @@ import {
   tagBoardGridLine,
   tagExcludeFromBounds,
   type BoardBuildContext,
-  type BoardSnapshot,
   type SquareGridOptions,
   type Topology,
 } from '@abstract/three-engine';
@@ -153,11 +152,14 @@ export function addBoopPlayGridLines(ctx: BoardBuildContext): void {
   }
 }
 
-const _frameBox = new THREE.Box3();
+/** Compact ground under the 6×6 bed + exterior pools (matches white arena). */
+export function boopPlayfieldGroundSize(gridSize: number, outsideRows: number): number {
+  const half = gridSize / 2 + outsideRows + 0.85;
+  return Math.ceil(half * 2 + 1.5);
+}
 
 export function createBoopTopology(options: SquareGridOptions, arenaTemplate: THREE.Group): Topology {
   const base = createSquareTopology(options);
-  const framePoints = computeArenaFramePoints(arenaTemplate);
 
   return {
     ...base,
@@ -166,23 +168,5 @@ export function createBoopTopology(options: SquareGridOptions, arenaTemplate: TH
       addBoopPlayGridLines(ctx);
       return true;
     },
-    frameCorners(snapshot: BoardSnapshot) {
-      const points = base.frameCorners?.(snapshot) ?? [];
-      return points.concat(framePoints.map(p => p.clone()));
-    },
   };
-}
-
-function computeArenaFramePoints(arenaTemplate: THREE.Group): THREE.Vector3[] {
-  _frameBox.setFromObject(arenaTemplate);
-  if (_frameBox.isEmpty()) return [];
-  const pad = 0.48;
-  const y = 0;
-  const points: THREE.Vector3[] = [];
-  for (const x of [_frameBox.min.x - pad, _frameBox.max.x + pad]) {
-    for (const z of [_frameBox.min.z - pad, _frameBox.max.z + pad]) {
-      points.push(new THREE.Vector3(x, y, z));
-    }
-  }
-  return points;
 }

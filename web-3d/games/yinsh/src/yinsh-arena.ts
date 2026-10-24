@@ -1,13 +1,14 @@
 import {
   BOARD,
+  YINSH,
   applyArenaGlbThemeMaterials,
   createYinshTopology,
   loadGltfAsync,
   tagArenaGlbForShadows,
   tagExcludeFromBounds,
+  yinshBoardExtents,
   yinshCoordKey,
   yinshWorldPoint,
-  type BoardSnapshot,
   type ThemeId,
   type Topology,
   type YinshCoord,
@@ -144,33 +145,30 @@ export function yinshArenaPlacementError(coord: YinshCoord, root: THREE.Object3D
   return Math.hypot(arena.x - target.x, arena.y - target.z);
 }
 
-function computeArenaFramePoints(arenaTemplate: THREE.Group): THREE.Vector3[] {
-  _box.setFromObject(arenaTemplate);
-  if (_box.isEmpty()) return [];
-  const pad = 0.35;
-  const y = BOARD.PLAYFIELD_SURFACE_Y;
-  const points: THREE.Vector3[] = [];
-  for (const x of [_box.min.x - pad, _box.max.x + pad]) {
-    for (const z of [_box.min.z - pad, _box.max.z + pad]) {
-      points.push(new THREE.Vector3(x, y, z));
-    }
-  }
-  return points;
+/** Compact ground under hex bed + side ring racks (matches white epic arena). */
+export function yinshPlayfieldGroundSize(): number {
+  const { minX, maxX, minZ, maxZ } = yinshBoardExtents();
+  const rackPadX = YINSH.SPACING * 1.55 + YINSH.RING_OUTER * 2.6;
+  const halfX = Math.max(Math.abs(minX), Math.abs(maxX)) + rackPadX + 0.55;
+  const halfZ = Math.max(Math.abs(minZ), Math.abs(maxZ)) + 0.75;
+  return Math.ceil(Math.max(halfX, halfZ) * 2 + 1.2);
 }
+
+export const YINSH_PLAYFIELD_GROUND = {
+  get size() {
+    return yinshPlayfieldGroundSize();
+  },
+  surfaceColor: '#ffffff',
+} as const;
 
 export function createYinshArenaTopology(arenaTemplate: THREE.Group): Topology {
   const base = createYinshTopology();
-  const framePoints = computeArenaFramePoints(arenaTemplate);
 
   return {
     ...base,
     buildBoard(ctx) {
       ctx.board.add(arenaTemplate.clone(true));
       return true;
-    },
-    frameCorners(snapshot: BoardSnapshot) {
-      const points = base.frameCorners?.(snapshot) ?? [];
-      return points.concat(framePoints.map(p => p.clone()));
     },
   };
 }

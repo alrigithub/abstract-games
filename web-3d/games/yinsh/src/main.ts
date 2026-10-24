@@ -37,7 +37,11 @@ import { quickLegalMove } from './game/ai';
 import type { Move } from './game/state';
 import type { Player } from './game/player';
 import { loadYinshPieceGeometrySet, YINSH_RING_TARGET_OUTER_DIAMETER } from './yinsh-piece-models';
-import { createYinshArenaTopology, loadYinshArenaTemplate } from './yinsh-arena';
+import {
+  createYinshArenaTopology,
+  loadYinshArenaTemplate,
+  YINSH_PLAYFIELD_GROUND,
+} from './yinsh-arena';
 
 /** Match engine tap vs drag threshold. */
 const TAP_MOVE_THRESHOLD = 8;
@@ -87,6 +91,12 @@ const scene = await createBoardScene(board, {
   topology,
   pieces,
   initialTheme: theme,
+  playfieldGround: ringCloseupShot
+    ? undefined
+    : {
+        size: YINSH_PLAYFIELD_GROUND.size,
+        surfaceColor: YINSH_PLAYFIELD_GROUND.surfaceColor,
+      },
 });
 const stage = board.querySelector('canvas') ?? board;
 

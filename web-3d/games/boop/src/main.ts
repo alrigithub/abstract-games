@@ -19,7 +19,11 @@ import { boardPlayfieldTopY } from './game/boop-grounding';
 import { createBoopPieceGeometrySet } from './game/boop-stone-cats';
 import { BOOP_DEMO_BOOP_SFX_URLS, BOOP_DEMO_PLACE_SFX_URLS } from './game/boop-sfx-manifest';
 import { BoopController } from './game/controller';
-import { createBoopTopology, loadBoopArenaTemplate } from './game/boop-arena';
+import {
+  boopPlayfieldGroundSize,
+  createBoopTopology,
+  loadBoopArenaTemplate,
+} from './game/boop-arena';
 import { BOOP_GRID as size, BOOP_OUTSIDE as OUTSIDE_ROWS } from './game/boop-grid';
 
 applyBoopAnimationPacing(ANIMATION);
@@ -46,6 +50,10 @@ const scene = await createBoardScene(board, {
   pieces,
   initialTheme: theme,
   playfieldSurfaceY: boardPlayfieldTopY(),
+  playfieldGround: {
+    size: boopPlayfieldGroundSize(size, OUTSIDE_ROWS),
+    surfaceColor: '#ffffff',
+  },
   placeSfx: {
     place: BOOP_DEMO_PLACE_SFX_URLS,
     boop: BOOP_DEMO_BOOP_SFX_URLS,
