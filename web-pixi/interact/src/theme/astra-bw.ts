@@ -1,0 +1,21 @@
+/** Re-exports — prefer `@abstract/pixi-interact/theme/palette`. */
+export {
+  ASTRA_BW,
+  CELL_PITCH,
+  DARK_THEME,
+  LIGHT_SOFT_THEME,
+  OBLIQUE_SIDE_FACTOR,
+  TRAY_THEME,
+  WIN_ACCENT,
+  astraFill,
+  astraInk,
+  boardSlabPx,
+  lineWidthPx,
+  themeById,
+  themeFill,
+  themeInk,
+  type AstraColorSide,
+  type InteractTheme,
+  type PlayerSide,
+  type ThemeId,
+} from "./palette.ts";
