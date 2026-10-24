@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
-  ANIMATION,
+  BOARD,
   CAMERA,
+  TZAAR_BOARD_SIDE,
   TZAAR_DISC_HEIGHT,
+  bindThemeToggle,
   createTzaarBoardGroup,
+  createTzaarDiscGeometry,
   createTzaarHexTopology,
   createTzaarPieceMesh,
-  readStoredTheme,
-  storeTheme,
   tzaarFixedStart,
   tzaarPlayableCells,
   themeTokens,
@@ -29,10 +30,8 @@ const STACKS: Record<string, number> = {
 
 const params = new URLSearchParams(location.search);
 const requested = params.get('theme');
-let themeId: ThemeId = requested === 'light' || requested === 'dark' ? requested : readStoredTheme();
 
 const boardEl = document.querySelector<HTMLDivElement>('#board')!;
-document.documentElement.dataset.theme = themeId;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
 renderer.setPixelRatio(1);
@@ -49,7 +48,8 @@ camera.lookAt(0, 0, 0);
 
 const boardRoot = new THREE.Group();
 const piecesRoot = new THREE.Group();
-scene.add(boardRoot, piecesRoot);
+const shadowsRoot = new THREE.Group();
+scene.add(boardRoot, shadowsRoot, piecesRoot);
 
 const topology = createTzaarHexTopology();
 const cells = tzaarPlayableCells();
@@ -59,6 +59,7 @@ const snapshot = {
   cellCount: cells.length,
   cells: cells.map(() => []),
 };
+const discGeo = createTzaarDiscGeometry();
 
 interface StackLabel {
   el: HTMLSpanElement;
@@ -121,8 +122,8 @@ function fit(reframe = false) {
   }
   framed = true;
   camera.updateMatrixWorld();
-  const half = 4.4;
-  const points = [
+  const half = TZAAR_BOARD_SIDE / 2;
+  const points = topology.frameCorners?.(snapshot) ?? [
     new THREE.Vector3(-half, 0, -half),
     new THREE.Vector3(half, 0, -half),
     new THREE.Vector3(-half, 0, half),
@@ -141,7 +142,7 @@ function fit(reframe = false) {
   }
   const centerX = (minX + maxX) / 2;
   const centerY = (minY + maxY) / 2;
-  const halfHeight = Math.max((maxY - minY) / 2, (maxX - minX) / (2 * aspect)) * 1.04;
+  const halfHeight = Math.max((maxY - minY) / 2, (maxX - minX) / (2 * aspect)) * 1.08;
   camera.left = centerX - halfHeight * aspect;
   camera.right = centerX + halfHeight * aspect;
   camera.top = centerY + halfHeight;
@@ -151,20 +152,28 @@ function fit(reframe = false) {
 }
 
 function applyTheme(id: ThemeId) {
-  themeId = id;
   document.documentElement.dataset.theme = id;
   const tokens = themeTokens(id);
   scene.background = new THREE.Color(tokens.table);
   boardRoot.clear();
   boardRoot.add(createTzaarBoardGroup(tokens));
   piecesRoot.clear();
+  shadowsRoot.clear();
   for (const label of labels) label.el.remove();
   labels.length = 0;
   const edgeCache = new Map<THREE.BufferGeometry, THREE.EdgesGeometry>();
+  const shadowMat = new THREE.MeshBasicMaterial({
+    color: tokens.shadow,
+    transparent: true,
+    opacity: 0.09,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const surface = BOARD.PLAYFIELD_SURFACE_Y;
   for (const piece of start) {
     const height = STACKS[`${piece.x},${piece.y}`] ?? 1;
     const pos = topology.cellPosition(piece.index, snapshot);
-    let y = ANIMATION.FLOOR;
+    let y = surface;
     for (let level = 0; level < height; level++) {
       const isTop = level === height - 1;
       const mesh = createTzaarPieceMesh({
@@ -179,6 +188,11 @@ function applyTheme(id: ThemeId) {
       piecesRoot.add(mesh);
       y += TZAAR_DISC_HEIGHT;
     }
+    const shadow = new THREE.Mesh(discGeo, shadowMat);
+    shadow.scale.set(BOARD.SHADOW_SCALE, 0.001, BOARD.SHADOW_SCALE);
+    shadow.position.set(pos.x, surface + BOARD.SHADOW_CONTACT_EPSILON, pos.z);
+    shadow.renderOrder = 1;
+    shadowsRoot.add(shadow);
     if (height >= 2) {
       const el = document.createElement('span');
       el.className = 'stack-height';
@@ -191,14 +205,11 @@ function applyTheme(id: ThemeId) {
   requestRender();
 }
 
-applyTheme(themeId);
+const initial: ThemeId = requested === 'light' || requested === 'dark' ? requested : 'light';
+applyTheme(initial);
+bindThemeToggle(document.querySelector('#theme-toggle')!, applyTheme);
+if (requested === 'light' || requested === 'dark') applyTheme(requested);
 fit();
-
-document.querySelector('#theme-toggle')!.addEventListener('click', () => {
-  const next: ThemeId = themeId === 'light' ? 'dark' : 'light';
-  storeTheme(next);
-  applyTheme(next);
-});
 
 const resize = new ResizeObserver(() => fit());
 resize.observe(boardEl);

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BOARD } from '../constants';
 import { createContactShadowBlob } from './contact-shadow';
-import type { ThemeTokens, Topology } from '../types';
+import type { BoardBuildContext, BoardSnapshot, ThemeTokens, Topology } from '../types';
 
 /** Official Waltz 9×9 template: `100` = hole or outside. ±1 Tott, ±2 Tzarra, ±3 Tzaar. */
 export const TZAAR_TEMPLATE: readonly number[] = [
@@ -14,10 +14,18 @@ export const TZAAR_TEMPLATE: readonly number[] = [
 export const TZAAR_GRID = 9;
 export const TZAAR_CENTER = { x: 4, y: 4 } as const;
 export const TZAAR_PITCH = 1;
+/** Square playing surface, matching the GIPF / HUCH / Rio Grande board. Vertex-to-edge margin is 0.7 pitch. */
+export const TZAAR_BOARD_SIDE = 9.4;
+/** Thin painted rim, ~1% of the physical board. */
+export const TZAAR_RIM_W = 0.1;
+/** Printed line weight: Wikimedia blank board is ~2/450 of the square; keep it hairline but readable in ortho. */
+export const TZAAR_LINE_W = 0.022;
+/** Inner hex vertices sit just inside the first ring so the empty centre reads as a printed motif. */
+export const TZAAR_CENTER_HEX = 0.86;
 
 export type TzaarKind = 'tott' | 'tzarra' | 'tzaar';
 export type TzaarPlayer = 'A' | 'B';
-export type TzaarLineDir = 'e' | 'se' | 'sw';
+export type TzaarLineDir = 'e' | 's' | 'se';
 
 export interface TzaarCell {
   index: number;
@@ -36,10 +44,11 @@ export interface TzaarStartPiece {
 
 const SQRT3_2 = Math.sqrt(3) / 2;
 
+/** True hex-lattice steps of `tzaarWorldPosition` (pitch 1). Not the √3 template diagonal (1, −1). */
 const LINE_DIRS: { dx: number; dy: number; dir: TzaarLineDir }[] = [
   { dx: 1, dy: 0, dir: 'e' },
-  { dx: 0, dy: 1, dir: 'se' },
-  { dx: 1, dy: -1, dir: 'sw' },
+  { dx: 0, dy: 1, dir: 's' },
+  { dx: 1, dy: 1, dir: 'se' },
 ];
 
 function kindFromAbs(value: number): TzaarKind {
@@ -55,11 +64,14 @@ export function tzaarIsPlayable(x: number, y: number): boolean {
   return TZAAR_TEMPLATE[y * TZAAR_GRID + x] !== 100;
 }
 
-/** Axial-style 9×9 embedding, centered so the empty hole sits at the origin. */
+/**
+ * Pointy-top triangular lattice, pitch 1, empty hole at the origin.
+ * Shared by board lines, centre motif, topology, and piece placement.
+ */
 export function tzaarWorldPosition(x: number, y: number): THREE.Vector3 {
   const q = x - TZAAR_CENTER.x;
   const r = y - TZAAR_CENTER.y;
-  return new THREE.Vector3(q - r * 0.5, 0, -r * SQRT3_2);
+  return new THREE.Vector3(q * SQRT3_2, BOARD.PLAYFIELD_SURFACE_Y, q * 0.5 - r);
 }
 
 export function tzaarPlayableCells(): TzaarCell[] {
@@ -72,6 +84,21 @@ export function tzaarPlayableCells(): TzaarCell[] {
     }
   }
   return cells;
+}
+
+/** Occupied-or-centre counts along one 9×9 axis (middle 9 includes the hole). */
+export function tzaarRowCounts(axis: 'x' | 'y'): number[] {
+  const counts: number[] = [];
+  for (let i = 0; i < TZAAR_GRID; i++) {
+    let n = 0;
+    for (let j = 0; j < TZAAR_GRID; j++) {
+      const x = axis === 'x' ? i : j;
+      const y = axis === 'x' ? j : i;
+      if (tzaarIsPlayable(x, y) || (x === TZAAR_CENTER.x && y === TZAAR_CENTER.y)) n++;
+    }
+    counts.push(n);
+  }
+  return counts;
 }
 
 export function tzaarCornerCoords(): [number, number][] {
@@ -115,44 +142,125 @@ export function tzaarGridLineSegments(): { from: THREE.Vector3; to: THREE.Vector
   return segs;
 }
 
-export function createTzaarBoardLineGeometry(lineW = BOARD.LINE_W): THREE.BufferGeometry {
-  const width = Math.max(lineW, 0.036);
-  const geos = tzaarGridLineSegments().map(seg => {
-    const dx = seg.to.x - seg.from.x;
-    const dz = seg.to.z - seg.from.z;
-    const len = Math.hypot(dx, dz);
-    const geo = new THREE.BoxGeometry(len + width, 0.01, width);
-    geo.rotateY(-Math.atan2(dz, dx));
-    geo.translate((seg.from.x + seg.to.x) / 2, 0.008, (seg.from.z + seg.to.z) / 2);
-    return geo;
-  });
+function linePlane(from: THREE.Vector3, to: THREE.Vector3, width: number): THREE.BufferGeometry {
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  const len = Math.hypot(dx, dz);
+  const geo = new THREE.PlaneGeometry(width, len + width);
+  geo.rotateX(-Math.PI / 2);
+  geo.rotateY(Math.atan2(dx, dz));
+  geo.translate((from.x + to.x) / 2, 0.002, (from.z + to.z) / 2);
+  return geo;
+}
+
+export function createTzaarBoardLineGeometry(lineW = TZAAR_LINE_W): THREE.BufferGeometry {
+  const geos = tzaarGridLineSegments().map(seg => linePlane(seg.from, seg.to, lineW));
   const merged = mergeGeometries(geos, false) ?? new THREE.BufferGeometry();
   for (const geo of geos) geo.dispose();
   merged.computeBoundingBox();
   return merged;
 }
 
-/** Regular hexagonal slab matching the six outline vertices, slightly oversized. */
-export function createTzaarBoardSlabGeometry(slab = BOARD.SLAB, margin = 0.55): THREE.BufferGeometry {
-  const radius = 4 + margin;
-  const geo = new THREE.CylinderGeometry(radius, radius, slab, 6, 1, false);
+/** Square cream slab; top face at the playfield surface so discs sit flush. */
+export function createTzaarBoardSlabGeometry(slab = BOARD.SLAB): THREE.BufferGeometry {
+  const geo = new THREE.BoxGeometry(TZAAR_BOARD_SIDE, slab, TZAAR_BOARD_SIDE);
   geo.translate(0, -slab / 2, 0);
   geo.computeBoundingBox();
   return geo;
 }
 
+export function createTzaarRimGeometry(slab = BOARD.SLAB): THREE.BufferGeometry {
+  const geo = new THREE.BoxGeometry(TZAAR_BOARD_SIDE, slab, TZAAR_BOARD_SIDE);
+  geo.translate(0, -slab / 2, 0);
+  geo.computeBoundingBox();
+  return geo;
+}
+
+export function createTzaarFieldGeometry(slab = BOARD.SLAB): THREE.BufferGeometry {
+  const inner = TZAAR_BOARD_SIDE - 2 * TZAAR_RIM_W;
+  const geo = new THREE.BoxGeometry(inner, slab, inner);
+  geo.translate(0, -slab / 2 + 0.001, 0);
+  geo.computeBoundingBox();
+  return geo;
+}
+
+export function tzaarCenterRingVertices(radius = TZAAR_CENTER_HEX): THREE.Vector3[] {
+  const verts: THREE.Vector3[] = [];
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 2 + (i * Math.PI) / 3;
+    verts.push(new THREE.Vector3(Math.cos(a) * radius, 0, Math.sin(a) * radius));
+  }
+  return verts;
+}
+
+export function createTzaarCenterFillGeometry(): THREE.BufferGeometry {
+  const geo = new THREE.CylinderGeometry(0.72, 0.72, 0.004, 6);
+  geo.rotateY(Math.PI / 6);
+  geo.translate(0, 0.003, 0);
+  geo.computeBoundingBox();
+  return geo;
+}
+
+export function createTzaarCenterRingGeometry(lineW = TZAAR_LINE_W): THREE.BufferGeometry {
+  const verts = tzaarCenterRingVertices();
+  const geos = verts.map((from, i) => linePlane(from, verts[(i + 1) % verts.length]!, lineW));
+  const merged = mergeGeometries(geos, false) ?? new THREE.BufferGeometry();
+  for (const geo of geos) geo.dispose();
+  merged.computeBoundingBox();
+  return merged;
+}
+
+export function tzaarPrintColors(tokens: ThemeTokens): { field: string; rim: string; lines: string; centre: string } {
+  return {
+    field: tokens.board,
+    rim: tokens.shadow,
+    lines: tokens.lines,
+    centre: tokens.table,
+  };
+}
+
+function basic(color: string): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, toneMapped: false });
+}
+
 export function tzaarBoardExtent(): number {
-  return 9.1;
+  return TZAAR_BOARD_SIDE;
+}
+
+function addTzaarBoardMeshes(
+  group: THREE.Group,
+  tokens: ThemeTokens,
+  boardGeometries?: THREE.BufferGeometry[],
+  shared?: { field?: THREE.MeshBasicMaterial; lines?: THREE.MeshBasicMaterial },
+): void {
+  const print = tzaarPrintColors(tokens);
+  const rimMat = basic(print.rim);
+  const fieldMat = shared?.field ?? basic(print.field);
+  const lineMat = shared?.lines ?? basic(print.lines);
+  const centreMat = basic(print.centre);
+
+  const rimGeo = createTzaarRimGeometry();
+  const fieldGeo = createTzaarFieldGeometry();
+  const fillGeo = createTzaarCenterFillGeometry();
+  const ringGeo = createTzaarCenterRingGeometry();
+  const lineGeo = createTzaarBoardLineGeometry();
+  boardGeometries?.push(rimGeo, fieldGeo, fillGeo, ringGeo, lineGeo);
+
+  const rim = new THREE.Mesh(rimGeo, rimMat);
+  const field = new THREE.Mesh(fieldGeo, fieldMat);
+  const fill = new THREE.Mesh(fillGeo, centreMat);
+  const ring = new THREE.Mesh(ringGeo, lineMat);
+  const lines = new THREE.Mesh(lineGeo, lineMat);
+  field.renderOrder = 1;
+  fill.renderOrder = 2;
+  ring.renderOrder = 3;
+  lines.renderOrder = 3;
+  group.add(rim, field, fill, ring, lines, createContactShadowBlob(TZAAR_BOARD_SIDE));
 }
 
 export function createTzaarBoardGroup(tokens: ThemeTokens): THREE.Group {
   const group = new THREE.Group();
-  const slabMat = new THREE.MeshBasicMaterial({ color: tokens.board, side: THREE.DoubleSide, toneMapped: false });
-  const lineMat = new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.DoubleSide, toneMapped: false });
-  const slab = new THREE.Mesh(createTzaarBoardSlabGeometry(), slabMat);
-  const lines = new THREE.Mesh(createTzaarBoardLineGeometry(), lineMat);
-  lines.renderOrder = 1;
-  group.add(slab, lines, createContactShadowBlob(tzaarBoardExtent()));
+  addTzaarBoardMeshes(group, tokens);
   return group;
 }
 
@@ -160,7 +268,7 @@ export function createTzaarHexTopology(): Topology {
   const cells = tzaarPlayableCells();
   const pos = (index: number) => {
     const cell = cells[index];
-    return cell ? new THREE.Vector3(cell.world.x, 0, cell.world.z) : new THREE.Vector3();
+    return cell ? tzaarWorldPosition(cell.x, cell.y) : new THREE.Vector3();
   };
   return {
     cellPosition: (index, _snapshot) => pos(index),
@@ -177,5 +285,35 @@ export function createTzaarHexTopology(): Topology {
       return best;
     },
     projectCell: (index, _snapshot) => pos(index),
+    buildBoard(ctx: BoardBuildContext) {
+      addTzaarBoardMeshes(ctx.board, tzaarPrintColorsFromContext(ctx), ctx.boardGeometries, {
+        field: ctx.boardMaterial,
+        lines: ctx.gridMaterial,
+      });
+      return true;
+    },
+    frameCorners(_snapshot: BoardSnapshot) {
+      const half = TZAAR_BOARD_SIDE / 2;
+      return [
+        new THREE.Vector3(-half, 0, -half),
+        new THREE.Vector3(half, 0, -half),
+        new THREE.Vector3(-half, 0, half),
+        new THREE.Vector3(half, 0, half),
+      ];
+    },
+  };
+}
+
+function tzaarPrintColorsFromContext(ctx: BoardBuildContext): ThemeTokens {
+  const board = `#${ctx.boardMaterial.color.getHexString()}`;
+  const lines = `#${ctx.gridMaterial.color.getHexString()}`;
+  return {
+    table: board,
+    board,
+    lines,
+    win: '#3b82f6',
+    ghostOpacity: 0.24,
+    shadow: lines,
+    piece: {},
   };
 }
