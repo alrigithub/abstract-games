@@ -118,12 +118,19 @@ export function applyBoardLighting(
   function syncThemeAmbientFill(themeId: ThemeId) {
     if (!hemisphere) return;
     const tokens = themeTokens(themeId);
+    if (themeId === 'light') {
+      // Neutral fill from page/table white — do not re-tint from arenaSurface albedo.
+      hemisphere.color.set(tokens.table);
+      hemisphere.groundColor.set('#dcdcdc');
+      hemisphere.intensity = 0.34;
+      return;
+    }
     const surface = new THREE.Color(tokens.arenaSurface);
     const sky = surface.clone().lerp(new THREE.Color(tokens.table), 0.55);
     const ground = surface.clone().multiplyScalar(0.62);
     hemisphere.color.copy(sky);
     hemisphere.groundColor.copy(ground);
-    hemisphere.intensity = themeId === 'light' ? 0.34 : 0.26;
+    hemisphere.intensity = 0.26;
   }
   syncThemeAmbientFill('light');
 

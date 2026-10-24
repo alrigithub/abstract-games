@@ -7,6 +7,8 @@ function retintStandardMaterial(source: THREE.Material, color: THREE.Color): THR
   if (source instanceof THREE.MeshStandardMaterial || source instanceof THREE.MeshPhysicalMaterial) {
     const mat = source.clone();
     mat.map = null;
+    mat.aoMap = null;
+    mat.lightMap = null;
     mat.metalnessMap = null;
     mat.emissiveMap = null;
     mat.alphaMap = null;

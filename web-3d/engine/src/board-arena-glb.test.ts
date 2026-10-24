@@ -13,6 +13,22 @@ describe('board arena glb helpers', () => {
     expect(mesh.receiveShadow).toBe(true);
   });
 
+  it('strips baked colour maps when retinting arena materials', () => {
+    const ao = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, map: ao, aoMap: ao, lightMap: ao }),
+    );
+    const root = new THREE.Group();
+    root.add(mesh);
+    applyArenaGlbThemeMaterials(root, 'light');
+    const mat = mesh.material as THREE.MeshStandardMaterial;
+    expect(mat.map).toBeNull();
+    expect(mat.aoMap).toBeNull();
+    expect(mat.lightMap).toBeNull();
+    ao.dispose();
+  });
+
   it('retints standard materials from theme arenaSurface tokens', () => {
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1),
