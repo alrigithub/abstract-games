@@ -14,8 +14,8 @@ const PIECE_LIGHT = {
 
 /** Canonical light palette; dark theme is always derived via {@link invertThemeTokens}. */
 export const LIGHT_THEME_TOKENS: ThemeTokens = {
-  table: '#f3f1ec',
-  board: '#e8e4dc',
+  table: '#ffffff',
+  board: '#ffffff',
   lines: '#5c564c',
   win: WIN_ACCENT,
   runCelebration: '#ffb347',

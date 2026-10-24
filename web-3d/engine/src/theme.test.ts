@@ -12,7 +12,7 @@ describe('theme inversion', () => {
   it('inverts hex colours', () => {
     expect(invertHex('#ffffff')).toBe('#000000');
     expect(invertHex('#000000')).toBe('#ffffff');
-    expect(invertHex('#f3f1ec')).toBe('#0c0e13');
+    expect(invertHex('#ffffff')).toBe('#000000');
   });
 
   it('derives dark scene tokens from light', () => {

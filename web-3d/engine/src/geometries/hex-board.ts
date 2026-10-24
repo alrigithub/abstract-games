@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { BOARD } from '../constants';
-import { themeTokensFromBoardContext } from '../theme';
 import type { BoardBuildContext, BoardSnapshot, ThemeTokens, Topology } from '../types';
 import {
   GIPF_BOARD,
@@ -168,8 +167,8 @@ export function tzaarBoardExtent(): number {
   return TZAAR_BOARD_SIDE;
 }
 
-export function createTzaarBoardGroup(tokens: ThemeTokens): THREE.Group {
-  return createGipfHexBoard(tzaarLayout(), tokens);
+export function createTzaarBoardGroup(lineMaterial: THREE.Material): THREE.Group {
+  return createGipfHexBoard(tzaarLayout(), lineMaterial);
 }
 
 export function createTzaarHexTopology(): Topology {
@@ -194,7 +193,7 @@ export function createTzaarHexTopology(): Topology {
     },
     projectCell: (index, _snapshot) => pos(index),
     buildBoard(ctx: BoardBuildContext) {
-      const built = createGipfHexBoard(tzaarLayout(), themeTokensFromBoardContext(ctx));
+      const built = createGipfHexBoard(tzaarLayout(), ctx.gridMaterial);
       while (built.children.length) ctx.board.add(built.children[0]!);
       return true;
     },

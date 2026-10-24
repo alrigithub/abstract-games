@@ -26,6 +26,11 @@ export const INTERACTION = {
 } as const;
 
 export const BOARD = {
+  /** World units per side of the shared infinite-style playfield plane. */
+  PLAYFIELD_GROUND_SIZE: 8192,
+  /** Linear fog matches {@link applyPlayfieldBackdrop} / scene background. */
+  PLAYFIELD_FOG_NEAR: 28,
+  PLAYFIELD_FOG_FAR: 140,
   /** Board thickness (0 = flat playfield plane at {@link PLAYFIELD_SURFACE_Y}). */
   SLAB: 0,
   /** Tak board thickness (same flat plane as other games). */

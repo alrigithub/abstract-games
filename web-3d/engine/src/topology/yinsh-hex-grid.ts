@@ -8,8 +8,7 @@ import {
   type GipfHexLayout,
 } from '../geometries/gipf-set';
 import { YINSH } from '../geometries/yinsh-pieces';
-import { themeTokensFromBoardContext } from '../theme';
-import type { BoardBuildContext, BoardSnapshot, Topology, YinshCoord } from '../types';
+import type { BoardSnapshot, Topology, YinshCoord } from '../types';
 
 const YINSH_HEX_LAYOUT: GipfHexLayout = yinshLayout(YINSH.SPACING);
 
@@ -75,7 +74,7 @@ export function createYinshTopology(options: YinshTopologyOptions = {}): Topolog
       return coord ? gipfWorldPoint(coord.x, coord.y, spacing) : new THREE.Vector3();
     },
     buildBoard(ctx) {
-      const built = createGipfHexBoard(layout, themeTokensFromBoardContext(ctx));
+      const built = createGipfHexBoard(layout, ctx.gridMaterial);
       while (built.children.length) ctx.board.add(built.children[0]!);
       return true;
     },

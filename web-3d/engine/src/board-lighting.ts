@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BOARD } from './constants';
+import { PLAYFIELD_GROUND_USER_DATA } from './playfield-ground';
 
 export interface BoardLightingOptions {
   /** Extra Y extent for stacked pieces in the shadow frustum. */
@@ -210,6 +211,7 @@ function syncPlayfieldShadowCatcher(boardRoot: THREE.Object3D) {
   boardRoot.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;
     if (node.userData.isShadowCatcher) return;
+    if (node.userData[PLAYFIELD_GROUND_USER_DATA]) return;
     playfieldBounds.expandByObject(node);
   });
   if (playfieldBounds.isEmpty()) return;
@@ -239,6 +241,10 @@ export function tagPlayfieldForShadows(boardRoot: THREE.Object3D) {
   boardRoot.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;
     if (node.userData.boardGridLine || node.userData.isShadowCatcher) return;
+    if (node.userData[PLAYFIELD_GROUND_USER_DATA]) {
+      node.receiveShadow = true;
+      return;
+    }
     node.receiveShadow = false;
   });
 }
