@@ -11,7 +11,7 @@ import {
 import * as THREE from 'three';
 import { PropertyBinding } from 'three';
 
-/** Verified SHA-256 of the meshopt-compressed arena in `public/models/`. */
+/** Documented SHA-256 of the committed arena in `public/models/` (any encoding). */
 export const GOMOKU_ARENA_GLB_SHA256 =
   'c9039302c8ae352efd8a1ed3aaa28b8587a4168a8d7fa46f2a1e849e1681e6fa';
 export const GOMOKU_ARENA_GLB_FILE = 'arena-15x15-white-150mm.glb';

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Recompress every committed game GLB under games (public assets) with gltf-transform:
- * meshopt geometry, WebP textures (max 2048px — 1024px sources are unchanged).
+ * Manual-only: run via `npm run compress-glb` when Alex explicitly asks — never in CI, hooks, or build.
+ * Recompresses game GLBs under games/*/public with gltf-transform (meshopt geometry, WebP textures).
  * Preserves node hierarchy, mesh bounds, and material factors (no simplify/join/flatten).
  */
 import { execFileSync } from 'node:child_process';
