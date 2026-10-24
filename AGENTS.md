@@ -4,90 +4,52 @@ Guidance for coding agents working in this repository.
 
 ## Product
 
-Rust Cargo **monorepo** of abstract board games. Human vs AI, offline.
-Feel target: [sharkdp/yinsh](https://github.com/sharkdp/yinsh) — Bevy GUI, WASM web build, async minimax, tweens.
-Not the BimSavage Next/Pixi shell. Not the abandoned Vite+Canvas2D hub.
+TypeScript + **three.js** abstract board games. Human vs AI, offline, in the browser.
+Feel target: polished 3D boards, async minimax in Web Workers, smooth piece motion.
 
-## Games (priority)
+## Games
 
-1. Yinsh — `crates/yinsh*`
-2. Gomoku — `crates/gomoku*`
-3. Boop — `crates/boop*`
-4. Tak — `crates/tak*` (5×5 v1)
+| Game | Package |
+|------|---------|
+| Yinsh | `web-3d/demos/yinsh` |
+| Gomoku | `web-3d/demos/gomoku` |
+| Boop | `web-3d/demos/boop` |
+| Tak | `web-3d/tak` |
+| Tzaar | `web-3d/demos/tzaar` |
 
-Later: Tzaar (out of scope until asked)
-
-## Workspace layout
-
-Each game is three crates (four if eval exists):
-
-| Crate | Role |
-|-------|------|
-| `{game}` | Pure rules + state machine. No Bevy. |
-| `{game}_ai` | `minimax` crate adapter + heuristics |
-| `{game}_gui` | Bevy 0.17 app bin; async AI; tweens |
-| `{game}_ai_eval` | Optional AI tournament binary |
+Shared rendering and UI: `web-3d/engine` (`@abstract/three-engine`).
 
 ## Commands
 
 ```bash
-cargo test --workspace
-cargo clippy --workspace
-cargo fmt --check
-cargo run -p yinsh_gui          # desktop binary: yinsh
-cargo run -p gomoku_gui         # desktop binary: gomoku
-cargo run -p boop_gui           # desktop binary: boop
-cargo run -p tak_gui            # desktop binary: tak
-cargo run -p yinsh_ai_eval --release
+cd web-3d
+npm ci
+npm test
+npm run build
+npx playwright test
 ```
 
-## Web / WASM
-
-Hub: `web/index.html` → `web/yinsh/`, `web/gomoku/`, `web/boop/`, `web/tak/`.
-
-**Prerequisites:** `rustup target add wasm32-unknown-unknown`, and `wasm-bindgen-cli` **0.2.106** (must match `Cargo.lock`).
+Stage a static hosting tree (hub + all game bundles):
 
 ```bash
-# One-shot (recommended)
-./scripts/build_web.sh
-# or
-./deploy.sh
-
-# Manual equivalent
-export RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
-cargo build --profile wasm-release --target wasm32-unknown-unknown \
-  -p yinsh_gui -p gomoku_gui -p boop_gui -p tak_gui
-wasm-bindgen --out-dir web/yinsh --target web --no-typescript \
-  target/wasm32-unknown-unknown/wasm-release/yinsh.wasm
-wasm-bindgen --out-dir web/gomoku --target web --no-typescript \
-  target/wasm32-unknown-unknown/wasm-release/gomoku.wasm
-wasm-bindgen --out-dir web/boop --target web --no-typescript \
-  target/wasm32-unknown-unknown/wasm-release/boop.wasm
-wasm-bindgen --out-dir web/tak --target web --no-typescript \
-  target/wasm32-unknown-unknown/wasm-release/tak.wasm
-# Optional: wasm-opt -Os web/{game}/{game}_bg.wasm -o web/{game}/{game}_bg.wasm
+./scripts/stage_web3d_hosting.sh
 ```
 
-Serve locally:
+Hub page: `web-3d/hub/index.html` (copied to staging root by the script above).
 
-```bash
-python3 -m http.server 8080 --directory web
-# open http://localhost:8080/
-```
+## Patterns
 
-Generated artifacts (`*_bg.wasm`, `*.js` in game folders) are gitignored; CI compiles WASM but does not commit bundles.
-
-## Patterns to copy (from yinsh)
-
-- `TurnMode` / `Move` state machine in `{game}`
-- `InteractionState` separate from `GameState` in GUI
-- AI via `bevy_async_task` (never block the render loop)
-- `bevy_tweening` ~500ms piece motion
-- YAML fixtures for AI / midgame tests where useful
+- Pure game rules in each demo’s `src/game/` (no three.js imports in engine modules when possible)
+- AI via dedicated workers (`*.worker.ts`); never block the render loop
+- Shared UI: `createGameButtons`, themes, camera presets, placement SFX in `@abstract/three-engine`
+- Vitest unit tests per package; Playwright e2e under `web-3d/e2e/`
 
 ## Do not
 
 - Add online multiplayer in v1
-- Port games to JS/Canvas2D engines
-- Break `cargo test -p yinsh` / `cargo test -p yinsh_ai`
+- Reintroduce Rust/Bevy/WASM game shells for these titles
 - Commit secrets or large binary assets without need
+
+## Attribution
+
+Yinsh logic traces to [sharkdp/yinsh](https://github.com/sharkdp/yinsh). See [NOTICE](./NOTICE).

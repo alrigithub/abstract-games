@@ -14,7 +14,7 @@ export const ANIMATION = {
   HORIZONTAL_DURATION: 60,
   /** Out cubic ease: `1 - (1 - t) ** 3` */
   easeOutCubic: (t: number) => 1 - (1 - t) ** 3,
-  /** Marker / stone flip duration (ms), matched to Bevy Yinsh GUI and Tak studio. */
+  /** Marker / stone flip duration (ms), matched to legacy Yinsh GUI timing. */
   FLIP_DURATION: 500,
 } as const;
 

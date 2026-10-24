@@ -23,20 +23,13 @@ build_and_copy() {
 
 build_and_copy tak tak
 build_and_copy demos/gomoku gomoku
-# Boop: skip wasm rebuild when committed wasm/ is present (CI/local rust may differ).
-if [[ -f "$WEB3D/demos/boop/wasm/boop_wasm_bg.wasm" ]]; then
-  (cd "$WEB3D/demos/boop" && npx tsc --noEmit && npx vite build)
-else
-  npm run build -w boop-3d-demo
-fi
-mkdir -p "$OUT/boop"
-cp -a "$WEB3D/demos/boop/dist/." "$OUT/boop/"
+build_and_copy demos/boop boop
 build_and_copy demos/yinsh yinsh
 build_and_copy demos/tzaar tzaar
 
-if [[ -f "$ROOT/web/index.html" ]]; then
-  cp "$ROOT/web/index.html" "$OUT/index.html"
-  [[ -d "$ROOT/web/rules-tldr" ]] && cp -a "$ROOT/web/rules-tldr" "$OUT/rules-tldr"
+if [[ -f "$WEB3D/hub/index.html" ]]; then
+  cp "$WEB3D/hub/index.html" "$OUT/index.html"
+  [[ -d "$WEB3D/hub/rules-tldr" ]] && cp -a "$WEB3D/hub/rules-tldr" "$OUT/rules-tldr"
 fi
 
 echo "Staged web-3d hosting tree at: $OUT"

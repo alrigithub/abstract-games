@@ -785,7 +785,7 @@ export function restoreGameState(data: PersistedState): GameState {
   return state;
 }
 
-/** WASM-compatible facade used by the demo and worker. */
+/** JSON facade used by the demo and worker. */
 export class BoopGame {
   private state: GameState;
 
