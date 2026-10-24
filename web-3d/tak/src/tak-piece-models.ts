@@ -22,6 +22,8 @@ export const TAK_GLB_WORLD_SCALE = TAK_FLAT_TARGET_WIDTH / TAK_GLB_FLAT_WIDTH_M;
 const MODEL = {
   flatWhite: 'models/tak-flat-white.glb',
   flatBlack: 'models/tak-flat-black.glb',
+  uprightWhite: 'models/tak-upright-white.glb',
+  uprightBlack: 'models/tak-upright-black.glb',
   capWhite: 'models/tak-capstone-white.glb',
   capBlack: 'models/tak-capstone-black.glb',
 } as const;
@@ -59,14 +61,6 @@ function prepareTemplate(scene: THREE.Object3D): THREE.Object3D {
   return root;
 }
 
-function standingFromFlat(flat: THREE.Object3D): THREE.Object3D {
-  const wall = flat.clone(true);
-  wall.rotation.x = Math.PI / 2;
-  wall.updateMatrixWorld(true);
-  anchorObjectBaseToY0(wall);
-  return wall;
-}
-
 function measureHeight(template: THREE.Object3D): number {
   _box.setFromObject(template);
   return heightFromBoundingBox(_box);
@@ -79,15 +73,17 @@ async function loadScene(url: string): Promise<THREE.Object3D> {
 }
 
 async function buildTemplates(): Promise<TakTemplates> {
-  const [flatWhite, flatBlack, capWhite, capBlack] = await Promise.all([
+  const [flatWhite, flatBlack, uprightWhite, uprightBlack, capWhite, capBlack] = await Promise.all([
     loadScene(modelUrl(MODEL.flatWhite)),
     loadScene(modelUrl(MODEL.flatBlack)),
+    loadScene(modelUrl(MODEL.uprightWhite)),
+    loadScene(modelUrl(MODEL.uprightBlack)),
     loadScene(modelUrl(MODEL.capWhite)),
     loadScene(modelUrl(MODEL.capBlack)),
   ]);
   const flat = { A: prepareTemplate(flatWhite), B: prepareTemplate(flatBlack) };
   const capstone = { A: prepareTemplate(capWhite), B: prepareTemplate(capBlack) };
-  const standing = { A: standingFromFlat(flat.A), B: standingFromFlat(flat.B) };
+  const standing = { A: prepareTemplate(uprightWhite), B: prepareTemplate(uprightBlack) };
   return {
     flat,
     standing,
