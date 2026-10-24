@@ -121,9 +121,18 @@ function clearAssist() {
   scene.setInteraction(EMPTY_VIEW);
 }
 
+const HALO_RADIUS = 0.48;
+
 function highlightCells(cells: number[], last?: { from: Coord; to: Coord }) {
+  const valid = cells.filter(index => index >= 0);
   scene.setBoardAssist({
-    highlightCells: cells.filter(index => index >= 0),
+    destinationCells: valid,
+    destinationDotRadius: HALO_RADIUS,
+    shadows: valid.map(cell => ({
+      cell,
+      footprint: { shape: 'ring', outerRadius: 0.46, innerRadius: 0.36 },
+      strength: 'hover',
+    })),
     lastMove: last
       ? { fromCell: coordToIndex(last.from), toCell: coordToIndex(last.to) }
       : undefined,
@@ -237,6 +246,7 @@ async function playAnimatedMove(move: Move, actor: Actor) {
       const hide = new Set<string>();
       if (cue.kind === 'stack') hide.add(stackLabels.hideCell(cue.to));
       if (cue.kind === 'capture') hide.add(stackLabels.hideCell(cue.to));
+      highlightCells([coordToIndex(cue.from), coordToIndex(cue.to)], { from: cue.from, to: cue.to });
       scene.setSnapshot(gameToSnapshot(game), {
         durationMs: cue.ms,
         lift: reduced ? 0 : TZAAR_ANIM.LIFT,
@@ -396,6 +406,7 @@ declare global {
       aiPending: () => boolean;
       firstLegalMove: () => Move | null;
       applyMove: (move: Move) => void;
+      animState: () => { animating: boolean; cue: string; aiPending: boolean; inputLocked: boolean };
       waitForSettled: () => Promise<void>;
     };
   }
@@ -407,6 +418,12 @@ if (new URLSearchParams(location.search).has('e2e')) {
     aiPending: () => aiPending,
     firstLegalMove: () => game.legalMoves()[0] ?? null,
     applyMove: (move: Move) => humanMove(move),
+    animState: () => ({
+      animating: board.dataset.animating === 'true',
+      cue: board.dataset.animCue ?? '',
+      aiPending,
+      inputLocked,
+    }),
     waitForSettled: async () => {
       while (aiPending || inputLocked || scene.animationsBusy()) {
         await new Promise<void>(r => requestAnimationFrame(() => r()));
