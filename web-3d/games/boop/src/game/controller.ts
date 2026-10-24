@@ -13,6 +13,7 @@ import {
 import { BoopGame } from './engine';
 import './ai';
 import { exportHumanGraduationSetup } from './boop-graduation-fixture';
+import { BOOP_GRADUATION_GLOW_MS, graduationLineAssist } from './boop-graduation-glow';
 import { BOOP_ANIM } from './animation';
 import { BOOP_GRID as GRID, BOOP_OUTSIDE as OUTSIDE } from './boop-grid';
 import { poolKindAtCell, primaryPoolCellIndex } from './boop-pool-layout';
@@ -53,6 +54,7 @@ export class BoopController {
   private readonly onReady?: () => void;
   private aiPlaceTap?: (fromIndex: number, toIndex: number) => Promise<void>;
   private stickyKind: PieceKind = 'kitten';
+  private graduationGlowTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(options: BoopControllerOptions) {
     this.scene = options.scene;
@@ -142,6 +144,7 @@ export class BoopController {
   }
 
   newGame() {
+    this.clearGraduationGlow();
     this.aiGeneration++;
     this.aiSession.cancel();
     this.game = new BoopGame();
@@ -290,6 +293,25 @@ export class BoopController {
     if (board) board.dataset.restingCount = String(this.tracker.restingCount());
   }
 
+  private clearGraduationGlow() {
+    if (this.graduationGlowTimer !== undefined) {
+      clearTimeout(this.graduationGlowTimer);
+      this.graduationGlowTimer = undefined;
+    }
+    this.scene.setBoardAssist?.(null);
+  }
+
+  /** Orange celebration halos on a graduating line (visual-only, not game state). */
+  private showGraduationLineGlow(line: readonly [number, number][]) {
+    if (!this.scene.setBoardAssist) return;
+    this.clearGraduationGlow();
+    this.scene.setBoardAssist(graduationLineAssist(line));
+    this.graduationGlowTimer = setTimeout(() => {
+      this.graduationGlowTimer = undefined;
+      this.scene.setBoardAssist?.(null);
+    }, BOOP_GRADUATION_GLOW_MS);
+  }
+
   renderStatus(detail?: string) {
     if (!this.view) return;
     if (this.view.winner) {
@@ -360,6 +382,8 @@ export class BoopController {
       await this.animateMove(before, after, move, actor);
       this.view = after;
       this.highlightWin();
+      const gradLine = after.effects.line_highlight;
+      if (gradLine?.kind === 'graduation') this.showGraduationLineGlow(gradLine.line);
       this.renderStatus();
       if (scheduleAi && !this.view.winner && this.view.to_move === AI) {
         void this.runAiTurn();
