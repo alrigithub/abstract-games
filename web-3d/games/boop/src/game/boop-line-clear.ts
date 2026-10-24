@@ -14,6 +14,10 @@ export const BOOP_RUN_GLOW_STYLE = {
 export const BOOP_LINE_CLEAR = {
   TOTAL_MS: 2000,
   GLOW_HOLD_MS: 700,
+  /** Min gap between line pieces vanishing so each graduation ding reads separately. */
+  VANISH_MIN_MS: 420,
+  /** Stagger upgraded cats appearing in the hand after the line is gone. */
+  HAND_APPEAR_MIN_MS: 300,
 } as const;
 
 export function lineClearRemovalMs(): number {
