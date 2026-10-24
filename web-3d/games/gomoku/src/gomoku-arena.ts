@@ -12,9 +12,9 @@ import { PropertyBinding } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
-/** Verified SHA-256 of the meshopt-compressed arena in `public/models/`. */
+/** Verified SHA-256 of the arena GLB in `public/models/`. */
 export const GOMOKU_ARENA_GLB_SHA256 =
-  '4fc63280520261ade1d95cf37bc2ed29bfecd11141b3db58097973b1ae8e5414';
+  '2ab55d328aad294079aae72baa8149a97c3c146ee43cb3eaee4f58a42d2bf101';
 export const GOMOKU_ARENA_GLB_FILE = 'arena-15x15-white-150mm.glb';
 
 /** Real-world tile pitch (150 mm) mapped to one world unit per intersection. */
