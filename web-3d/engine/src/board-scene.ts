@@ -84,6 +84,8 @@ interface PieceObject {
   lastVertT: number;
   /** Extra lift-arc height for this tween (0 = straight lerp). */
   arcLift: number;
+  /** Pop-in from zero scale after a silent re-spawn. */
+  appearScale?: number;
 }
 
 interface DepartingObject {
@@ -92,6 +94,7 @@ interface DepartingObject {
   started: number;
   duration: number;
   sink: number;
+  baseScale: number;
   materials: { mat: THREE.Material; opacity: number }[];
 }
 
@@ -476,6 +479,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   let inAnimTask = false;
   let snapshotMoveDuration: number | undefined;
   let snapshotArcLift = 0;
+  let snapshotSilent = false;
+  let snapshotSpawnFromScale = false;
+  let boardGestureLockDepth = 0;
 
   function runFlipAnimation(work: () => Promise<void>): Promise<void> {
     if (inAnimTask) return work();
@@ -554,6 +560,15 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         if (flipT < 1) animated = true;
         else item.flipDuration = 0;
       }
+      if (item.appearScale !== undefined && t < 1 && !reducedMotion.matches) {
+        const scale = item.appearScale * ANIMATION.easeOutCubic(t);
+        item.mesh.scale.setScalar(scale);
+        animated = true;
+      }
+      if (t >= 1 && item.appearScale !== undefined) {
+        item.mesh.scale.setScalar(item.appearScale);
+        item.appearScale = undefined;
+      }
       if (t < 1) animated = true;
       else if (prevT < 1 && item.landOnComplete) finishLandSound(item);
       item.lastVertT = t;
@@ -563,6 +578,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       const t = reducedMotion.matches ? 1 : Math.min(1, Math.max(0, (now - item.started) / item.duration));
       const u = ANIMATION.easeOutCubic(t);
       item.mesh.position.y = item.fromY - item.sink * u;
+      const scale = item.baseScale * (1 - u);
+      item.mesh.scale.setScalar(Math.max(0.001, scale));
       for (const entry of item.materials) {
         if ('opacity' in entry.mat) entry.mat.opacity = entry.opacity * (1 - u);
       }
@@ -594,7 +611,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     item.duration = duration;
     const xzMovedArc = Math.hypot(target.x - item.from.x, target.z - item.from.z) > 0.04;
     item.arcLift = !item.selected && xzMovedArc ? snapshotArcLift : 0;
-    if (!immediate && !reducedMotion.matches && !item.selected) {
+    if (!snapshotSilent && !immediate && !reducedMotion.matches && !item.selected) {
       const dy = target.y - item.from.y;
       const xzMoved = Math.hypot(target.x - item.restX, target.z - item.restZ) > 0.08;
       if (dy < -0.008) {
@@ -646,7 +663,21 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   }
 
   function updateControlsEnabled() {
-    controls.enabled = !prerendered && (touches.size > 1 || (!view.selection && !pressBlocksCamera));
+    if (prerendered) {
+      controls.enabled = false;
+      return;
+    }
+    if (boardGestureLockDepth > 0) {
+      controls.enabled = true;
+      controls.enableRotate = false;
+      controls.enablePan = false;
+      controls.enableZoom = true;
+      return;
+    }
+    controls.enableRotate = true;
+    controls.enablePan = true;
+    controls.enableZoom = true;
+    controls.enabled = touches.size > 1 || (!view.selection && !pressBlocksCamera);
   }
 
   function onPileBlur() {
@@ -1048,12 +1079,14 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   }
 
   function beginDepart(item: PieceObject, duration: number, sink: number) {
+    const baseScale = item.mesh.scale.x;
     departing.push({
       mesh: item.mesh,
       fromY: item.mesh.position.y,
       started: performance.now(),
       duration: reducedMotion.matches ? 0 : duration,
       sink: reducedMotion.matches ? 0 : sink,
+      baseScale,
       materials: isolateMaterials(item.mesh),
     });
     objects.delete(item.pieceId);
@@ -1063,6 +1096,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   function setSnapshot(next: BoardSnapshot, applyOptions?: SnapshotApplyOptions) {
     snapshotMoveDuration = applyOptions?.durationMs;
     snapshotArcLift = applyOptions?.lift ?? 0;
+    snapshotSilent = applyOptions?.silent ?? false;
+    snapshotSpawnFromScale = applyOptions?.spawnFromScale ?? false;
     const prevReserves = JSON.stringify(snapshot.reserves);
     const reframeCamera =
       next.cellCount !== snapshot.cellCount ||
@@ -1125,8 +1160,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
             lastVertT: 1,
             arcLift: 0,
           };
-          if (!view.selection && !view.dragging) {
+          if (!snapshotSilent && !view.selection && !view.dragging) {
             item.landOnComplete = 'place';
+          }
+          if (snapshotSpawnFromScale && !reducedMotion.matches) {
+            item.appearScale = mesh.scale.x;
+            mesh.scale.setScalar(0.001);
           }
           objects.set(piece.id, item);
         }
@@ -1173,9 +1212,13 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     snapshotArcLift = 0;
     assistLayer.update(assistState, cellPosition);
     syncFlipHalos();
-    for (const item of objects.values()) {
-      if (item.landOnComplete && item.lastVertT >= 1) finishLandSound(item);
+    if (!snapshotSilent) {
+      for (const item of objects.values()) {
+        if (item.landOnComplete && item.lastVertT >= 1) finishLandSound(item);
+      }
     }
+    snapshotSilent = false;
+    snapshotSpawnFromScale = false;
     if (reframeCamera) {
       if (cameraViewsRef) cameraViewsRef.refit();
       else fit(true);
@@ -1365,6 +1408,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     },
     animationsBusy() {
       return animQueue.busy;
+    },
+    setBoardGestureLock(locked: boolean) {
+      boardGestureLockDepth = locked
+        ? boardGestureLockDepth + 1
+        : Math.max(0, boardGestureLockDepth - 1);
+      updateControlsEnabled();
     },
     drainAnimations() {
       return animQueue.drain();

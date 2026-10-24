@@ -10,6 +10,7 @@ import {
   type AiStrengthSearchOptions,
   type SceneApi,
   type Selection,
+  type SnapshotApplyOptions,
 } from '@abstract/three-engine';
 import { playBoopUpgradeSound, playBoopWinSound, stopBoopWinSound } from './boop-extra-sfx';
 import { winMarkerCells } from './boop-win-glow';
@@ -30,13 +31,13 @@ import { BOOP_GRID as GRID, BOOP_OUTSIDE as OUTSIDE } from './boop-grid';
 import { poolKindAtCell, primaryPoolCellIndex, type PoolCounts } from './boop-pool-layout';
 import {
   boardBeforeGraduationClear,
-  graduationHandPoolSteps,
   poolsDuringMoveAnimation,
   viewAfterPlacementStep,
   viewDuringMechanicalEffects,
 } from './boop-push-board';
 import { applyParallelBoopPushEffects } from './boop-push-schedule';
 import { exportDualAdjacentBoopSetup } from './boop-push-fixture';
+import { emptySnapshot, snapshotPieceIds } from './boop-bottle-flash';
 import { PieceTracker } from './piece-tracker';
 import type { GameView, MoveJson, PieceKind, PlayerId } from './types';
 import { parseGameView } from './types';
@@ -311,11 +312,48 @@ export class BoopController {
     return 'kitten';
   }
 
-  private publishSnapshot(options?: { durationMs?: number }) {
+  private publishSnapshot(options?: SnapshotApplyOptions) {
     this.tracker.syncBoard(this.view);
     this.scene.setSnapshot(this.tracker.buildSnapshot(this.view), options);
     const board = document.querySelector<HTMLElement>('[data-testid="board"]');
     if (board) board.dataset.restingCount = String(this.tracker.restingCount());
+  }
+
+  /** Engine snapshot from the current staged view without mutating tracker ids. */
+  private buildVisualSnapshot() {
+    return this.tracker.buildSnapshot(this.view);
+  }
+
+  /**
+   * Hide then show every vase (bed, pools, resting) with opacity/scale — no place swoosh.
+   * `onHidden` runs after the vanish half (tracker / rules view may change before reappear).
+   */
+  private async flashAllBottles(totalMs: number, onHidden?: () => void) {
+    const full = this.buildVisualSnapshot();
+    const ids = snapshotPieceIds(full);
+    if (!ids.length) {
+      onHidden?.();
+      return;
+    }
+    const half = Math.max(120, Math.floor(totalMs / 2));
+    this.scene.setBoardGestureLock?.(true);
+    try {
+      this.scene.setSnapshot(emptySnapshot(full), {
+        durationMs: half,
+        silent: true,
+        departing: { ids, durationMs: half },
+      });
+      await sleep(half);
+      onHidden?.();
+      this.scene.setSnapshot(this.buildVisualSnapshot(), {
+        durationMs: half,
+        silent: true,
+        spawnFromScale: true,
+      });
+      await sleep(half);
+    } finally {
+      this.scene.setBoardGestureLock?.(false);
+    }
   }
 
   renderStatus(detail?: string) {
@@ -480,48 +518,30 @@ export class BoopController {
     this.publishSnapshot();
     await sleep(BOOP_LINE_CLEAR.GLOW_HOLD_MS);
 
-    if (graduated?.length) {
-      const removeMs = lineClearRemovalMs();
-      const perPiece = Math.max(BOOP_LINE_CLEAR.VANISH_MIN_MS, Math.floor(removeMs / graduated.length));
-      for (const [x, y] of graduated) {
-        const kind = baselineBoard[y]?.[x]?.kind;
-        if (kind === 'kitten') playBoopUpgradeSound();
-        else if (kind === 'cat') playBoopSound();
-        this.tracker.removeFromBoard(x, y);
-        this.view = {
-          ...viewHoldingLineOnBed(
-            baselineBoard,
-            after,
-            line.filter(c => !(c[0] === x && c[1] === y)),
-          ),
-          pools: stagedPools(),
-        };
-        this.publishSnapshot({ durationMs: perPiece });
-        await sleep(perPiece);
-      }
+    const removalMs = lineClearRemovalMs();
 
+    if (graduated?.length) {
+      await this.flashAllBottles(removalMs, () => {
+        for (const [x, y] of graduated) {
+          const kind = baselineBoard[y]?.[x]?.kind;
+          if (kind === 'kitten') playBoopUpgradeSound();
+          else if (kind === 'cat') playBoopSound();
+          this.tracker.removeFromBoard(x, y);
+        }
+        this.view = after;
+        this.tracker.syncBoard(this.view);
+      });
       this.scene.setBoardAssist?.(null);
-      const handSteps = graduationHandPoolSteps(before, after, move, actor, graduated, baselineBoard);
-      const appearMs = Math.max(
-        BOOP_LINE_CLEAR.HAND_APPEAR_MIN_MS,
-        Math.floor(900 / Math.max(1, handSteps.length)),
-      );
-      for (const pools of handSteps) {
-        this.view = { ...after, pools };
-        this.publishSnapshot({ durationMs: appearMs });
-        await sleep(appearMs);
-      }
-      this.view = after;
-      this.publishSnapshot();
+      this.publishSnapshot({ silent: true });
       return;
     }
 
-    await sleep(lineClearRemovalMs());
+    await this.flashAllBottles(removalMs);
     if (!after.winner) {
       this.scene.setBoardAssist?.(null);
     }
     this.view = after;
-    this.publishSnapshot();
+    this.publishSnapshot({ silent: true });
     if (after.winner) this.syncWinCelebration();
   }
 

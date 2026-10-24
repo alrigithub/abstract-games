@@ -45,6 +45,10 @@ export interface SnapshotApplyOptions {
     /** World-Y drop while fading (default a short sink). */
     sink?: number;
   };
+  /** Skip place / cancel landing clips for tweens started by this snapshot apply. */
+  silent?: boolean;
+  /** Scale new piece meshes from 0 → authored size over the move duration. */
+  spawnFromScale?: boolean;
 }
 
 export interface Point {
@@ -283,6 +287,8 @@ export interface SceneApi {
   enqueueAnimation(task: () => Promise<void>): Promise<void>;
   /** True while {@link enqueueAnimation} tasks or tweens are still running. */
   animationsBusy(): boolean;
+  /** Lock pan / orbit gestures while keeping zoom (nested calls balance with unlock). */
+  setBoardGestureLock(locked: boolean): void;
   drainAnimations(): Promise<void>;
   /** Recompute orthographic framing from {@link Topology.frameCorners}. */
   reframe(): void;
