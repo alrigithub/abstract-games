@@ -17,8 +17,10 @@ import {
   tzaarLayout,
   tzaarPlayableCells,
   themeTokens,
+  type EnginePiece,
   type ThemeId,
 } from '@abstract/three-engine';
+import { loadTzaarPieceGeometrySet } from './tzaar-piece-models';
 
 /** Official start plus a few mid-board stacks so height reads at a glance. */
 const STACKS: Record<string, number> = {
@@ -145,6 +147,8 @@ function fit() {
   requestRender();
 }
 
+const pieces = await loadTzaarPieceGeometrySet();
+
 function applyTheme(id: ThemeId) {
   const tokens = themeTokens(id);
   scene.background = new THREE.Color(tokens.table);
@@ -169,18 +173,25 @@ function applyTheme(id: ThemeId) {
     const pos = topology.cellPosition(piece.index, snapshot);
     let y = surface;
     for (let level = 0; level < height; level++) {
-      const isTop = level === height - 1;
-      const mesh = createTzaarPieceMesh({
+      const enginePiece: EnginePiece = {
+        id: `${piece.x},${piece.y},${level}`,
         player: piece.player,
-        kind: isTop ? piece.kind : 'tott',
-        isTop,
-        tokens,
-        edgeCache,
-        showSeparator: level > 0,
-      });
-      mesh.position.set(pos.x, y + GIPF_CHIP.HEIGHT / 2, pos.z);
-      piecesRoot.add(mesh);
-      y += GIPF_CHIP.HEIGHT;
+        shape: piece.kind,
+      };
+      const step = pieces.height(enginePiece);
+      const visual = pieces.createVisual
+        ? pieces.createVisual(enginePiece)
+        : createTzaarPieceMesh({
+            player: piece.player,
+            kind: piece.kind,
+            isTop: level === height - 1,
+            tokens,
+            edgeCache,
+            showSeparator: level > 0,
+          });
+      visual.position.set(pos.x, y + step / 2, pos.z);
+      piecesRoot.add(visual);
+      y += step;
     }
     const shadow = new THREE.Mesh(discGeo, shadowMat);
     shadow.scale.set(1, 0.001, 1);

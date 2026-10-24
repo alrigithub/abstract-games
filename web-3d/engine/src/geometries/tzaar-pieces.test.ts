@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   TZAAR_DISC_HEIGHT,
   TZAAR_DISC_RADIUS,
+  TZAAR_GLB_DIAMETER_M,
+  TZAAR_GLB_HEIGHT_M,
+  TZAAR_GLB_STACK_STEP,
+  TZAAR_GLB_WORLD_SCALE,
   createTzaarDiscGeometry,
   createTzaarDotGeometry,
   createTzaarRingGeometry,
@@ -46,5 +50,14 @@ describe('tzaar discs', () => {
     expect(set.height({ id: 'a', player: 'A', shape: 'tott' })).toBeCloseTo(0.13);
     expect(set.height({ id: 'b', player: 'B', shape: 'tzaar' })).toBeCloseTo(0.13);
     expect(set.yaw('any')).toBe(0);
+  });
+
+  it('uses one GLB scale so 28 mm stones match RADIUS 0.375 and stack by 4.3 mm', () => {
+    expect(TZAAR_GLB_DIAMETER_M).toBeCloseTo(0.028);
+    expect(TZAAR_GLB_HEIGHT_M).toBeCloseTo(0.0043);
+    expect(TZAAR_GLB_WORLD_SCALE * (TZAAR_GLB_DIAMETER_M / 2)).toBeCloseTo(TZAAR_DISC_RADIUS, 8);
+    expect(TZAAR_GLB_WORLD_SCALE * TZAAR_GLB_DIAMETER_M).toBeCloseTo(TZAAR_DISC_RADIUS * 2, 8);
+    expect(TZAAR_GLB_STACK_STEP).toBeCloseTo(TZAAR_GLB_HEIGHT_M * TZAAR_GLB_WORLD_SCALE, 10);
+    expect(TZAAR_GLB_STACK_STEP).toBeCloseTo(0.0043 * (0.375 / 0.014), 8);
   });
 });
