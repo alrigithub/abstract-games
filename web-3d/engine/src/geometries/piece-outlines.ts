@@ -50,11 +50,29 @@ export function decoratePieceMesh(
   return mesh;
 }
 
+/** World-units diameter of the contact decal from a piece footprint (XZ bounds). */
+export function contactShadowScaleFromGeometry(geo: THREE.BufferGeometry | null | undefined): number {
+  const fallback = BOARD.SHADOW_SCALE * 0.95;
+  if (!geo) return fallback;
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  const box = geo.boundingBox;
+  if (!box) return fallback;
+  const footprint = Math.max(box.max.x - box.min.x, box.max.z - box.min.z, 0.01);
+  // Wider pieces (e.g. Boop vases) need a footprint-based blob; small Tak stones keep the legacy minimum.
+  return Math.max(fallback, footprint * BOARD.SHADOW_SCALE);
+}
+
+export function syncPieceContactShadowScale(shadow: THREE.Mesh, geo: THREE.BufferGeometry): void {
+  const scale = contactShadowScaleFromGeometry(geo);
+  shadow.scale.set(scale, scale, 1);
+}
+
 export function makePieceShadow(
   geo: THREE.BufferGeometry,
   material: THREE.MeshBasicMaterial,
   group: THREE.Group,
 ): THREE.Mesh {
+  void material;
   const decal = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
     new THREE.MeshBasicMaterial({
@@ -66,7 +84,7 @@ export function makePieceShadow(
     }),
   );
   decal.rotation.x = -Math.PI / 2;
-  decal.scale.setScalar(BOARD.SHADOW_SCALE * 0.95);
+  syncPieceContactShadowScale(decal, geo);
   decal.renderOrder = 1;
   decal.castShadow = false;
   decal.receiveShadow = false;
