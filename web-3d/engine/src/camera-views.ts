@@ -90,6 +90,7 @@ export function fitOrthographicToWorldPoints(
 export interface CameraViewController {
   readonly preset: CameraPresetId;
   toggle(): void;
+  setPreset(preset: CameraPresetId, animate?: boolean): void;
   /** Re-fit the current preset after resize or board layout change. */
   refit(): void;
   dispose(): void;
@@ -168,6 +169,9 @@ export function createCameraViewController(options: CreateCameraViewControllerOp
     },
     toggle() {
       applyPreset(nextCameraPresetAfter(preset), true);
+    },
+    setPreset(next: CameraPresetId, animate = false) {
+      applyPreset(next, animate);
     },
     refit,
     dispose() {

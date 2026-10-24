@@ -4,6 +4,7 @@ import {
   BOARD,
   CAMERA,
   GIPF_CHIP,
+  applyBoardEnvironment,
   createBoardWebGLRenderer,
   createCameraViewController,
   createGameButtons,
@@ -40,6 +41,7 @@ const renderer = createBoardWebGLRenderer();
 boardEl.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
+applyBoardEnvironment(scene, renderer);
 const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
 camera.position.set(...CAMERA.position);
 camera.lookAt(0, 0, 0);

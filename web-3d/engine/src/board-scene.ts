@@ -7,7 +7,7 @@ import { createContactShadowBlob } from './geometries/contact-shadow';
 import { decoratePieceMesh, makePieceShadow } from './geometries/piece-outlines';
 import { stackHeight } from './stack';
 import { layoutStackCenters, stackExtent, type StackMeasure } from './stack-layout';
-import { createBoardWebGLRenderer } from './board-renderer';
+import { applyBoardEnvironment, createBoardWebGLRenderer } from './board-renderer';
 import { consumeBoopPushLandingSound, initPlaceSfx, playPiecePlaceSound, type PlaceSoundKind } from './sound/place-sfx';
 import { themeTokens, type ThemeId } from './theme';
 import type {
@@ -74,6 +74,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(tokens.table);
   const renderer = createBoardWebGLRenderer();
+  const disposeEnvironment = applyBoardEnvironment(scene, renderer);
   container.appendChild(renderer.domElement);
 
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
@@ -967,6 +968,36 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       const bounds = renderer.domElement.getBoundingClientRect();
       return { x: bounds.left + ((position.x + 1) * bounds.width) / 2, y: bounds.top + ((1 - position.y) * bounds.height) / 2 };
     },
+    getBoardTopY() {
+      board.updateMatrixWorld(true);
+      const box = new THREE.Box3();
+      for (const child of board.children) {
+        if (child instanceof THREE.Mesh && child.geometry instanceof THREE.BoxGeometry) {
+          box.expandByObject(child);
+        }
+      }
+      return Number.isFinite(box.max.y) ? box.max.y : playfieldY;
+    },
+    getStackBottomBaseYs() {
+      const ys: number[] = [];
+      const baseY = (object: THREE.Object3D) => {
+        object.updateMatrixWorld(true);
+        shadowBounds.setFromObject(object);
+        return shadowBounds.min.y;
+      };
+      snapshot.cells.forEach(stack => {
+        if (!stack.length) return;
+        const item = objects.get(stack[0]!.id);
+        if (item && Number.isFinite(baseY(item.mesh))) ys.push(baseY(item.mesh));
+      });
+      for (const slot of snapshot.reserves ?? []) {
+        if (slot.count <= 0) continue;
+        const pick: ReservePick = { slotId: slot.id, player: slot.player, shape: slot.shape, pile: slot.pile };
+        const mesh = reserveTargets.get(reserveKeyFor(pick));
+        if (mesh && Number.isFinite(baseY(mesh))) ys.push(baseY(mesh));
+      }
+      return ys;
+    },
     enqueueAnimation(task) {
       return animQueue.enqueue(task);
     },
@@ -1027,6 +1058,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       window.removeEventListener('pointerup', onPointerRelease);
       window.removeEventListener('pointercancel', onPointerRelease);
       controls.dispose();
+      disposeEnvironment();
       renderer.dispose();
       renderer.domElement.remove();
     },
