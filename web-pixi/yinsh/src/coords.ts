@@ -1,11 +1,18 @@
-export type Coord = { x: number; y: number };
+import {
+  coordKey as sharedCoordKey,
+  nearestCoord as sharedNearest,
+  screenPoint as sharedScreenPoint,
+  spacingForViewport,
+  type Coord,
+} from "@abstract/pixi-shared";
 
-const BOARD_RADIUS_SQ = 4.6 * 4.6;
+export type { Coord };
 
 export function isInsideBoard(c: Coord): boolean {
   const sqrt3 = Math.sqrt(3);
   const x = c.x;
   const y = c.y;
+  const BOARD_RADIUS_SQ = 4.6 * 4.6;
   return (
     Math.pow(0.5 * sqrt3 * x, 2) + Math.pow(0.5 * x - y, 2) <= BOARD_RADIUS_SQ
   );
@@ -23,7 +30,7 @@ export function allCoords(): Coord[] {
 }
 
 export function coordKey(c: Coord): string {
-  return `${c.x},${c.y}`;
+  return sharedCoordKey(c);
 }
 
 export function parseCoordKey(k: string): Coord {
@@ -31,22 +38,11 @@ export function parseCoordKey(k: string): Coord {
   return { x, y };
 }
 
-/** Same layout as `yinsh_gui` `ScaleFactor::screen_point`. */
 export function screenPoint(c: Coord, spacing: number): { x: number; y: number } {
-  return {
-    x: spacing * (0.5 * Math.sqrt(3) * c.x),
-    y: spacing * (-c.y + 0.5 * c.x),
-  };
+  return sharedScreenPoint(c, spacing, "yinsh");
 }
 
-export function spacingForViewport(
-  width: number,
-  height: number,
-  base = 80,
-): number {
-  const scale = Math.min(height / 800, width / 872, 1.5);
-  return base * scale;
-}
+export { spacingForViewport };
 
 export function rackSlotPosition(
   player: "A" | "B",
@@ -71,15 +67,16 @@ export function nearestCoord(
   worldY: number,
   spacing: number,
 ): { coord: Coord; dist: number } {
-  let best = allCoords()[0];
-  let bestD = Infinity;
-  for (const c of allCoords()) {
-    const p = screenPoint(c, spacing);
-    const d = Math.hypot(p.x - worldX, p.y - worldY);
-    if (d < bestD) {
-      bestD = d;
-      best = c;
-    }
+  const hit = sharedNearest(
+    worldX,
+    worldY,
+    spacing,
+    allCoords(),
+    "yinsh",
+    BOARD_PICK_RADIUS_FACTOR,
+  );
+  if (!hit) {
+    return { coord: allCoords()[0], dist: Infinity };
   }
-  return { coord: best, dist: bestD };
+  return hit;
 }

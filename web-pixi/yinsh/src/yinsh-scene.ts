@@ -6,13 +6,22 @@ import {
   nearestCoord,
   rackSlotPosition,
   screenPoint,
-  spacingForViewport,
   type Coord,
 } from "./coords";
-import { AnimatedBackground } from "./animated-background";
-import { ScoreEffects } from "./effects";
+import {
+  AnimatedBackground,
+  WinEffects,
+  applyCameraToContainer,
+  attachPixiStageInput,
+  drawHexBoard,
+  drawHoverRing,
+  drawLegalTarget,
+  screenToWorld,
+  spacingForViewport,
+  theme,
+  type CameraState,
+} from "@abstract/pixi-shared";
 import type { GameController, VisualEvent } from "./game-controller";
-import { theme } from "./theme";
 import type { Player, RenderState } from "./types";
 
 type PieceKind = "ring" | "marker";
@@ -33,15 +42,12 @@ export class YinshScene {
   private fxLayer = new Container();
   private indicatorLayer = new Container();
   private rackLayer = new Container();
-  private scoreFx: ScoreEffects;
+  private scoreFx: WinEffects;
+  private camera: CameraState = { x: 0, y: 0, zoom: 1 };
   private pieces = new Map<string, PieceView>();
   private spacing = 80;
   private factor = 1;
-  private panX = 0;
-  private panY = 0;
-  private zoom = 1;
-  private dragging = false;
-  private dragStart = { x: 0, y: 0, panX: 0, panY: 0 };
+  private detachStageInput: (() => void) | null = null;
   private hoverCoord: Coord | null = null;
   private highlightedRing: Coord | null = null;
   private ghostRing: Graphics | null = null;
@@ -54,7 +60,7 @@ export class YinshScene {
     this.statusEl = statusEl;
     this.app = new Application();
     this.bg = new AnimatedBackground();
-    this.scoreFx = new ScoreEffects();
+    this.scoreFx = new WinEffects();
   }
 
   async init(mount: HTMLElement) {
@@ -76,68 +82,34 @@ export class YinshScene {
     this.world.addChild(this.indicatorLayer);
     this.world.addChild(this.pieceLayer);
 
-    this.setupInput();
-    this.app.ticker.add((t) => {
-      const dt = t.deltaMS;
-      this.bg.update(dt, this.app.screen.width, this.app.screen.height);
-      this.scoreFx.update(dt, this.spacing, this.factor);
-      this.layoutWorld();
-    });
-  }
-
-  private setupInput() {
-    const canvas = this.app.canvas;
-    canvas.addEventListener(
-      "wheel",
-      (e) => {
-        e.preventDefault();
-        if (e.ctrlKey) {
-          const delta = e.deltaY > 0 ? 0.92 : 1.08;
-          this.zoom = Math.min(2.5, Math.max(0.45, this.zoom * delta));
-        } else {
-          this.panX -= e.deltaX;
-          this.panY -= e.deltaY;
-        }
-        this.layoutWorld();
+    this.detachStageInput = attachPixiStageInput({
+      host: mount,
+      getCamera: () => this.camera,
+      setCamera: (s) => {
+        this.camera = s;
       },
-      { passive: false },
-    );
-
-    canvas.addEventListener("pointerdown", (e) => {
-      if (e.button === 1 || e.buttons === 4 || e.shiftKey) {
-        this.dragging = true;
-        this.dragStart = {
-          x: e.clientX,
-          y: e.clientY,
-          panX: this.panX,
-          panY: this.panY,
-        };
-      }
+      onCameraChange: () => this.layoutWorld(),
     });
-    canvas.addEventListener("pointermove", (e) => {
-      if (this.dragging) {
-        this.panX = this.dragStart.panX + (e.clientX - this.dragStart.x);
-        this.panY = this.dragStart.panY + (e.clientY - this.dragStart.y);
-        this.layoutWorld();
-        return;
-      }
+    this.app.canvas.addEventListener("pointermove", (e) => {
       this.updateHover(e.clientX, e.clientY);
     });
-    canvas.addEventListener("pointerup", () => {
-      this.dragging = false;
-    });
-    canvas.addEventListener("pointerleave", () => {
+    this.app.canvas.addEventListener("pointerleave", () => {
       this.hoverCoord = null;
       this.drawIndicators(null);
     });
-    canvas.addEventListener("click", (e) => {
-      if (this.dragging) return;
+    this.app.canvas.addEventListener("click", (e) => {
       const coord = this.pickCoord(e.clientX, e.clientY);
       if (!coord) {
         void this.controller.cancelRingSelection();
         return;
       }
       void this.controller.humanClick(coord);
+    });
+    this.app.ticker.add((t) => {
+      const dt = t.deltaMS;
+      this.bg.update(dt, this.app.screen.width, this.app.screen.height);
+      this.scoreFx.update(dt);
+      this.layoutWorld();
     });
   }
 
@@ -161,8 +133,12 @@ export class YinshScene {
     const rect = this.app.canvas.getBoundingClientRect();
     const sx = clientX - rect.left;
     const sy = clientY - rect.top;
-    const local = this.world.toLocal({ x: sx, y: sy });
-    const { coord, dist } = nearestCoord(local.x, local.y, this.spacing);
+    const vp = {
+      width: this.app.screen.width,
+      height: this.app.screen.height,
+    };
+    const world = screenToWorld(this.camera, sx, sy, vp);
+    const { coord, dist } = nearestCoord(world.x, world.y, this.spacing);
     if (dist > this.spacing * BOARD_PICK_RADIUS_FACTOR) return null;
     return coord;
   }
@@ -217,7 +193,7 @@ export class YinshScene {
   private playVisual(v: VisualEvent, state: RenderState) {
     switch (v.kind) {
       case "removeRun":
-        this.scoreFx.showScoredLine(v.coords, this.spacing, this.factor);
+        this.scoreFx.showPoints(v.coords, this.spacing, this.factor, screenPoint);
         break;
       case "flipMarkers":
         for (const c of v.coords) {
@@ -235,7 +211,7 @@ export class YinshScene {
           v.player,
           v.slot,
           this.spacing,
-          (this.app.screen.width / this.zoom) * 0.5,
+          (this.app.screen.width / this.camera.zoom) * 0.5,
           this.factor,
         );
         this.tweenPieceTo(v.coord, dest, "ring", v.player, true);
@@ -342,68 +318,14 @@ export class YinshScene {
   private drawGrid() {
     this.boardLayer.removeChildren();
     const g = new Graphics();
-    const coords = allCoords();
-    const pts = coords.map((c) => screenPoint(c, this.spacing));
-
-    if (pts.length > 2) {
-      let minX = Infinity,
-        maxX = -Infinity,
-        minY = Infinity,
-        maxY = -Infinity;
-      for (const p of pts) {
-        minX = Math.min(minX, p.x);
-        maxX = Math.max(maxX, p.x);
-        minY = Math.min(minY, p.y);
-        maxY = Math.max(maxY, p.y);
-      }
-      const pad = this.spacing * 0.55;
-      g.roundRect(
-        minX - pad,
-        minY - pad,
-        maxX - minX + pad * 2,
-        maxY - minY + pad * 2,
-        8,
-      ).fill({ color: theme.boardFill });
-    }
-
-    const lineW = 1.2 * this.factor;
-    for (let x = -5; x <= 5; x++) {
-      const row = coords.filter((c) => c.x === x);
-      if (row.length < 2) continue;
-      row.sort((a, b) => a.y - b.y);
-      const a = screenPoint(row[0], this.spacing);
-      const b = screenPoint(row[row.length - 1], this.spacing);
-      g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: lineW, color: theme.boardLine });
-    }
-    for (let y = -5; y <= 5; y++) {
-      const row = coords.filter((c) => c.y === y);
-      if (row.length < 2) continue;
-      row.sort((a, b) => a.x - b.x);
-      const a = screenPoint(row[0], this.spacing);
-      const b = screenPoint(row[row.length - 1], this.spacing);
-      g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: lineW, color: theme.boardLine });
-    }
-    for (let d = -5; d <= 5; d++) {
-      const row = coords.filter((c) => c.y === c.x + d);
-      if (row.length < 2) continue;
-      row.sort((a, b) => a.x - b.x);
-      const a = screenPoint(row[0], this.spacing);
-      const b = screenPoint(row[row.length - 1], this.spacing);
-      g.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ width: lineW, color: theme.boardLine });
-    }
-
-    for (const c of coords) {
-      const p = screenPoint(c, this.spacing);
-      g.circle(p.x, p.y, 2.2 * this.factor).fill({ color: theme.boardLine, alpha: 0.55 });
-    }
-
+    drawHexBoard(g, allCoords(), this.spacing, this.factor, "yinsh", "yinsh");
     this.boardLayer.addChild(g);
   }
 
   private drawRacks(state: RenderState) {
     this.rackLayer.removeChildren();
     this.racked = [];
-    const halfW = (this.app.screen.width / this.zoom) * 0.5;
+    const halfW = (this.app.screen.width / this.camera.zoom) * 0.5;
     for (const player of ["A", "B"] as Player[]) {
       const scored = player === "A" ? state.points_a : state.points_b;
       for (let slot = 0; slot < 3; slot++) {
@@ -433,16 +355,12 @@ export class YinshScene {
       for (const m of state.legal_moves) {
         if (m.type !== "moveRing") continue;
         const p = screenPoint(m.end, this.spacing);
-        g.circle(p.x, p.y, this.spacing / 8).fill({ color: 0xffffff, alpha: 0.12 });
+        drawLegalTarget(g, p.x, p.y, this.spacing / 8);
       }
     }
     if (hover) {
       const p = screenPoint(hover, this.spacing);
-      g.circle(p.x, p.y, this.spacing / 6).stroke({
-        width: 2,
-        color: theme.hover,
-        alpha: 0.85,
-      });
+      drawHoverRing(g, p.x, p.y, this.spacing / 6);
     }
     this.indicatorLayer.addChild(g);
   }
@@ -532,15 +450,14 @@ export class YinshScene {
 
   private layoutWorld() {
     this.spacing = spacingForViewport(
-      this.app.screen.width / this.zoom,
-      this.app.screen.height / this.zoom,
+      this.app.screen.width / this.camera.zoom,
+      this.app.screen.height / this.camera.zoom,
     );
     this.factor = this.spacing / 80;
-    this.world.scale.set(this.zoom);
-    this.world.position.set(
-      this.app.screen.width / 2 + this.panX,
-      this.app.screen.height / 2 + this.panY,
-    );
+    applyCameraToContainer(this.world, this.camera, {
+      width: this.app.screen.width,
+      height: this.app.screen.height,
+    });
     this.bg.resize(this.app.screen.width, this.app.screen.height);
   }
 }

@@ -5066,6 +5066,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tzaar_wasm"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tzaar",
+ "tzaar_ai",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "unicode-bidi"
 version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
