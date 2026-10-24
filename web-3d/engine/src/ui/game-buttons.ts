@@ -154,6 +154,8 @@ export interface ExtraGameButton {
   testId: string;
   onClick: () => void;
   title?: string;
+  ariaLabel?: string;
+  className?: string;
 }
 
 export interface CreateGameButtonsOptions {
@@ -264,6 +266,8 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
     btn.dataset.testid = extra.testId;
     btn.textContent = extra.label;
     if (extra.title) btn.title = extra.title;
+    if (extra.ariaLabel) btn.setAttribute('aria-label', extra.ariaLabel);
+    if (extra.className) btn.className = extra.className;
     btn.addEventListener('click', () => extra.onClick());
     return btn;
   });

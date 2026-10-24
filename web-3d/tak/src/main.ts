@@ -54,11 +54,30 @@ function applyTheme(id: ThemeId) {
 
 const cameraViews = scene.createCameraViews();
 
+function syncFlipBarButton() {
+  const btn = document.querySelector<HTMLButtonElement>('[data-testid="flip-stone"]');
+  if (!btn) return;
+  btn.hidden = !gameUi.isActive() || !gameUi.canFlipStone();
+}
+
 const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
   cameraViews,
   aiStrengthStorageKey: TAK_AI_STRENGTH_STORAGE_KEY,
   applyTheme,
+  extraButtons: [
+    {
+      testId: 'flip-stone',
+      className: 'game-button-icon',
+      label: '↕',
+      ariaLabel: 'Flip stone (flat / wall)',
+      title: 'Flat ↔ wall',
+      onClick: () => {
+        if (gameUi.isActive()) gameUi.toggleStoneOrientation();
+        else void flipSelectedStone();
+      },
+    },
+  ],
   firstPlayer: {
     title: 'Who goes first?',
     description: 'You vs AI — pick your color.',
@@ -85,12 +104,16 @@ const gameUi = createGameUi({
   onActive: active => {
     sandbox = !active;
     document.querySelector<HTMLButtonElement>('#reset')!.disabled = active;
+    syncFlipBarButton();
   },
   onBoard: game => {
     state = game.board;
     refresh();
   },
-  setStatus: text => gameButtons.setStatus(text),
+  setStatus: text => {
+    gameButtons.setStatus(text);
+    syncFlipBarButton();
+  },
   getAiSearchOptions: () => levelToSearchOptions(gameButtons.aiStrength!.getLevel()),
   aiStrengthLabel: () => gameButtons.aiStrength!.getLevel().label,
 });
@@ -121,6 +144,7 @@ const controller = createInteraction({
     scene.setInteraction(view);
     selectionInfo.hidden = !view.selection;
     board.classList.toggle('is-dragging', view.dragging);
+    syncFlipBarButton();
     if (view.selection) {
       label.textContent = String(view.selection.count);
       document.querySelector<HTMLElement>('#hold-ring')!.style.setProperty('--progress', `${view.progress * 360}deg`);
@@ -222,25 +246,27 @@ document.querySelector('#end-turn')!.addEventListener('click', () => {
   else cancel();
 });
 document.querySelector('#done')!.addEventListener('click', cancel);
-rotateBtn.addEventListener('click', () => {
-  void (async () => {
-    if (!canEditSandbox()) return;
-    const selection = controller.getSelection();
-    if (!selection || typeof selection.source !== 'number') return;
-    const top = state.cells[selection.source]?.at(-1);
-    if (!top || top.kind !== 'stone') return;
-    rotateBtn.disabled = true;
-    try {
-      await scene.flipPiece(top.id);
-      const next = rotateSelection(state, toTakSelection(selection));
-      if (next !== state) {
-        commit(next);
-        if (lastView) scene.setInteraction(lastView);
-      }
-    } finally {
-      rotateBtn.disabled = false;
+async function flipSelectedStone() {
+  if (!canEditSandbox()) return;
+  const selection = controller.getSelection();
+  if (!selection || typeof selection.source !== 'number') return;
+  const top = state.cells[selection.source]?.at(-1);
+  if (!top || top.kind !== 'stone') return;
+  rotateBtn.disabled = true;
+  try {
+    await scene.flipPiece(top.id);
+    const next = rotateSelection(state, toTakSelection(selection));
+    if (next !== state) {
+      commit(next);
+      if (lastView) scene.setInteraction(lastView);
     }
-  })();
+  } finally {
+    rotateBtn.disabled = false;
+  }
+}
+
+rotateBtn.addEventListener('click', () => {
+  void flipSelectedStone();
 });
 
 let cameraMode: 'pan' | 'orbit' = 'pan';
@@ -262,6 +288,8 @@ if (location.search.includes('human=ivory')) {
       pilePoint(): { x: number; y: number };
       centerPoint(): { x: number; y: number };
       openingReservePoint(): { x: number; y: number };
+      capReservePoint(color?: Color): { x: number; y: number };
+      seedCapStackDemo(): void;
     };
   }).__takE2e = {
     pilePoint() {
@@ -293,6 +321,31 @@ if (location.search.includes('human=ivory')) {
         }
       });
       return scene.cellScreen(index);
+    },
+    capReservePoint(color: Color = 'ivory') {
+      const playable = boardSize * boardSize;
+      for (let i = playable; i < state.cells.length; i++) {
+        const top = state.cells[i]?.at(-1);
+        if (top?.kind === 'capstone' && top.color === color) return scene.cellScreen(i);
+      }
+      return scene.cellScreen(playable);
+    },
+    seedCapStackDemo() {
+      const mid = Math.floor((boardSize * boardSize) / 2);
+      const cap = state.cells.flat().find(p => p.kind === 'capstone' && p.color === 'ivory');
+      if (!cap) return;
+      const flats = Array.from({ length: 3 }, (_, i) => ({
+        id: `demo-flat-${i}`,
+        color: 'ivory' as const,
+        kind: 'stone' as const,
+        orientation: 'flat' as const,
+      }));
+      state.cells[mid] = [...flats, { ...cap, id: 'demo-cap-stack' }];
+      const sourceIndex = state.cells.findIndex((stack, i) => i >= boardSize * boardSize && stack.some(p => p.id === cap.id));
+      if (sourceIndex >= 0) {
+        state.cells[sourceIndex] = state.cells[sourceIndex]!.filter(p => p.id !== cap.id);
+      }
+      refresh();
     },
   };
 }

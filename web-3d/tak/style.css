@@ -1,18 +1,10 @@
-main {
-  margin: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
 .play-area {
   height: 100%;
   padding: 12px;
 }
-.board-wrap,
-#board {
+.board-wrap {
   width: 100%;
   height: 100%;
-  touch-action: none;
 }
 .corner-controls {
   position: fixed;

@@ -211,7 +211,6 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   let bufferHeight = 0;
   let selectedIds = new Set<string>();
   let reserveKey = '';
-  let ghostKey = '';
   const objects = new Map<string, PieceObject>();
   const animQueue = new AnimationQueue();
   const raycaster = new THREE.Raycaster();
@@ -586,20 +585,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       typeof view.selection.source !== 'number' &&
       reserveKeyFor(exterior.pick) === reserveKeyFor(view.selection.source);
     const visible = !!view.selection && !sameReserve && (target !== null || !!exterior) && (typeof view.selection.source !== 'number' || target !== view.selection.source);
-    ghostGroup.visible = visible;
+    ghostGroup.visible = false;
     previewShadow.visible = visible;
     if (!visible) return;
-    const key = selected.map(p => `${p.id}:${p.shape}:${p.player}`).join('|');
-    if (ghostKey !== key) {
-      ghostKey = key;
-      ghostGroup.clear();
-      for (const piece of selected) {
-        const mesh = new THREE.Mesh(geometry(piece as never), ghostMaterials[piece.player]!);
-        mesh.rotation.y = pieceYaw(piece.id);
-        mesh.renderOrder = 2;
-        ghostGroup.add(mesh);
-      }
-    }
     const targetStack = target === null ? [] : snapshot.cells[target] ?? [];
     let y =
       playfieldY +
@@ -616,11 +604,6 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       previewShadow.rotation.y = pieceYaw(selected[0].id);
       previewShadow.position.set(position.x, y + BOARD.SHADOW_CONTACT_EPSILON, position.z);
     }
-    const ghostCenters = layoutStackCenters(selected as EnginePiece[], stackMeasure, y);
-    selected.forEach((piece, i) => {
-      const mesh = ghostGroup.children[i];
-      if (mesh) mesh.position.set(position.x, ghostCenters[i]!, position.z);
-    });
   }
 
   function updateInteraction(immediate = false) {
