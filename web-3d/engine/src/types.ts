@@ -75,6 +75,14 @@ export interface PieceGeometrySet {
   materialFor?(piece: EnginePiece, tokens: ThemeTokens, selected?: boolean): THREE.Material | THREE.Material[] | null;
 }
 
+export interface PieceBuildContext {
+  tokens: ThemeTokens;
+  edgeCache: Map<THREE.BufferGeometry, THREE.EdgesGeometry>;
+  edgeMaterial: THREE.LineBasicMaterial;
+  outlineMaterial: THREE.MeshBasicMaterial;
+  edgeThreshold: number;
+}
+
 export interface YinshCoord {
   x: number;
   y: number;

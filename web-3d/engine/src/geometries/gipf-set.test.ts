@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GIPF_BOARD,
   GIPF_CHIP,
+  createGipfMarkerBodyGeometry,
   GIPF_SPACING,
   createGipfChipEdgeRingGeometry,
   createGipfChipGeometry,
@@ -11,7 +12,9 @@ import {
   gipfRegularHexSlab,
   gipfWorldPoint,
   tzaarLayout,
+  isYinshPlayfieldAxial,
   yinshLayout,
+  yinshLayoutEdgePoints,
 } from './gipf-set';
 
 describe('gipf layouts', () => {
@@ -30,6 +33,17 @@ describe('gipf layouts', () => {
         expect(a.world.distanceTo(b.world)).toBeCloseTo(layout.spacing, 5);
       }
     }
+  });
+
+  it('matches the official 85-point Yinsh playfield filter', () => {
+    let count = 0;
+    for (let q = -5; q <= 5; q++) {
+      for (let r = -5; r <= 5; r++) {
+        if (isYinshPlayfieldAxial(q, r)) count++;
+      }
+    }
+    expect(count).toBe(85);
+    expect(yinshLayoutEdgePoints(yinshLayout()).length).toBe(30);
   });
 
   it('uses one world helper for layout points', () => {
@@ -100,5 +114,16 @@ describe('gipf chip', () => {
     const ringR = Math.max(Math.abs(ringBox.max.x), Math.abs(ringBox.min.x), Math.abs(ringBox.max.z), Math.abs(ringBox.min.z));
     expect(ringR).toBeLessThanOrEqual(GIPF_CHIP.RADIUS + 1e-4);
     ring.dispose();
+  });
+
+  it('marker body merges disc and rim with two material groups', () => {
+    const geo = createGipfMarkerBodyGeometry();
+    geo.computeBoundingBox();
+    expect(geo.groups).toHaveLength(2);
+    const h = geo.boundingBox!.max.y - geo.boundingBox!.min.y;
+    expect(h).toBeGreaterThan(GIPF_CHIP.HEIGHT - 0.001);
+    expect(h).toBeLessThan(GIPF_CHIP.HEIGHT + 0.012);
+    expect(geo.boundingBox!.min.y).toBeCloseTo(0, 3);
+    geo.dispose();
   });
 });

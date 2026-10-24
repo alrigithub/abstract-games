@@ -177,6 +177,20 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     return createPieceMesh(piece, selected);
   }
 
+  function swapMarkerPlayer(item: PieceObject) {
+    const player = (item.mesh.userData.player as string) === 'A' ? 'B' : 'A';
+    item.mesh.userData.player = player;
+    const piece = { id: item.pieceId, player, shape: 'marker' } as EnginePiece;
+    if (options.pieces.replaceVisual) {
+      options.pieces.replaceVisual(item.mesh, piece);
+      applyPieceMaterial(item.mesh, piece);
+      item.mesh.rotation.x = item.flipFromX;
+      item.flipToX = item.flipFromX;
+    } else {
+      applyPieceMaterial(item.mesh, piece);
+    }
+  }
+
   function syncPieceShape(item: PieceObject, piece: EnginePiece) {
     if (item.mesh.userData.shape === piece.shape) return;
     if (options.pieces.replaceVisual) {
@@ -250,6 +264,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   let reserveKey = '';
   const objects = new Map<string, PieceObject>();
   const animQueue = new AnimationQueue();
+  let inAnimTask = false;
+
+  function runFlipAnimation(work: () => Promise<void>): Promise<void> {
+    if (inAnimTask) return work();
+    return animQueue.enqueue(work);
+  }
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -311,9 +331,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
           item.flipSwapped = true;
           const shape = item.mesh.userData.shape as string;
           if (shape === 'marker') {
-            const player = (item.mesh.userData.player as string) === 'A' ? 'B' : 'A';
-            item.mesh.userData.player = player;
-            applyPieceMaterial(item.mesh, { id: item.pieceId, player, shape: 'marker' });
+            swapMarkerPlayer(item);
           } else if (shape === 'flat' || shape === 'standing') {
             swapFlippedStoneShape(item);
           }
@@ -367,7 +385,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     if (!projectPointer({ x: clientX, y: clientY })) return null;
     scene.updateMatrixWorld(true);
     const meshes = [...piecesGroup.children, ...pilesGroup.children, ...board.children.filter(c => c instanceof THREE.Mesh)].filter(m => m.visible);
-    return raycaster.intersectObjects(meshes, false)[0] ?? null;
+    return raycaster.intersectObjects(meshes, true)[0] ?? null;
   }
 
   function pickSurface(clientX: number, clientY: number) {
@@ -782,11 +800,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         const h = height(piece as never);
         const destination = new THREE.Vector3(position.x, centers[stackIndex]!, position.z);
         let item = objects.get(piece.id);
+        const prevPlayer = item?.mesh.userData.player as string | undefined;
         if (!item) {
           const mesh = createPieceVisual(piece as EnginePiece);
           mesh.position.copy(destination);
           mesh.rotation.y = pieceYaw(piece.id);
-          if (piece.shape === 'marker') mesh.rotation.x = piece.player === 'B' ? Math.PI : 0;
+          if (piece.shape === 'marker' && !options.pieces.createVisual) mesh.rotation.x = piece.player === 'B' ? Math.PI : 0;
           mesh.userData.pieceId = piece.id;
           mesh.userData.cellIndex = index;
           mesh.userData.player = piece.player;
@@ -829,7 +848,17 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         syncPieceShape(item, piece as EnginePiece);
         item.mesh.userData.player = piece.player;
         applyPieceMaterial(item.mesh, piece as EnginePiece);
-        if (piece.shape === 'marker' && item.flipDuration <= 0) {
+        if (
+          piece.shape === 'marker' &&
+          options.pieces.replaceVisual &&
+          item.flipDuration <= 0 &&
+          prevPlayer !== undefined &&
+          prevPlayer !== piece.player
+        ) {
+          options.pieces.replaceVisual(item.mesh, piece as EnginePiece);
+          applyPieceMaterial(item.mesh, piece as EnginePiece);
+        }
+        if (piece.shape === 'marker' && item.flipDuration <= 0 && !options.pieces.createVisual) {
           const targetX = piece.player === 'B' ? Math.PI : 0;
           if (Math.abs(item.mesh.rotation.x - targetX) > 0.05) item.mesh.rotation.x = targetX;
           item.shadow.rotation.x = item.mesh.rotation.x;
@@ -891,11 +920,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     requestRender();
     if (item.flipDuration <= 0) {
       item.mesh.rotation.x = item.flipToX;
-      if (isMarker) {
-        const player = (item.mesh.userData.player as string) === 'A' ? 'B' : 'A';
-        item.mesh.userData.player = player;
-        applyPieceMaterial(item.mesh, { id: item.pieceId, player, shape: 'marker' });
-      } else swapFlippedStoneShape(item);
+      if (isMarker) swapMarkerPlayer(item);
+      else swapFlippedStoneShape(item);
       item.shadow.rotation.x = item.mesh.rotation.x;
       return;
     }
@@ -999,7 +1025,14 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       return ys;
     },
     enqueueAnimation(task) {
-      return animQueue.enqueue(task);
+      return animQueue.enqueue(async () => {
+        inAnimTask = true;
+        try {
+          await task();
+        } finally {
+          inAnimTask = false;
+        }
+      });
     },
     animationsBusy() {
       return animQueue.busy;
@@ -1031,22 +1064,16 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       requestRender();
     },
     flipPiece(pieceId) {
-      return new Promise<void>(resolve => {
-        void animQueue.enqueue(async () => {
-          await runFlipPiece(pieceId);
-          resolve();
-        });
+      return runFlipAnimation(async () => {
+        await runFlipPiece(pieceId);
       });
     },
     flipPieces(pieceIds, staggerMs = 80) {
-      return new Promise<void>(resolve => {
-        void animQueue.enqueue(async () => {
-          for (let i = 0; i < pieceIds.length; i++) {
-            if (i > 0 && staggerMs > 0) await new Promise(r => setTimeout(r, staggerMs));
-            await runFlipPiece(pieceIds[i]!);
-          }
-          resolve();
-        });
+      return runFlipAnimation(async () => {
+        for (let i = 0; i < pieceIds.length; i++) {
+          if (i > 0 && staggerMs > 0) await new Promise(r => setTimeout(r, staggerMs));
+          await runFlipPiece(pieceIds[i]!);
+        }
       });
     },
     dispose() {

@@ -25,6 +25,7 @@ export function yinshCoordKey(coord: YinshCoord): string {
   return gipfPointKey(coord.x, coord.y);
 }
 
+/** World position of a playable intersection — same mapping as printed grid lines. */
 export function yinshWorldPoint(coord: YinshCoord, spacing: number = YINSH.SPACING): THREE.Vector3 {
   return gipfWorldPoint(coord.x, coord.y, spacing);
 }
@@ -125,18 +126,14 @@ export function yinshBoardExtents(spacing: number = YINSH.SPACING): { minX: numb
   return { minX, maxX, minZ, maxZ };
 }
 
-/** Side rack slot for scored rings (three per player), placed via {@link gipfWorldPoint}. */
+/** Side rack slots for scored rings — off the playfield, not on hex intersections. */
 export function yinshRackPosition(player: 'A' | 'B', slot: number, spacing: number = YINSH.SPACING): { x: number; z: number } {
   const { minX, maxX } = yinshBoardExtents(spacing);
-  const gap = YINSH.RING_OUTER * 1.35;
+  const padX = spacing * 1.55 + YINSH.RING_OUTER * 2.6;
   const step = spacing * 0.82;
-  const axialScale = spacing * (Math.sqrt(3) / 2);
-  const targetX = player === 'A' ? minX - gap : maxX + gap;
-  const q = targetX / axialScale;
-  const targetZ = (slot - 1) * step;
-  const r = 0.5 * q - targetZ / spacing;
-  const world = gipfWorldPoint(q, r, spacing);
-  return { x: world.x, z: world.z };
+  const x = player === 'A' ? minX - padX : maxX + padX;
+  const z = (slot - 1) * step;
+  return { x, z };
 }
 
 export function yinshIndex(coord: YinshCoord): number {

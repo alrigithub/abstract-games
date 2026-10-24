@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BOARD } from '../constants';
 import type { ThemeTokens } from '../types';
 import { createContactShadowBlob } from './contact-shadow';
+import { anchorGeometryBaseToY0 } from './anchor';
 
 /**
  * Shared GIPF Project chip (Tzaar discs / Yinsh markers).
@@ -40,18 +41,29 @@ export const GIPF_SPACING = 1;
 const SQRT3_2 = Math.sqrt(3) / 2;
 const YINSH_RADIUS_SQ = 4.6 * 4.6;
 
-export function isYinshPlayfieldAxial(q: number, r: number): boolean {
-  const x = SQRT3_2 * q;
-  const z = 0.5 * q - r;
-  return x * x + z * z <= YINSH_RADIUS_SQ + 1e-9;
-}
-
 /** Axial steps that are true neighbours of {@link gipfWorldPoint}. */
 export const GIPF_AXIAL_STEPS = [
   [1, 0],
   [0, 1],
   [1, 1],
 ] as const;
+
+/** All six axial neighbours (for Yinsh rim / edge detection). */
+export const YINSH_AXIAL_NEIGHBORS = [
+  [1, 0],
+  [0, 1],
+  [1, 1],
+  [-1, 0],
+  [0, -1],
+  [-1, -1],
+] as const;
+
+/** Official Yinsh playfield test in layout/world space (hex side 5, corners clipped at R=4.6). */
+export function isYinshPlayfieldAxial(q: number, r: number): boolean {
+  const x = SQRT3_2 * q;
+  const z = 0.5 * q - r;
+  return x * x + z * z <= YINSH_RADIUS_SQ + 1e-9;
+}
 
 export interface GipfPoint {
   q: number;
@@ -131,6 +143,20 @@ export function yinshLayout(spacing: number = GIPF_SPACING): GipfHexLayout {
 
 export function gipfPointKey(q: number, r: number): string {
   return `${q},${r}`;
+}
+
+/** Intersections on the outer rim (line segments end here on the official 85-point board). */
+export function yinshLayoutEdgePoints(layout: GipfHexLayout): GipfPoint[] {
+  if (layout.id !== 'yinsh') {
+    return layout.points;
+  }
+  const inside = new Set(layout.points.map(p => gipfPointKey(p.q, p.r)));
+  return layout.points.filter(p => {
+    for (const [dq, dr] of YINSH_AXIAL_NEIGHBORS) {
+      if (!inside.has(gipfPointKey(p.q + dq, p.r + dr))) return true;
+    }
+    return false;
+  });
 }
 
 export function gipfNeighborPairs(layout: GipfHexLayout): [GipfPoint, GipfPoint][] {
@@ -278,6 +304,17 @@ export function createGipfChipGeometry(): THREE.BufferGeometry {
   geo.computeBoundingBox();
   geo.computeBoundingSphere();
   return geo;
+}
+
+/** GIPF chip body + printed rim ring (groups 0 = lathe body, 1 = rim), base at y=0. */
+export function createGipfMarkerBodyGeometry(): THREE.BufferGeometry {
+  const disc = createGipfChipGeometry().toNonIndexed();
+  const rim = createGipfChipRimGeometry().toNonIndexed();
+  const merged = mergeGeometries([disc, rim], true);
+  if (!merged) throw new Error('merge GIPF marker body failed');
+  merged.computeBoundingBox();
+  merged.computeBoundingSphere();
+  return anchorGeometryBaseToY0(merged);
 }
 
 export function createGipfChipRimGeometry(): THREE.BufferGeometry {

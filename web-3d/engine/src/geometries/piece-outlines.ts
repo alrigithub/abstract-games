@@ -7,22 +7,27 @@ export function decoratePieceMesh(
   outlineMaterial: THREE.MeshBasicMaterial,
   edgeCache: Map<THREE.BufferGeometry, THREE.EdgesGeometry>,
   threshold: number = BOARD.EDGE_THRESHOLD_TAK,
+  options?: { hullOutline?: boolean; edgeLines?: boolean },
 ): THREE.Mesh {
   mesh.clear();
-  const outline = new THREE.Mesh(mesh.geometry, outlineMaterial);
-  outlineMaterial.onBeforeCompile = shader => {
-    shader.vertexShader = shader.vertexShader.replace(
-      '#include <begin_vertex>',
-      `#include <begin_vertex>\ntransformed += normal * ${BOARD.OUTLINE_EXPAND};`,
-    );
-  };
-  mesh.add(outline);
-  let edges = edgeCache.get(mesh.geometry);
-  if (!edges) {
-    edges = new THREE.EdgesGeometry(mesh.geometry, threshold);
-    edgeCache.set(mesh.geometry, edges);
+  if (options?.hullOutline !== false) {
+    const outline = new THREE.Mesh(mesh.geometry, outlineMaterial);
+    outlineMaterial.onBeforeCompile = shader => {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>\ntransformed += normal * ${BOARD.OUTLINE_EXPAND};`,
+      );
+    };
+    mesh.add(outline);
   }
-  mesh.add(new THREE.LineSegments(edges, edgeMaterial));
+  if (options?.edgeLines !== false) {
+    let edges = edgeCache.get(mesh.geometry);
+    if (!edges) {
+      edges = new THREE.EdgesGeometry(mesh.geometry, threshold);
+      edgeCache.set(mesh.geometry, edges);
+    }
+    mesh.add(new THREE.LineSegments(edges, edgeMaterial));
+  }
   return mesh;
 }
 

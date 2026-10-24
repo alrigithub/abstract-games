@@ -1,78 +1,97 @@
 import * as THREE from 'three';
 import { BOARD } from '../constants';
-import type { EnginePiece, PieceGeometrySet, ThemeTokens } from '../types';
+import type { EnginePiece, PieceBuildContext, PieceGeometrySet, ThemeTokens } from '../types';
 import { anchorGeometryBaseToY0 } from './anchor';
-import { GIPF_CHIP, createGipfChipGeometry } from './gipf-set';
+import {
+  GIPF_CHIP,
+  createGipfChipGeometry,
+  createGipfChipRimGeometry,
+} from './gipf-set';
+import { decoratePieceMesh } from './piece-outlines';
+const HOLE_CLEARANCE = 0.026;
+const RING_WALL = 0.102;
 
-/** Yinsh ring annulus — inner hole fits the shared GIPF chip with clearance. */
+/** Physical ring: taller than a GIPF marker, rounded wall (lathe profile). */
 export const YINSH = {
   SPACING: 1,
-  RING_INNER: GIPF_CHIP.RADIUS + 0.028,
-  RING_OUTER: 0.48,
-  RING_HEIGHT: 0.056,
-  EDGE_THRESHOLD: 18,
+  HOLE_CLEARANCE,
+  RING_WALL,
+  RING_INNER: GIPF_CHIP.RADIUS + HOLE_CLEARANCE,
+  RING_OUTER: GIPF_CHIP.RADIUS + HOLE_CLEARANCE + RING_WALL,
+  RING_HEIGHT: 0.21,
+  CORNER_RATIO: 0.22,
+  /** Match Tzaar emblem / extrude curve density. */
+  LATHE_SEGMENTS: GIPF_CHIP.SEGMENTS * 2,
+  CORNER_ARC_STEPS: 12,
+  EDGE_THRESHOLD: BOARD.EDGE_THRESHOLD_TAK,
 } as const;
 
-function flatAnnulus(inner: number, outer: number, depth: number): THREE.BufferGeometry {
-  const shape = new THREE.Shape();
-  shape.absarc(0, 0, outer, 0, Math.PI * 2, false);
-  const hole = new THREE.Path();
-  hole.absarc(0, 0, inner, 0, Math.PI * 2, true);
-  shape.holes.push(hole);
-  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: BOARD.RADIAL_SEGMENTS });
-  geo.rotateX(-Math.PI / 2);
-  return anchorGeometryBaseToY0(geo);
+function arcPoints(
+  cx: number,
+  cy: number,
+  radius: number,
+  fromAngle: number,
+  toAngle: number,
+  steps: number,
+): THREE.Vector2[] {
+  const out: THREE.Vector2[] = [];
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const a = fromAngle + (toAngle - fromAngle) * t;
+    out.push(new THREE.Vector2(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius));
+  }
+  return out;
+}
+
+function ringWallProfile(inner: number, outer: number, height: number): THREE.Vector2[] {
+  const wall = outer - inner;
+  const r = Math.min(wall * YINSH.CORNER_RATIO, height * 0.45, wall * 0.48);
+  const steps = YINSH.CORNER_ARC_STEPS;
+  const profile: THREE.Vector2[] = [];
+  profile.push(new THREE.Vector2(inner + r, 0));
+  profile.push(...arcPoints(inner + r, r, r, -Math.PI / 2, Math.PI, steps));
+  profile.push(new THREE.Vector2(inner, height - r));
+  profile.push(...arcPoints(inner + r, height - r, r, Math.PI, Math.PI / 2, steps));
+  profile.push(new THREE.Vector2(outer - r, height));
+  profile.push(...arcPoints(outer - r, height - r, r, Math.PI / 2, 0, steps));
+  profile.push(new THREE.Vector2(outer, r));
+  profile.push(...arcPoints(outer - r, r, r, 0, -Math.PI / 2, steps));
+  return profile;
 }
 
 export function createYinshRingGeometry(): THREE.BufferGeometry {
-  return flatAnnulus(YINSH.RING_INNER, YINSH.RING_OUTER, YINSH.RING_HEIGHT);
-}
-
-/** Match {@link THREE.CylinderGeometry} groups: 0 side, 1 top cap, 2 bottom cap. */
-function assignGipfChipFlipGroups(geo: THREE.BufferGeometry): void {
+  const profile = ringWallProfile(YINSH.RING_INNER, YINSH.RING_OUTER, YINSH.RING_HEIGHT);
+  const geo = new THREE.LatheGeometry(profile, YINSH.LATHE_SEGMENTS);
+  geo.computeVertexNormals();
   geo.computeBoundingBox();
-  const box = geo.boundingBox!;
-  const maxY = box.max.y;
-  const minY = box.min.y;
-  const eps = GIPF_CHIP.HEIGHT * 0.08;
-  const pos = geo.getAttribute('position');
-  const index = geo.getIndex();
-  if (!index) return;
-
-  const side: number[] = [];
-  const top: number[] = [];
-  const bottom: number[] = [];
-
-  for (let i = 0; i < index.count; i += 3) {
-    const ia = index.getX(i);
-    const ib = index.getX(i + 1);
-    const ic = index.getX(i + 2);
-    const avgY = (pos.getY(ia) + pos.getY(ib) + pos.getY(ic)) / 3;
-    const tri = [index.getX(i), index.getX(i + 1), index.getX(i + 2)];
-    if (avgY >= maxY - eps) top.push(...tri);
-    else if (avgY <= minY + eps) bottom.push(...tri);
-    else side.push(...tri);
-  }
-
-  const merged = [...side, ...top, ...bottom];
-  geo.setIndex(merged);
-  geo.clearGroups();
-  let start = 0;
-  if (side.length) {
-    geo.addGroup(start, side.length, 0);
-    start += side.length;
-  }
-  if (top.length) {
-    geo.addGroup(start, top.length, 1);
-    start += top.length;
-  }
-  if (bottom.length) geo.addGroup(start, bottom.length, 2);
+  geo.computeBoundingSphere();
+  return anchorGeometryBaseToY0(geo);
 }
 
+const markerDiscGeo = anchorGeometryBaseToY0(createGipfChipGeometry());
+const markerRimGeo = createGipfChipRimGeometry();
+
+/** Shadow / height proxy (disc only). */
 export function createYinshMarkerGeometry(): THREE.BufferGeometry {
-  const geo = createGipfChipGeometry();
-  assignGipfChipFlipGroups(geo);
-  return anchorGeometryBaseToY0(geo);
+  return markerDiscGeo;
+}
+
+function basic(color: string): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({ color, toneMapped: false });
+}
+
+/** Tzaar-style GIPF chip: lathe disc + printed rim, separate decorated meshes. */
+export function createYinshMarkerMesh(player: string, ctx: PieceBuildContext): THREE.Group {
+  const palette = ctx.tokens.piece[player] ?? ctx.tokens.piece.A!;
+  const edge = new THREE.LineBasicMaterial({ color: palette.edge, transparent: true, opacity: 0.85 });
+  const outline = basic(ctx.tokens.lines);
+  outline.side = THREE.BackSide;
+  const group = new THREE.Group();
+  group.userData.gipfMarker = true;
+  const disc = decoratePieceMesh(new THREE.Mesh(markerDiscGeo, basic(palette.fill)), edge, outline, ctx.edgeCache);
+  const rim = decoratePieceMesh(new THREE.Mesh(markerRimGeo, basic(palette.rim)), edge, outline, ctx.edgeCache);
+  group.add(disc, rim);
+  return group;
 }
 
 export function yinshMarkerMaterials(player: string, tokens: ThemeTokens): THREE.Material[] {
@@ -86,6 +105,13 @@ export function yinshMarkerMaterials(player: string, tokens: ThemeTokens): THREE
     new THREE.MeshBasicMaterial({ color: topColor, toneMapped: false }),
     new THREE.MeshBasicMaterial({ color: bottomColor, toneMapped: false }),
   ];
+}
+
+export function refreshYinshMarkerMesh(root: THREE.Object3D, player: string, ctx: PieceBuildContext): void {
+  if (!(root instanceof THREE.Group) || !root.userData.gipfMarker) return;
+  const replacement = createYinshMarkerMesh(player, ctx);
+  root.clear();
+  for (const child of replacement.children) root.add(child);
 }
 
 export function yinshPieceGeometrySet(ring: THREE.BufferGeometry, marker: THREE.BufferGeometry): PieceGeometrySet {
@@ -104,7 +130,7 @@ export function yinshPieceGeometrySet(ring: THREE.BufferGeometry, marker: THREE.
     useOutline(piece: EnginePiece) {
       return piece.shape === 'ring';
     },
-    materialFor(piece: EnginePiece, tokens: ThemeTokens) {
+    materialFor(piece: EnginePiece, tokens) {
       if (piece.shape !== 'marker') return null;
       return yinshMarkerMaterials(piece.player, tokens);
     },
@@ -112,7 +138,7 @@ export function yinshPieceGeometrySet(ring: THREE.BufferGeometry, marker: THREE.
       if (piece.shape !== 'marker' || stackIndex === 0) return 0;
       const hasRingBelow = stack.slice(0, stackIndex).some(p => p.shape === 'ring');
       if (!hasRingBelow) return 0;
-      return -ringHeight;
+      return -ringHeight + GIPF_CHIP.HEIGHT * 0.06;
     },
     yaw(id: string) {
       if (!id.startsWith('ring')) return 0;
