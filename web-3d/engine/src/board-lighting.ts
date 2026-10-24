@@ -17,7 +17,7 @@ export interface BoardLightingHandle {
 }
 
 /** 45° elevation, 45° azimuth — rotated 180° about Y to match baked piece shadow direction. */
-const LIGHT_DIR = new THREE.Vector3(1, Math.SQRT2, -1).normalize();
+const LIGHT_DIR = new THREE.Vector3(-1, Math.SQRT2, 1).normalize();
 
 const BOX_CORNERS = Array.from({ length: 8 }, () => new THREE.Vector3());
 const PLAYFIELD_CATCHER_NAME = '__playfieldShadowCatcher';
