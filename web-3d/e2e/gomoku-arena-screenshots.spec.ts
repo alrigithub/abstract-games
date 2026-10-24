@@ -37,16 +37,32 @@ test.describe('Gomoku arena screenshots', () => {
     });
   });
 
-  test('mid-game stones (light)', async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem('abstract-three-theme', 'light');
+  for (const theme of ['light', 'dark'] as const) {
+    test(`mid-game stones (${theme})`, async ({ page }) => {
+      await page.addInitScript(themeId => {
+        localStorage.setItem('abstract-three-theme', themeId);
+      }, theme);
+      await page.goto(`/?shot=mid-stones&theme=${theme}`);
+      await page.waitForSelector('[data-testid="board"] canvas', { timeout: 90_000 });
+      await page.waitForTimeout(1200);
+      await expect.poll(() => page.locator('body').getAttribute('data-demo-shot')).toBe('mid-stones');
+      await page.screenshot({
+        path: path.join(screenshotDir, `gomoku-arena-mid-${theme}.png`),
+        fullPage: true,
+      });
     });
-    await page.goto('/?shot=mid-stones&theme=light');
+  }
+
+  test('stones and win glow (dark)', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('abstract-three-theme', 'dark');
+    });
+    await page.goto('/?shot=win-glow&theme=dark');
     await page.waitForSelector('[data-testid="board"] canvas', { timeout: 90_000 });
     await page.waitForTimeout(1200);
-    await expect.poll(() => page.locator('body').getAttribute('data-demo-shot')).toBe('mid-stones');
+    await expect.poll(() => page.locator('body').getAttribute('data-demo-shot')).toBe('win-glow');
     await page.screenshot({
-      path: path.join(screenshotDir, 'gomoku-arena-mid-light.png'),
+      path: path.join(screenshotDir, 'gomoku-arena-win-dark.png'),
       fullPage: true,
     });
   });
