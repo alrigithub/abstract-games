@@ -76,7 +76,6 @@ export interface GomokuThemeMaterials {
   star: THREE.MeshBasicMaterial;
   stoneA: THREE.MeshBasicMaterial;
   stoneB: THREE.MeshBasicMaterial;
-  stoneShadow: THREE.MeshBasicMaterial;
 }
 
 export function gomokuThemeMaterials(theme: ThemeId): GomokuThemeMaterials {
@@ -90,13 +89,6 @@ export function gomokuThemeMaterials(theme: ThemeId): GomokuThemeMaterials {
     star: new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.DoubleSide }),
     stoneA: new THREE.MeshBasicMaterial({ color: pieceA.fill, toneMapped: false }),
     stoneB: new THREE.MeshBasicMaterial({ color: pieceB.fill, toneMapped: false }),
-    stoneShadow: new THREE.MeshBasicMaterial({
-      color: tokens.shadow,
-      transparent: true,
-      opacity: 0.09,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    }),
   };
 }
 

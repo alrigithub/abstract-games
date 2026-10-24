@@ -53,7 +53,7 @@ export const BOARD = {
    */
   ENVIRONMENT_INTENSITY: 0.72,
   /** Decal under pieces (complements shadow maps). */
-  PIECE_CONTACT_SHADOW_OPACITY: 0.11,
+  PIECE_CONTACT_SHADOW_OPACITY: 0.24,
 } as const;
 
 export const CAMERA = {

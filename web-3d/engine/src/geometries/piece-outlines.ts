@@ -10,8 +10,8 @@ function pieceContactShadowTexture(): THREE.CanvasTexture {
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d')!;
   const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  g.addColorStop(0, 'rgba(0,0,0,0.55)');
-  g.addColorStop(0.45, 'rgba(0,0,0,0.16)');
+  g.addColorStop(0, 'rgba(0,0,0,0.65)');
+  g.addColorStop(0.4, 'rgba(0,0,0,0.22)');
   g.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, size);
@@ -67,12 +67,40 @@ export function syncPieceContactShadowScale(shadow: THREE.Mesh, geo: THREE.Buffe
   shadow.scale.set(scale, scale, 1);
 }
 
+const groundShadowBounds = new THREE.Box3();
+
+/** Position a horizontal contact decal at the piece footprint (follows mesh during motion). */
+export function syncPieceGroundShadowPosition(
+  shadow: THREE.Object3D,
+  mesh: THREE.Object3D,
+  fallbackHalfHeight = 0,
+): void {
+  mesh.updateMatrixWorld(true);
+  groundShadowBounds.setFromObject(mesh);
+  if (Number.isFinite(groundShadowBounds.min.y)) {
+    shadow.position.y = groundShadowBounds.min.y + BOARD.SHADOW_CONTACT_EPSILON;
+  } else {
+    shadow.position.y = mesh.position.y - fallbackHalfHeight + BOARD.SHADOW_CONTACT_EPSILON;
+  }
+  shadow.position.x = mesh.position.x;
+  shadow.position.z = mesh.position.z;
+}
+
+export function makePieceShadow(
+  geo: THREE.BufferGeometry,
+  group: THREE.Group,
+): THREE.Mesh;
 export function makePieceShadow(
   geo: THREE.BufferGeometry,
   material: THREE.MeshBasicMaterial,
   group: THREE.Group,
+): THREE.Mesh;
+export function makePieceShadow(
+  geo: THREE.BufferGeometry,
+  materialOrGroup: THREE.MeshBasicMaterial | THREE.Group,
+  group?: THREE.Group,
 ): THREE.Mesh {
-  void material;
+  const groupTarget = group ?? (materialOrGroup as THREE.Group);
   const decal = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
     new THREE.MeshBasicMaterial({
@@ -88,6 +116,6 @@ export function makePieceShadow(
   decal.renderOrder = 1;
   decal.castShadow = false;
   decal.receiveShadow = false;
-  group.add(decal);
+  groupTarget.add(decal);
   return decal;
 }

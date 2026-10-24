@@ -9,7 +9,12 @@ import {
 import { createCameraViewController, fitOrthographicToWorldPoints, type CameraViewController } from './camera-views';
 import { ANIMATION, BOARD, CAMERA } from './constants';
 import { createContactShadowBlob } from './geometries/contact-shadow';
-import { decoratePieceMesh, makePieceShadow, syncPieceContactShadowScale } from './geometries/piece-outlines';
+import {
+  decoratePieceMesh,
+  makePieceShadow,
+  syncPieceContactShadowScale,
+  syncPieceGroundShadowPosition,
+} from './geometries/piece-outlines';
 import { stackHeight } from './stack';
 import { layoutStackCenters, stackExtent, type StackMeasure } from './stack-layout';
 import {
@@ -142,14 +147,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   let ghostMaterials: Record<string, THREE.MeshBasicMaterial> = {};
   let boardMaterial = new THREE.MeshBasicMaterial({ color: tokens.board, side: THREE.DoubleSide });
   let gridMaterial = new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.DoubleSide });
-  let shadowMaterial = new THREE.MeshBasicMaterial({ color: tokens.shadow, transparent: true, opacity: 0.09, depthWrite: false, side: THREE.DoubleSide });
-
   function rebuildMaterials() {
     tokens = themeTokens(themeId);
     scene.background = new THREE.Color(tokens.table);
     boardMaterial.color.set(tokens.board);
     gridMaterial.color.set(tokens.lines);
-    shadowMaterial.color.set(tokens.shadow);
     outlineMaterial.dispose();
     outlineMaterial = new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.BackSide });
     for (const m of Object.values(edgeMaterials)) m.dispose();
@@ -301,21 +303,13 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
 
   const shadowBounds = new THREE.Box3();
   function syncContactShadow(item: PieceObject) {
-    item.mesh.updateMatrixWorld(true);
-    shadowBounds.setFromObject(item.mesh);
-    if (Number.isFinite(shadowBounds.min.y)) {
-      item.shadow.position.y = shadowBounds.min.y + BOARD.SHADOW_CONTACT_EPSILON;
-    } else {
-      item.shadow.position.y = item.mesh.position.y - item.pieceHeight / 2 + BOARD.SHADOW_CONTACT_EPSILON;
-    }
-    item.shadow.position.x = item.mesh.position.x;
-    item.shadow.position.z = item.mesh.position.z;
+    syncPieceGroundShadowPosition(item.shadow, item.mesh, item.pieceHeight / 2);
   }
 
   const boardGeometries: THREE.BufferGeometry[] = [];
   const reserveTargets = new Map<string, THREE.Object3D>();
   const reserveSlots: { pick: ReservePick; position: THREE.Vector2 }[] = [];
-  const previewShadow = makePieceShadow(geometry({ shape: 'flat' } as never), shadowMaterial, shadowsGroup);
+  const previewShadow = makePieceShadow(geometry({ shape: 'flat' } as never), shadowsGroup);
   previewShadow.visible = false;
 
   function swapFlippedStoneShape(item: PieceObject) {
@@ -701,6 +695,10 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   }
 
   function buildPiles() {
+    for (const child of pilesGroup.children) {
+      const pileShadow = child.userData.pileShadow as THREE.Mesh | undefined;
+      if (pileShadow) shadowsGroup.remove(pileShadow);
+    }
     pilesGroup.clear();
     reserveSlots.length = 0;
     reserveTargets.clear();
@@ -724,7 +722,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         mesh.userData.pileKey = pileKey;
         tagPieceForShadows(mesh, false);
         pilesGroup.add(mesh);
-        if (level === 0) reserveTargets.set(pileKey, mesh);
+        if (level === 0) {
+          reserveTargets.set(pileKey, mesh);
+          const pileShadow = makePieceShadow(geometry(pieceStub as never), shadowsGroup);
+          mesh.userData.pileShadow = pileShadow;
+          syncPieceGroundShadowPosition(pileShadow, mesh, h / 2);
+        }
       }
     }
   }
@@ -909,7 +912,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
           piecesGroup.add(mesh);
           item = {
             mesh,
-            shadow: makePieceShadow(geometry(piece as never), shadowMaterial, shadowsGroup),
+            shadow: makePieceShadow(geometry(piece as never), shadowsGroup),
             pieceId: piece.id,
             position: destination.clone(),
             from: mesh.position.clone(),
