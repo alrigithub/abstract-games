@@ -52,6 +52,27 @@ Its rendering buffer is capped at 1.5 million pixels and 1.5× device scale.
 From `web-3d`, with Blender and Python/Pillow installed:
 
 ```powershell
+# First run: register the saved arena and reference grid on this machine.
+npm run export:boop -- --arena 'PATH/ari+6X6.blend' --grid 'PATH/boop_grid.blend'
+# Later: save Blender, then rebuild the complete export.
+npm run export:boop
+```
+
+If Blender is not discovered automatically, pass `--blender 'PATH/blender.exe'`.
+Paths and contrast are remembered in ignored `.boop-export.local.json`. Raw
+images and an inspectable aligned Blender copy are kept in ignored `.boop-export/`.
+The command renders both themes in a fresh staging folder, then updates both
+WebPs, live columns and the placement manifest. It never overwrites the source
+arena or grid. Hidden Boolean cutters remain excluded. It does not commit, push,
+or deploy; save Blender before running it.
+
+Default `--contrast 1.06` slightly increases the key-to-fill lighting ratio;
+`--contrast 1` restores the original lighting. It keeps the same soft shadow size
+and material colors. `--resolution` (1536) and `--threads` (6) are optional.
+
+For the individual rendering/conversion steps:
+
+```powershell
 & 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe' --background --factory-startup --threads 6 --python scripts/render-boop-arena.py -- --arena 'PATH/ari+6X6.blend' --grid 'PATH/boop_grid.blend' --output games/boop/public/prerender --source-copy 'PATH/boop-prerender-aligned.blend'
 python scripts/prepare-boop-plates.py games/boop/public/prerender
 & 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe' --background --factory-startup --python scripts/build-boop-shadow-proxies.py -- --pieces lib/pieces --output games/boop/public/prerender
