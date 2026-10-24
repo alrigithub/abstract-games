@@ -1,4 +1,4 @@
-/** Port of `crates/tzaar` rules (minimal TS for web-3d tap play). */
+/** Tzaar rules (minimal TS for web-3d tap play). */
 
 export type Player = 'A' | 'B';
 export type PieceKind = 'tzaar' | 'tzarra' | 'tott';

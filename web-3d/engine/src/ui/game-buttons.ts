@@ -18,7 +18,7 @@ import {
 } from './menu-icons';
 
 /**
- * Hub page beside each game in the static `web/` tree (`web/index.html`, games in `web/<name>/`).
+ * Hub page beside each game in the staged hosting tree (`index.html`, games in `<name>/`).
  * Relative so GitHub Pages / subdirectory hosts resolve correctly (absolute `/` is the host root, not the hub).
  */
 export const DEFAULT_LOBBY_HREF = '../index.html';
