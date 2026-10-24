@@ -42,6 +42,7 @@ const scene = await createBoardScene(board, {
   pieces,
   initialTheme: theme,
   boardSlab: BOARD.TAK_SLAB,
+  stackedPiecesReceiveShadow: true,
 });
 const stage = board.querySelector('canvas') ?? board;
 

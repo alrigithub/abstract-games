@@ -12,7 +12,12 @@ import { createContactShadowBlob } from './geometries/contact-shadow';
 import { decoratePieceMesh, makePieceShadow } from './geometries/piece-outlines';
 import { stackHeight } from './stack';
 import { layoutStackCenters, stackExtent, type StackMeasure } from './stack-layout';
-import { applyBoardEnvironment, createBoardWebGLRenderer } from './board-renderer';
+import {
+  applyBoardLighting,
+  tagPieceForShadows,
+  tagPlayfieldForShadows,
+} from './board-lighting';
+import { applyBoardEnvironment, createBoardWebGLRenderer, measureBoardFrameMs } from './board-renderer';
 import { consumeBoopPushLandingSound, initPlaceSfx, playPiecePlaceSound, type PlaceSoundKind } from './sound/place-sfx';
 import { themeTokens, type ThemeId } from './theme';
 import type {
@@ -66,6 +71,8 @@ export interface BoardSceneOptions {
   boardSlab?: number;
   /** Y of the playfield/table top where piece bases rest (default 0). */
   playfieldSurfaceY?: number;
+  /** Lower pieces in a stack receive shadows (Tak / Tzaar). */
+  stackedPiecesReceiveShadow?: boolean;
 }
 
 export async function createBoardScene(container: HTMLElement, options: BoardSceneOptions): Promise<SceneApi> {
@@ -80,7 +87,13 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   scene.background = new THREE.Color(tokens.table);
   const renderer = createBoardWebGLRenderer();
   const disposeEnvironment = applyBoardEnvironment(scene, renderer);
+  const boardLighting = applyBoardLighting(scene, renderer);
+  const stackedPiecesReceiveShadow = options.stackedPiecesReceiveShadow ?? false;
   container.appendChild(renderer.domElement);
+
+  function syncShadowFrustum() {
+    boardLighting.fitToPoints(collectFramePoints().map(p => p.clone()));
+  }
 
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
   camera.position.set(...CAMERA.position);
@@ -182,9 +195,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       visual.userData.player = piece.player;
       visual.userData.shape = piece.shape;
       applyPieceMaterial(visual, piece, selected);
+      tagPieceForShadows(visual, false);
       return visual;
     }
-    return createPieceMesh(piece, selected);
+    const mesh = createPieceMesh(piece, selected);
+    tagPieceForShadows(mesh, false);
+    return mesh;
   }
 
   function swapMarkerPlayer(item: PieceObject) {
@@ -572,6 +588,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     const points = collectFramePoints().map(p => p.clone());
     fitOrthographicToWorldPoints(camera, points, aspect, CAMERA.framePadding);
     syncBoardGridLines();
+    syncShadowFrustum();
     requestRender();
   }
 
@@ -590,7 +607,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       })
     ) {
       buildPiles();
+      tagPlayfieldForShadows(board);
       syncBoardGridLines();
+      syncShadowFrustum();
       requestRender();
       return;
     }
@@ -615,7 +634,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       }
     }
     buildPiles();
+    tagPlayfieldForShadows(board);
     syncBoardGridLines();
+    syncShadowFrustum();
     requestRender();
   }
 
@@ -650,6 +671,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         mesh.position.set(position.x, meshYFromStackCenter(centers[level]!, pieceStub as never), position.y);
         mesh.userData.reserve = pick;
         mesh.userData.pileKey = pileKey;
+        tagPieceForShadows(mesh, false);
         pilesGroup.add(mesh);
         if (level === 0) reserveTargets.set(pileKey, mesh);
       }
@@ -888,6 +910,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         }
         item.mesh.userData.cellIndex = index;
         item.position.copy(destination);
+        tagPieceForShadows(item.mesh, stackedPiecesReceiveShadow && stackIndex > 0);
         syncContactShadow(item);
       });
     });
@@ -905,6 +928,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     if (reframeCamera) {
       if (cameraViewsRef) cameraViewsRef.refit();
       else fit(true);
+      syncShadowFrustum();
     }
   }
 
@@ -961,9 +985,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     });
   }
 
-  return {
+  const api: SceneApi = {
     setSnapshot,
-    createCameraViews(cameraOptions = {}) {
+    createCameraViews(cameraOptions: { getBounds?: () => THREE.Vector3[] } = {}) {
       cameraViewsRef?.dispose();
       const getBounds = cameraOptions.getBounds ?? collectFramePoints;
       cameraViewsRef = createCameraViewController({
@@ -1059,7 +1083,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     reframe() {
       fit(true);
     },
-    setCameraView(options = {}) {
+    setCameraView(options: {
+      elevationDeg?: number;
+      azimuthDeg?: number;
+      target?: { x: number; y: number; z: number };
+    } = {}) {
       const elevation = ((options.elevationDeg ?? 35) * Math.PI) / 180;
       const azimuth = ((options.azimuthDeg ?? 42) * Math.PI) / 180;
       const polar = Math.PI / 2 - elevation;
@@ -1102,8 +1130,16 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       window.removeEventListener('pointercancel', onPointerRelease);
       controls.dispose();
       disposeEnvironment();
+      boardLighting.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },
   };
+
+  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('bench')) {
+    (window as unknown as { __benchOneFrame?: () => number }).__benchOneFrame = () =>
+      measureBoardFrameMs(renderer, scene, camera);
+  }
+
+  return api;
 }
