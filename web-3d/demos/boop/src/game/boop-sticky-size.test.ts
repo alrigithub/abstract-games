@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { BoopController } from './controller';
 import type { SceneApi } from '@abstract/three-engine';
 
-vi.mock('../../wasm/boop_wasm.js', () => ({
-  default: vi.fn(),
+vi.mock('./ai', () => ({}));
+
+vi.mock('./engine', () => ({
+  bindChooseAiMove: vi.fn(),
   BoopGame: class {
     view_json() {
       return JSON.stringify({
