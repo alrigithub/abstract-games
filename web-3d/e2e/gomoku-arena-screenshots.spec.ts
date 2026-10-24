@@ -37,6 +37,20 @@ test.describe('Gomoku arena screenshots', () => {
     });
   });
 
+  test('mid-game stones (light)', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('abstract-three-theme', 'light');
+    });
+    await page.goto('/?shot=mid-stones&theme=light');
+    await page.waitForSelector('[data-testid="board"] canvas', { timeout: 90_000 });
+    await page.waitForTimeout(1200);
+    await expect.poll(() => page.locator('body').getAttribute('data-demo-shot')).toBe('mid-stones');
+    await page.screenshot({
+      path: path.join(screenshotDir, 'gomoku-arena-mid-light.png'),
+      fullPage: true,
+    });
+  });
+
   test('few stones (dark)', async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('abstract-three-theme', 'dark');
