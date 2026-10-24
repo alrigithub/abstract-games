@@ -40,6 +40,17 @@ describe('clay materials', () => {
     expect(`#${(mesh.material as THREE.MeshStandardMaterial).color.getHexString()}`).toBe(CLAY.ENV);
   });
 
+  it('forces env on arena GLBs even when Blender names say piece_dark', () => {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshStandardMaterial({ name: 'clay_dark' }),
+    );
+    const root = new THREE.Group();
+    root.add(mesh);
+    applyClayEnvMaterials(root);
+    expect(mesh.material).toBe(getClayMaterial('env'));
+  });
+
   it('assigns piece side defaults and rebinding on clone', () => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ name: 'clay_dark' }));
     const root = new THREE.Group();

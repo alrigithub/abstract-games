@@ -38,9 +38,9 @@ function chooseShadowMapSize(): number {
 
 function applyShadowMapSettings(light: THREE.DirectionalLight, size: number) {
   light.shadow.mapSize.set(size, size);
-  light.shadow.bias = -0.00015;
-  light.shadow.normalBias = 0.004;
-  light.shadow.radius = 2.15;
+  light.shadow.bias = -0.00012;
+  light.shadow.normalBias = 0.0022;
+  light.shadow.radius = 2;
 }
 
 function fillBoxCorners(box: THREE.Box3, out: THREE.Vector3[]) {
@@ -118,12 +118,11 @@ export function applyBoardLighting(
   function syncThemeAmbientFill(themeId: ThemeId) {
     if (!hemisphere) return;
     const tokens = themeTokens(themeId);
-    const surface = new THREE.Color(tokens.arenaSurface);
-    const sky = surface.clone().lerp(new THREE.Color(tokens.table), 0.55);
-    const ground = surface.clone().multiplyScalar(0.62);
+    const sky = new THREE.Color(CLAY.ENV);
+    const ground = new THREE.Color(CLAY.BACKDROP);
     hemisphere.color.copy(sky);
     hemisphere.groundColor.copy(ground);
-    hemisphere.intensity = themeId === 'light' ? 0.22 : 0.18;
+    hemisphere.intensity = themeId === 'light' ? 0.54 : 0.36;
   }
   syncThemeAmbientFill('light');
 
@@ -143,7 +142,7 @@ export function applyBoardLighting(
     target.position.copy(center);
     light.position.copy(center).addScaledVector(LIGHT_DIR, lightDistance);
 
-    const pad = Math.max(0.2, Math.max(size.x, size.z) * 0.04);
+    const pad = Math.max(0.55, Math.max(size.x, size.z) * 0.1);
     fitShadowCameraToBox(light, tmpBox, pad);
   }
 
@@ -194,7 +193,7 @@ export function setMeshShadowFlags(
 }
 
 /** Drop-shadow strength on unlit (MeshBasic) boards. */
-export const PIECE_DROP_SHADOW_OPACITY = 0.42;
+export const PIECE_DROP_SHADOW_OPACITY = 0.28;
 
 function createPlayfieldShadowCatcher(): THREE.Mesh {
   const catcher = new THREE.Mesh(
@@ -255,6 +254,15 @@ export function fitPlayfieldShadowCatcher(boardRoot: THREE.Object3D, worldBounds
 
 /** Full-scene shadow receiver (covers reserves / margins outside the board group). */
 export function syncSceneShadowCatcher(scene: THREE.Scene, worldBounds: THREE.Box3, pad = 0.5) {
+  if (!CLAY.USE_SCENE_SHADOW_CATCHER) {
+    const existing = scene.getObjectByName(SCENE_SHADOW_CATCHER_NAME) as THREE.Mesh | undefined;
+    if (existing) {
+      scene.remove(existing);
+      existing.geometry.dispose();
+      (existing.material as THREE.Material).dispose();
+    }
+    return;
+  }
   let catcher = scene.getObjectByName(SCENE_SHADOW_CATCHER_NAME) as THREE.Mesh | undefined;
   if (!catcher) {
     catcher = createPlayfieldShadowCatcher();

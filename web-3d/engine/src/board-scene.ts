@@ -114,7 +114,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   applyPlayfieldBackdrop(scene, tokens.table);
   const renderer = createBoardWebGLRenderer();
   const disposeEnvironment = applyBoardEnvironment(scene, renderer);
-  const boardLighting = applyBoardLighting(scene, renderer);
+  const boardLighting = applyBoardLighting(scene, renderer, { ambientFill: true });
   const stackedPiecesReceiveShadow = options.stackedPiecesReceiveShadow ?? false;
   container.appendChild(renderer.domElement);
 
@@ -1087,6 +1087,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     setTheme(id) {
       themeId = id;
       rebuildMaterials();
+      boardLighting.syncThemeAmbientFill(id);
       options.pieces.onThemeChange?.(id);
       refreshPieceVisuals();
       refreshPieceMaterials();

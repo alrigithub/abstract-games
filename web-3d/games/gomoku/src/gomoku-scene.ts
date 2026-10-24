@@ -6,8 +6,6 @@ import {
   GOMOKU_DIMS,
   applyBoardEnvironment,
   applyBoardLighting,
-  fitPlayfieldShadowCatcher,
-  syncSceneShadowCatcher,
   createBoardRenderPipeline,
   createBoardWebGLRenderer,
   syncClayMaterialTheme,
@@ -121,14 +119,11 @@ export async function createGomokuScene(
   }
 
   function syncShadowFrustum() {
-    const points = gomokuFramePoints();
-    boardLighting.fitToPoints(points);
     const bounds = arenaLayout.frameBounds();
     bounds.min.y = BOARD.PLAYFIELD_SURFACE_Y;
     bounds.max.y = Math.max(bounds.max.y, stoneBaseY(7, 7) + stoneAssets.stoneHeight);
-    bounds.expandByScalar(0.15);
-    syncSceneShadowCatcher(scene, bounds, 0.55);
-    fitPlayfieldShadowCatcher(boardGroup, bounds, 0.55);
+    bounds.expandByScalar(0.2);
+    boardLighting.fitToBox(bounds);
   }
 
   syncShadowFrustum();

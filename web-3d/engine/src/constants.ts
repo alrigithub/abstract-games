@@ -29,8 +29,8 @@ export const BOARD = {
   /** World units per side of the shared infinite-style playfield plane. */
   PLAYFIELD_GROUND_SIZE: 8192,
   /** Linear fog matches {@link applyPlayfieldBackdrop} / scene background. */
-  PLAYFIELD_FOG_NEAR: 28,
-  PLAYFIELD_FOG_FAR: 140,
+  PLAYFIELD_FOG_NEAR: 42,
+  PLAYFIELD_FOG_FAR: 165,
   /** Board thickness (0 = flat playfield plane at {@link PLAYFIELD_SURFACE_Y}). */
   SLAB: 0,
   /** Tak board thickness (same flat plane as other games). */
@@ -56,32 +56,34 @@ export const BOARD = {
    * Shared IBL strength for PBR GLBs ({@link applyBoardEnvironment}).
    * MeshBasic board/piece materials ignore this.
    */
-  ENVIRONMENT_INTENSITY: 0.4,
+  ENVIRONMENT_INTENSITY: 0.78,
   /** Decal under pieces (complements shadow maps). */
   PIECE_CONTACT_SHADOW_OPACITY: 0.24,
 } as const;
 
 /** Central tuning for the shared clay / maquette look (tone map, AO, key light). */
 export const CLAY = {
-  TONE_MAPPING_EXPOSURE: 0.78,
+  TONE_MAPPING_EXPOSURE: 1.04,
   AO_ENABLED: true,
   AO_QUALITY: 'Performance' as const,
   AO_HALF_RES: true,
-  AO_INTENSITY: 3.55,
-  AO_RADIUS: 2.55,
-  AO_DISTANCE_FALLOFF: 1.08,
-  KEY_LIGHT_INTENSITY: 0.72,
+  AO_INTENSITY: 2.0,
+  AO_RADIUS: 2.05,
+  AO_DISTANCE_FALLOFF: 1.0,
+  KEY_LIGHT_INTENSITY: 0.9,
   /** Soft cool daylight (not warm studio). */
-  KEY_LIGHT_COLOR: 0xf0f2ef,
-  /** Playfield / board / arena GLB albedo (grey-green stone). */
-  ENV: '#d5d4d2',
-  /** Fog + scene background vignette (darker grey-green). */
-  BACKDROP: '#b1b0ae',
+  KEY_LIGHT_COLOR: 0xf4f6f3,
+  /** Playfield / board / arena GLB albedo (light airy grey-green). */
+  ENV: '#d0d0cc',
+  /** Fog + scene background (subtle vignette, still grey-green). */
+  BACKDROP: '#cbcac7',
   /** Dark-theme environment albedo. */
-  ENV_DARK: '#6d6c6a',
+  ENV_DARK: '#72716e',
   PIECE_LIGHT: '#e8e4dc',
   PIECE_DARK: '#4a4a48',
-  MATERIAL_ROUGHNESS: 0.9,
+  MATERIAL_ROUGHNESS: 0.88,
+  /** Full-scene ShadowMaterial plane (PBR arenas use mesh receiveShadow instead). */
+  USE_SCENE_SHADOW_CATCHER: false,
 } as const;
 
 export const CAMERA = {

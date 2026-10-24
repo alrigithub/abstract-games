@@ -89,7 +89,7 @@ describe('demo lighting guard', () => {
     expect(lightingSrc).toMatch(/HemisphereLight/);
     expect(lightingSrc).toMatch(/Math\.SQRT2/);
     expect(sceneSrc).toMatch(/applyBoardEnvironment\(scene, renderer\)/);
-    expect(sceneSrc).toMatch(/applyBoardLighting\(scene, renderer\)/);
+    expect(sceneSrc).toMatch(/applyBoardLighting\(scene, renderer/);
     expect(sceneSrc).toMatch(/disposeEnvironment\(\)/);
     expect(BOARD.ENVIRONMENT_INTENSITY).toBeGreaterThan(0);
     expect(BOARD.ENVIRONMENT_INTENSITY).toBeLessThanOrEqual(2);

@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import { applyClayEnvMaterials } from './clay-materials';
 import type { ThemeId } from './theme';
 
-/** Arena GLB tiles, rubble, and columns cast and receive directional shadows. */
+/** Arena GLB: receive piece shadows; env geometry does not cast (avoids acne / dark bands on tiles). */
 export function tagArenaGlbForShadows(root: THREE.Object3D): void {
   root.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;
-    node.castShadow = true;
+    node.castShadow = false;
     node.receiveShadow = true;
   });
 }

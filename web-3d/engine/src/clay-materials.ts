@@ -31,7 +31,7 @@ function createClayMat(hex: string): THREE.MeshStandardMaterial {
 }
 
 bank.env.side = THREE.DoubleSide;
-bank.env.depthWrite = false;
+bank.env.depthWrite = true;
 
 function envHexForTheme(themeId: ThemeId): string {
   return themeId === 'dark' ? CLAY.ENV_DARK : CLAY.ENV;
@@ -102,8 +102,13 @@ export function applyClayMaterials(root: THREE.Object3D, options: ApplyClayMater
   });
 }
 
+/** Environment GLBs: every mesh gets shared ENV (ignore clay_light/clay_dark names). */
 export function applyClayEnvMaterials(root: THREE.Object3D): void {
-  applyClayMaterials(root, { defaultRole: 'env' });
+  root.traverse(node => {
+    if (!(node instanceof THREE.Mesh)) return;
+    disposeIncomingMaterial(node);
+    assignClayMaterial(node, 'env');
+  });
 }
 
 export function applyClayPieceMaterials(root: THREE.Object3D, side: 'light' | 'dark'): void {

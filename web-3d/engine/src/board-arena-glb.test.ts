@@ -5,12 +5,12 @@ import { CLAY } from './constants';
 import { syncClayMaterialTheme } from './clay-materials';
 
 describe('board arena glb helpers', () => {
-  it('tags arena meshes to cast and receive shadows', () => {
+  it('tags arena meshes to receive (not cast) directional shadows', () => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
     const root = new THREE.Group();
     root.add(mesh);
     tagArenaGlbForShadows(root);
-    expect(mesh.castShadow).toBe(true);
+    expect(mesh.castShadow).toBe(false);
     expect(mesh.receiveShadow).toBe(true);
   });
 
