@@ -77,6 +77,16 @@ python3 -m http.server 8080 --directory web
 
 Generated artifacts (`*_bg.wasm`, `*.js` in game folders) are gitignored; CI compiles WASM but does not commit bundles.
 
+### Tak (Pixi alternate client)
+
+Source: `web-pixi/tak/` (TypeScript rules engine from BimSavage, shared Pixi in `web-pixi/shared/`, AI in a Web Worker). Production build output: `web/tak-pixi/` (hub link `./tak-pixi/`).
+
+```bash
+cd web-pixi/tak && npm install && npm run build
+# dev: npm run dev
+# preview + Playwright: npm run test:e2e:ci
+```
+
 ### Yinsh (Pixi alternate client)
 
 Source: `web-pixi/yinsh/` (Rust rules via `yinsh_wasm`, AI in a Web Worker). Production build output: `web/yinsh-pixi/` (hub link `./yinsh-pixi/`).
