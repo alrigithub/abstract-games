@@ -34,17 +34,17 @@ function waitForServer(ms = 60_000) {
 async function main() {
   fs.mkdirSync(artifactsDir, { recursive: true });
 
-  let vite = null;
   try {
-    await fetch(baseUrl);
+    await fetch(`${baseUrl}src/main.ts`, { method: 'HEAD' });
   } catch {
-    vite = spawn('npm', ['run', 'dev'], {
-      cwd: demoRoot,
-      stdio: 'inherit',
-      env: { ...process.env, FORCE_COLOR: '0' },
-    });
-    await waitForServer();
+    /* no server */
   }
+  const vite = spawn('npm', ['run', 'dev'], {
+    cwd: demoRoot,
+    stdio: 'pipe',
+    env: { ...process.env, FORCE_COLOR: '0' },
+  });
+  await waitForServer();
 
   try {
     const browser = await chromium.launch();
@@ -53,7 +53,9 @@ async function main() {
     for (const theme of ['light', 'dark']) {
       await page.goto(`${baseUrl}?theme=${theme}`, { waitUntil: 'networkidle' });
       await page.waitForSelector('[data-testid="board"][data-ready="true"]', { timeout: 15_000 });
-      await page.waitForTimeout(600);
+      await page.waitForTimeout(900);
+      await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+      await page.waitForTimeout(400);
       const out = path.join(artifactsDir, `boop-${theme}.png`);
       await page.screenshot({ path: out, fullPage: false });
       console.log(`Wrote ${out}`);
@@ -61,7 +63,7 @@ async function main() {
 
     await browser.close();
   } finally {
-    vite?.kill('SIGTERM');
+    vite.kill('SIGTERM');
   }
 }
 

@@ -1,5 +1,6 @@
 import {
   boopPieceGeometrySet,
+  cellIndex,
   createBoardScene,
   createBoopCatGeometry,
   createBoopKittenGeometry,
@@ -8,31 +9,48 @@ import {
   storeTheme,
   type BoardSnapshot,
   type EnginePiece,
-  type ReserveSlot,
   type SceneApi,
   type ThemeId,
 } from '@abstract/three-engine';
 
 const size = 6;
+/** Exterior ring columns for side pools (same pattern as Tak sandbox). */
+const OUTSIDE_ROWS = 2;
+const cellTotal = (size + OUTSIDE_ROWS * 2) ** 2;
+
 const cat = createBoopCatGeometry();
 const kitten = createBoopKittenGeometry();
 const pieces = boopPieceGeometrySet(cat, kitten);
-const topology = createSquareTopology({ size });
+const topology = createSquareTopology({ size, outsideRows: OUTSIDE_ROWS });
 
-/** Side reserve pools (left = A, right = B) flanking the 6×6 bed. */
-function boopReservePools(): ReserveSlot[] {
-  const sideX = size / 2 + 1.35;
-  return [
-    { id: 'a-kittens', player: 'A', shape: 'kitten', pile: 0, position: { x: -sideX, z: -0.85 }, count: 6 },
-    { id: 'a-cats', player: 'A', shape: 'cat', pile: 0, position: { x: -sideX, z: 0.85 }, count: 2 },
-    { id: 'b-kittens', player: 'B', shape: 'kitten', pile: 0, position: { x: sideX, z: -0.85 }, count: 6 },
-    { id: 'b-cats', player: 'B', shape: 'cat', pile: 0, position: { x: sideX, z: 0.85 }, count: 2 },
-  ];
+function pushStack(
+  cells: EnginePiece[][],
+  row: number,
+  col: number,
+  player: 'A' | 'B',
+  shape: 'cat' | 'kitten',
+  count: number,
+  prefix: string,
+) {
+  const index = cellIndex(size, row, col, OUTSIDE_ROWS);
+  if (index === null) return;
+  for (let i = 0; i < count; i++) {
+    cells[index]!.push({ id: `${prefix}-${i}`, player, shape });
+  }
+}
+
+/** Side pools on exterior cells (left = A, right = B) so stacks use board FLOOR + contact shadows. */
+function sidePoolStacks(cells: EnginePiece[][]) {
+  const leftCol = -2;
+  const rightCol = size + 1;
+  pushStack(cells, 3, leftCol, 'A', 'kitten', 4, 'pool-a-k');
+  pushStack(cells, 5, leftCol, 'A', 'cat', 2, 'pool-a-c');
+  pushStack(cells, 3, rightCol, 'B', 'kitten', 4, 'pool-b-k');
+  pushStack(cells, 5, rightCol, 'B', 'cat', 2, 'pool-b-c');
 }
 
 /** Midgame layout loosely matching the Astra B&W Boop mockup. */
-function mockupPieces(): EnginePiece[][] {
-  const cells: EnginePiece[][] = Array.from({ length: size * size }, () => []);
+function mockupPieces(cells: EnginePiece[][]) {
   const at = (row: number, col: number, piece: EnginePiece) => {
     cells[row * size + col]!.push(piece);
   };
@@ -43,23 +61,29 @@ function mockupPieces(): EnginePiece[][] {
   at(2, 4, { id: 'b-kitten-2', player: 'B', shape: 'kitten' });
   at(4, 2, { id: 'w-cat-2', player: 'A', shape: 'cat' });
   at(4, 3, { id: 'w-kitten-2', player: 'A', shape: 'kitten' });
-  return cells;
 }
 
-const snapshot: BoardSnapshot = {
-  playableCells: size * size,
-  cellCount: size * size,
-  cells: mockupPieces(),
-  reserves: boopReservePools(),
-};
+function buildSnapshot(): BoardSnapshot {
+  const cells: EnginePiece[][] = Array.from({ length: cellTotal }, () => []);
+  mockupPieces(cells);
+  sidePoolStacks(cells);
+  return {
+    playableCells: size * size,
+    cellCount: cellTotal,
+    cells,
+  };
+}
 
+const snapshot = buildSnapshot();
 const board = document.querySelector<HTMLDivElement>('#board')!;
+
 const scene = await createBoardScene(board, {
   gridSize: size,
   topology,
   pieces,
   initialTheme: readStoredTheme(),
-});
+  initialSnapshot: snapshot,
+} as Parameters<typeof createBoardScene>[1] & { initialSnapshot: BoardSnapshot });
 scene.setSnapshot(snapshot);
 
 declare global {
