@@ -1,6 +1,8 @@
 use crate::BOARD_SIZE;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Coord {
     pub x: u8,
     pub y: u8,

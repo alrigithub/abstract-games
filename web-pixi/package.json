@@ -1,0 +1,5 @@
+{
+  "name": "abstract-pixi",
+  "private": true,
+  "workspaces": ["shared", "yinsh", "gomoku"]
+}

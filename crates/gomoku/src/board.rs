@@ -2,7 +2,9 @@ use crate::coord::Coord;
 use crate::player::Player;
 use crate::BOARD_SIZE;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Board {
     cells: [[Option<Player>; BOARD_SIZE]; BOARD_SIZE],
 }
@@ -35,15 +37,31 @@ impl Board {
 
     /// Returns the winner if `coord` completes five or more in a row for that stone's owner.
     pub fn winner_from_last_move(&self, coord: Coord) -> Option<Player> {
+        self.winning_line_from_last_move(coord)
+            .map(|_| self.get(coord).expect("stone at last move"))
+    }
+
+    /// Exactly five (or more) in a row through `coord`; returns five intersections for VFX.
+    pub fn winning_line_from_last_move(&self, coord: Coord) -> Option<Vec<Coord>> {
         let player = self.get(coord)?;
         const DIRECTIONS: [(i8, i8); 4] = [(1, 0), (0, 1), (1, 1), (1, -1)];
 
         for (dx, dy) in DIRECTIONS {
-            let count = 1
-                + self.count_along(coord, player, dx, dy)
-                + self.count_along(coord, player, -dx, -dy);
-            if count >= 5 {
-                return Some(player);
+            let back = self.count_along(coord, player, -dx, -dy);
+            let fwd = self.count_along(coord, player, dx, dy);
+            if 1 + back + fwd >= 5 {
+                let mut x = coord.x as i16 - back as i16 * dx as i16;
+                let mut y = coord.y as i16 - back as i16 * dy as i16;
+                let mut line = Vec::with_capacity(5);
+                for _ in 0..5 {
+                    line.push(Coord {
+                        x: x as u8,
+                        y: y as u8,
+                    });
+                    x += dx as i16;
+                    y += dy as i16;
+                }
+                return Some(line);
             }
         }
         None

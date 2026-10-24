@@ -6,12 +6,15 @@ use crate::Move;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IllegalMove;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameState {
     pub board: Board,
     pub to_move: Player,
     pub winner: Option<Player>,
     pub move_count: u32,
+    pub last_move: Option<Coord>,
 }
 
 impl GameState {
@@ -21,6 +24,7 @@ impl GameState {
             to_move: Player::Black,
             winner: None,
             move_count: 0,
+            last_move: None,
         }
     }
 
@@ -49,6 +53,7 @@ impl GameState {
         let player = self.to_move;
         self.board.set(coord, player);
         self.move_count += 1;
+        self.last_move = Some(coord);
 
         if let Some(winner) = self.board.winner_from_last_move(coord) {
             self.winner = Some(winner);
