@@ -3,8 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { BOARD, GOMOKU_DIMS, gomokuCellWorld } from '@abstract/three-engine';
+import { BOARD, GOMOKU_DIMS, createMeshoptGltfLoader, ensureMeshoptDecoderReady, gomokuCellWorld } from '@abstract/three-engine';
 import {
   GOMOKU_ARENA_GLB_SHA256,
   GOMOKU_ARENA_WORLD_SCALE,
@@ -29,8 +28,9 @@ function patchGltfUrlForNode(): void {
 
 async function loadArenaRoot(): Promise<THREE.Group> {
   patchGltfUrlForNode();
+  await ensureMeshoptDecoderReady();
   const buf = readFileSync(glbPath);
-  const loader = new GLTFLoader();
+  const loader = createMeshoptGltfLoader();
   const gltf = await loader.parseAsync(
     buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
     '',
