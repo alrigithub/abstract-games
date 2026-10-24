@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import {
-  YINSH,
   YINSH_COORDS,
   createBoardScene,
   createGameButtons,
@@ -12,6 +11,7 @@ import {
   THEME_STORAGE_KEY,
   YINSH_AI_STRENGTH_STORAGE_KEY,
   yinshWorldPoint,
+  type PieceGeometrySet,
   type ReservePick,
   type ThemeId,
   type Topology,
@@ -27,27 +27,29 @@ import { coordToIndex, indexToCoord } from './game/cells';
 import { chooseAiMove } from './game/ai';
 import type { Move } from './game/state';
 import type { Player } from './game/player';
-import { loadYinshPieceGeometrySet } from './yinsh-piece-models';
+import { loadYinshPieceGeometrySet, YINSH_RING_TARGET_OUTER_DIAMETER } from './yinsh-piece-models';
 
 const ringCloseupShot = new URLSearchParams(location.search).get('shot') === 'ring-closeup';
 
-function yinshCloseupTopology(base: Topology): Topology {
+function yinshCloseupTopology(base: Topology, pieceSet: PieceGeometrySet): Topology {
+  const ringOuter = YINSH_RING_TARGET_OUTER_DIAMETER / 2;
+  const ringHeight = pieceSet.height({ id: 'ring-probe', player: 'A', shape: 'ring' });
   return {
     ...base,
     frameCorners(snapshot) {
       const centerIndex = coordToIndex({ x: 0, y: 0 });
       const center = base.cellPosition(centerIndex, snapshot);
-      const pad = YINSH.RING_OUTER * 1.65;
+      const pad = ringOuter * 1.65;
       return [
         new THREE.Vector3(center.x - pad, 0, center.z - pad),
-        new THREE.Vector3(center.x + pad, YINSH.RING_HEIGHT * 2.5, center.z + pad),
+        new THREE.Vector3(center.x + pad, ringHeight * 2.5, center.z + pad),
       ];
     },
   };
 }
 
-const topology = ringCloseupShot ? yinshCloseupTopology(createYinshTopology()) : createYinshTopology();
 const pieces = await loadYinshPieceGeometrySet();
+const topology = ringCloseupShot ? yinshCloseupTopology(createYinshTopology(), pieces) : createYinshTopology();
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 let theme: ThemeId = readInitialTheme();
@@ -306,7 +308,8 @@ function loadRingCloseupShot() {
     reserves: [],
   });
   const focus = yinshWorldPoint({ x: 0, y: 0 });
-  focus.y = YINSH.RING_HEIGHT * 0.42;
+  const ringHeight = pieces.height({ id: 'ring-probe', player: 'A', shape: 'ring' });
+  focus.y = ringHeight * 0.42;
   scene.setCameraView({ elevationDeg: 35, azimuthDeg: 38, target: focus });
   scene.reframe();
   gameButtons.setStatus('Ring close-up · stone marker in ring');

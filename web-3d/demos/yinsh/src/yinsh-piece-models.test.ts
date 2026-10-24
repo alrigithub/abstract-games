@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { YINSH_GLB_WORLD_SCALE, YINSH_RING_OUTER_DIAMETER_M, YINSH_RING_TARGET_RADIUS } from './yinsh-piece-models';
+import {
+  YINSH_GLB_WORLD_SCALE,
+  YINSH_RING_OUTER_DIAMETER_M,
+  YINSH_RING_TARGET_OUTER_DIAMETER,
+  YINSH_RING_TARGET_RADIUS,
+} from './yinsh-piece-models';
 
 describe('yinsh GLB scale', () => {
-  it('matches procedural ring outer radius', () => {
-    const outerRadius = (YINSH_RING_OUTER_DIAMETER_M / 2) * YINSH_GLB_WORLD_SCALE;
-    expect(outerRadius).toBeCloseTo(YINSH_RING_TARGET_RADIUS, 6);
-    expect(YINSH_GLB_WORLD_SCALE).toBeCloseTo(31.4375, 4);
+  it('maps 32 mm ring outer diameter to board spacing footprint', () => {
+    const outerDiameter = YINSH_RING_OUTER_DIAMETER_M * YINSH_GLB_WORLD_SCALE;
+    expect(outerDiameter).toBeCloseTo(YINSH_RING_TARGET_OUTER_DIAMETER, 6);
+    expect(YINSH_RING_TARGET_RADIUS).toBeCloseTo(YINSH_RING_TARGET_OUTER_DIAMETER / 2, 6);
+    expect(YINSH_GLB_WORLD_SCALE).toBeCloseTo(30, 4);
   });
 });

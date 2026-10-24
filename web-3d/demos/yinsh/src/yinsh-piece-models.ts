@@ -9,14 +9,17 @@ import {
   type PieceGeometrySet,
 } from '@abstract/three-engine';
 
-/** Procedural ring outer radius in world units (matches {@link YINSH.RING_OUTER}). */
-export const YINSH_RING_TARGET_RADIUS = YINSH.RING_OUTER;
+/** World-space ring outer diameter (hex spacing = 1; slight gap to neighbours). */
+export const YINSH_RING_TARGET_OUTER_DIAMETER = 0.96;
+
+/** @deprecated Use {@link YINSH_RING_TARGET_OUTER_DIAMETER} / 2 for footprint. */
+export const YINSH_RING_TARGET_RADIUS = YINSH_RING_TARGET_OUTER_DIAMETER / 2;
 
 /** Alex GLB ring outer diameter in meters (README). */
 export const YINSH_RING_OUTER_DIAMETER_M = 0.032;
 
-/** Single scale for every Yinsh stone GLB (meters → world units). */
-export const YINSH_GLB_WORLD_SCALE = (YINSH_RING_TARGET_RADIUS * 2) / YINSH_RING_OUTER_DIAMETER_M;
+/** Single uniform scale for every Yinsh stone GLB (meters → world units). */
+export const YINSH_GLB_WORLD_SCALE = YINSH_RING_TARGET_OUTER_DIAMETER / YINSH_RING_OUTER_DIAMETER_M;
 
 const MODEL = {
   ringWhite: 'assets/yinsh-ring-white.glb',
@@ -37,7 +40,23 @@ const _box = new THREE.Box3();
 
 function modelUrl(path: string): string {
   const base = import.meta.env.BASE_URL ?? './';
-  return new URL(path, base.endsWith('/') ? base : `${base}/`).href;
+  const prefix = base.endsWith('/') ? base : `${base}/`;
+  const origin = typeof document !== 'undefined' && document.baseURI ? document.baseURI : 'http://127.0.0.1/';
+  return new URL(`${prefix}${path}`, origin).href;
+}
+
+function configureStoneMeshes(object: THREE.Object3D, shape: ShapeKey): void {
+  object.traverse(node => {
+    if (!(node instanceof THREE.Mesh)) return;
+    node.renderOrder = shape === 'marker' ? 2 : 1;
+    const mats = Array.isArray(node.material) ? node.material : [node.material];
+    for (const mat of mats) {
+      if (!(mat instanceof THREE.MeshStandardMaterial)) continue;
+      if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
+      if (mat.normalMap) mat.normalMap.colorSpace = THREE.LinearSRGBColorSpace;
+      mat.envMapIntensity = 1;
+    }
+  });
 }
 
 function heightFromBoundingBox(box: THREE.Box3): number {
@@ -51,11 +70,12 @@ function anchorObjectBaseToY0(object: THREE.Object3D): void {
   object.updateMatrixWorld(true);
 }
 
-function prepareTemplate(scene: THREE.Object3D): THREE.Object3D {
+function prepareTemplate(scene: THREE.Object3D, shape: ShapeKey): THREE.Object3D {
   const root = scene.clone(true);
   root.scale.setScalar(YINSH_GLB_WORLD_SCALE);
   root.updateMatrixWorld(true);
   anchorObjectBaseToY0(root);
+  configureStoneMeshes(root, shape);
   return root;
 }
 
@@ -77,8 +97,8 @@ async function buildTemplates(): Promise<YinshTemplates> {
     loadScene(modelUrl(MODEL.markerWhite)),
     loadScene(modelUrl(MODEL.markerBlack)),
   ]);
-  const ring = { A: prepareTemplate(ringWhite), B: prepareTemplate(ringBlack) };
-  const marker = { A: prepareTemplate(markerWhite), B: prepareTemplate(markerBlack) };
+  const ring = { A: prepareTemplate(ringWhite, 'ring'), B: prepareTemplate(ringBlack, 'ring') };
+  const marker = { A: prepareTemplate(markerWhite, 'marker'), B: prepareTemplate(markerBlack, 'marker') };
   return {
     ring,
     marker,
@@ -128,11 +148,17 @@ export async function loadYinshPieceGeometrySet(): Promise<PieceGeometrySet> {
       },
       createVisual(piece) {
         const root = new THREE.Group();
-        mountModel(root, templateFor(templates, piece).clone(true));
+        const shape = piece.shape === 'marker' ? 'marker' : 'ring';
+        const model = templateFor(templates, piece).clone(true);
+        configureStoneMeshes(model, shape);
+        mountModel(root, model);
         return root;
       },
       replaceVisual(root, piece) {
-        mountModel(root as THREE.Group, templateFor(templates, piece).clone(true));
+        const shape = piece.shape === 'marker' ? 'marker' : 'ring';
+        const model = templateFor(templates, piece).clone(true);
+        configureStoneMeshes(model, shape);
+        mountModel(root as THREE.Group, model);
       },
     };
   } catch (error) {
