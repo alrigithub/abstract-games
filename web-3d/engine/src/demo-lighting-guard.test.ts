@@ -84,6 +84,7 @@ describe('demo lighting guard', () => {
     expect(rendererSrc).toMatch(/pmrem\.dispose\(\)/);
     expect(rendererSrc).toMatch(/room\.dispose\(\)/);
     expect(lightingSrc).toMatch(/new THREE\.DirectionalLight/);
+    expect(lightingSrc).toMatch(/HemisphereLight/);
     expect(lightingSrc).toMatch(/Math\.SQRT2/);
     expect(sceneSrc).toMatch(/applyBoardEnvironment\(scene, renderer\)/);
     expect(sceneSrc).toMatch(/applyBoardLighting\(scene, renderer\)/);

@@ -2,10 +2,16 @@ import * as THREE from 'three';
 import { BOARD } from './constants';
 import { expandBoxByPlayfieldContent, tagExcludeFromBounds } from './playfield-bounds';
 import { PLAYFIELD_GROUND_USER_DATA } from './playfield-ground';
+import { themeTokens, type ThemeId } from './theme';
 
 export interface BoardLightingOptions {
   /** Extra Y extent for stacked pieces in the shadow frustum. */
   pieceHeightMargin?: number;
+  /**
+   * Subtle hemisphere fill so PBR arena GLBs read with depth under the shared sun.
+   * Flat MeshBasic boards leave this off (default).
+   */
+  ambientFill?: boolean;
 }
 
 export interface BoardLightingHandle {
@@ -13,6 +19,8 @@ export interface BoardLightingHandle {
   fitToBox(box: THREE.Box3): void;
   fitToPoints(points: THREE.Vector3[]): void;
   refreshMapSize(): void;
+  /** Sync hemisphere fill colours when the document theme changes (no-op if fill disabled). */
+  syncThemeAmbientFill(themeId: ThemeId): void;
   dispose(): void;
 }
 
@@ -99,7 +107,25 @@ export function applyBoardLighting(
   light.target = target;
   scene.add(light);
 
+  let hemisphere: THREE.HemisphereLight | null = null;
+  if (options.ambientFill) {
+    hemisphere = new THREE.HemisphereLight(0xffffff, 0x888880, 0.3);
+    scene.add(hemisphere);
+  }
+
   const tmpBox = new THREE.Box3();
+
+  function syncThemeAmbientFill(themeId: ThemeId) {
+    if (!hemisphere) return;
+    const tokens = themeTokens(themeId);
+    const surface = new THREE.Color(tokens.arenaSurface);
+    const sky = surface.clone().lerp(new THREE.Color(tokens.table), 0.55);
+    const ground = surface.clone().multiplyScalar(0.62);
+    hemisphere.color.copy(sky);
+    hemisphere.groundColor.copy(ground);
+    hemisphere.intensity = themeId === 'light' ? 0.34 : 0.26;
+  }
+  syncThemeAmbientFill('light');
 
   function fitToBox(box: THREE.Box3) {
     tmpBox.copy(box);
@@ -141,10 +167,15 @@ export function applyBoardLighting(
       applyShadowMapSettings(light, chooseShadowMapSize());
       light.shadow.needsUpdate = true;
     },
+    syncThemeAmbientFill,
     dispose() {
       scene.remove(light);
       scene.remove(target);
       light.dispose();
+      if (hemisphere) {
+        scene.remove(hemisphere);
+        hemisphere.dispose();
+      }
     },
   };
 }
