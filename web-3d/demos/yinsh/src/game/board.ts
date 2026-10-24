@@ -206,6 +206,37 @@ export class Board {
     }
   }
 
+  /** Full contiguous marker chain through `start` on the longest matching axis. */
+  markerChainFrom(start: Coord): Coord[] | undefined {
+    const seed = this.elementAt(start);
+    if (seed.kind !== 'marker') return undefined;
+    const player = seed.player;
+
+    let best: Coord[] | undefined;
+    for (const axis of AXES) {
+      const dir = directionVector(axis);
+      const positive: Coord[] = [];
+      for (let i = 1; i <= 4; i++) {
+        const c = coordAdd(start, coordMul(dir, i));
+        const el = this.elementAt(c);
+        if (el.kind === 'marker' && el.player === player) positive.push(c);
+        else break;
+      }
+      const negative: Coord[] = [];
+      for (let i = 1; i <= 4; i++) {
+        const c = coordAdd(start, coordMul(dir, -1 * i));
+        const el = this.elementAt(c);
+        if (el.kind === 'marker' && el.player === player) negative.push(c);
+        else break;
+      }
+      const chain = [...negative.reverse(), start, ...positive];
+      if (chain.length >= 5 && (!best || chain.length > best.length)) {
+        best = chain;
+      }
+    }
+    return best;
+  }
+
   runCoordsFrom(start: Coord): Coord[] | undefined {
     const seed = this.elementAt(start);
     if (seed.kind !== 'marker') {
@@ -236,20 +267,14 @@ export class Board {
         }
       }
 
-      const interleaved: Coord[] = [start];
-      const n = Math.max(markersPositive.length, markersNegative.length);
-      for (let i = 0; i < n && interleaved.length < 5; i++) {
-        if (i < markersPositive.length) {
-          interleaved.push(markersPositive[i]!);
-        }
-        if (interleaved.length < 5 && i < markersNegative.length) {
-          interleaved.push(markersNegative[i]!);
-        }
-      }
+      const chain = [...markersNegative.reverse(), start, ...markersPositive];
+      if (chain.length < 5) continue;
 
-      if (interleaved.length === 5) {
-        return interleaved;
-      }
+      const seedIdx = markersNegative.length;
+      let from = Math.max(0, seedIdx - 2);
+      if (from + 5 > chain.length) from = chain.length - 5;
+      const five = chain.slice(from, from + 5);
+      if (five.length === 5) return five;
     }
 
     return undefined;

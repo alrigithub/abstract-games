@@ -24,7 +24,6 @@ import { movesInclude, possibleMoves } from './game/moves';
 import { statusLine } from './game/phase';
 import { markerIdsOnRingMove, moveNeedsFlip } from './game/visual';
 import {
-  applyRingLandingToPathWorld,
   buildAiMovePathCells,
   buildAiMovePathWorld,
   ringPieceId,
@@ -101,12 +100,19 @@ function refreshMoveHints(clientX?: number, clientY?: number) {
   if (clientX !== undefined && clientY !== undefined) {
     hoverCellIndex = humanTurn() ? scene.hitTest(clientX, clientY) : null;
   }
+  const ringStart = activeRingMoveStart();
+  const ringStartWorld =
+    ringStart && game.turnMode.tag === 'RingMovement'
+      ? scene.getPieceWorldPosition(ringPieceId(game.activePlayer, ringStart))
+      : null;
   const assist = buildYinshAssist(game, {
     humanPlayer,
+    aiPlayer,
     humanTurn: humanTurn(),
-    ringMoveStart: activeRingMoveStart(),
+    ringMoveStart: ringStart,
     hoverCell: hoverCellIndex,
     lastAiMove: lastAiMoveHighlight,
+    ringStartWorld: ringStartWorld ? { x: ringStartWorld.x, z: ringStartWorld.z } : null,
   });
   scene.setBoardAssist(assist);
   scene.setFlipPreview(assist?.flipPieceIds ?? []);
@@ -200,24 +206,30 @@ async function performMove(move: Move, fromAi = false): Promise<void> {
   if (aiRingMove) {
     const pathCells = buildAiMovePathCells(aiRingMove.start, aiRingMove.end);
     const pathWorld = buildAiMovePathWorld(aiRingMove.start, aiRingMove.end);
-    const ringPos = scene.getPieceWorldPosition(ringPieceId(aiPlayer, aiRingMove.end));
     lastAiMoveHighlight = {
       fromCell: coordToIndex(aiRingMove.start),
       toCell: coordToIndex(aiRingMove.end),
       pathCells,
-      pathWorld: applyRingLandingToPathWorld(pathWorld, ringPos ? { x: ringPos.x, z: ringPos.z } : null),
+      pathWorld,
       flipPieceIds: aiFlipIds,
     };
     refreshMoveHints();
   }
 
-  await drainAutoWaits();
+  await drainAutoWaits(fromAi);
 }
 
-async function drainAutoWaits(): Promise<void> {
+async function drainAutoWaits(fromAi = false): Promise<void> {
   for (;;) {
     const waits = possibleMoves(game);
     if (waits.length !== 1 || waits[0]!.tag !== 'Wait') break;
+    const mode = game.turnMode.tag;
+    if (mode === 'WaitForRunRemoval') {
+      refreshMoveHints();
+      renderStatus('Five in a row!');
+      const pauseMs = fromAi || game.activePlayer === aiPlayer ? 1000 : 450;
+      await new Promise<void>(r => setTimeout(r, pauseMs));
+    }
     game.performMove({ tag: 'Wait' });
     syncSnapshot();
   }
@@ -354,6 +366,45 @@ stage.addEventListener('pointerdown', onPointerDown, true);
 stage.addEventListener('pointermove', onPointerMove, true);
 stage.addEventListener('pointerup', onPointerUp, true);
 
+function loadAssistRingPlacementShot() {
+  stopAi();
+  humanPlayer = 'A';
+  aiPlayer = 'B';
+  game = GameState.initial();
+  game.activePlayer = 'A';
+  game.turnMode = { tag: 'RingPlacement' };
+  ringMoveFrom = null;
+  syncSnapshot();
+  hoverCellIndex = coordToIndex({ x: -1, y: 0 });
+  refreshMoveHints();
+  syncYinshInteractionPreview();
+  const focus = yinshWorldPoint({ x: -1, y: 0 });
+  scene.setCameraView({ elevationDeg: 38, azimuthDeg: 22, target: focus });
+  scene.reframe();
+  gameButtons.setStatus('Move assist · ring placement hover');
+}
+
+function loadAssistMarkerPlacementShot() {
+  stopAi();
+  humanPlayer = 'A';
+  aiPlayer = 'B';
+  game = GameState.initial();
+  game.board.addRing('A', { x: 0, y: 0 });
+  game.board.addRing('A', { x: 1, y: -1 });
+  game.board.addRing('B', { x: -2, y: 1 });
+  game.activePlayer = 'A';
+  game.turnMode = { tag: 'MarkerPlacement' };
+  ringMoveFrom = null;
+  syncSnapshot();
+  hoverCellIndex = coordToIndex({ x: 0, y: 0 });
+  refreshMoveHints();
+  syncYinshInteractionPreview();
+  const focus = yinshWorldPoint({ x: 0, y: 0 });
+  scene.setCameraView({ elevationDeg: 40, azimuthDeg: 18, target: focus });
+  scene.reframe();
+  gameButtons.setStatus('Move assist · marker placement ghosts');
+}
+
 function loadAssistRingMoveShot() {
   stopAi();
   humanPlayer = 'A';
@@ -382,6 +433,42 @@ function loadAssistPathFlipShot() {
   refreshMoveHints();
   syncYinshInteractionPreview();
   gameButtons.setStatus('Move assist · path and flip preview');
+}
+
+function loadAssistRunGlowShot() {
+  stopAi();
+  humanPlayer = 'A';
+  aiPlayer = 'B';
+  game = GameState.initial();
+  for (let y = -2; y <= 3; y++) game.board.addMarker('A', { x: 0, y });
+  game.activePlayer = 'A';
+  game.turnMode = { tag: 'RunRemoval', playerLastRingMove: 'B' };
+  ringMoveFrom = null;
+  syncSnapshot();
+  hoverCellIndex = coordToIndex({ x: 0, y: 0 });
+  refreshMoveHints();
+  syncYinshInteractionPreview();
+  const focus = yinshWorldPoint({ x: 0, y: 0.5 });
+  scene.setCameraView({ elevationDeg: 38, azimuthDeg: 12, target: focus });
+  scene.reframe();
+  gameButtons.setStatus('Five in a row! · click a row to remove five markers');
+}
+
+function loadAssistRingRemovalShot() {
+  loadAssistRunGlowShot();
+  game.board.removeMarker({ x: 0, y: -2 });
+  game.board.removeMarker({ x: 0, y: -1 });
+  game.board.removeMarker({ x: 0, y: 0 });
+  game.board.removeMarker({ x: 0, y: 1 });
+  game.board.removeMarker({ x: 0, y: 2 });
+  game.pointsA = 1;
+  game.turnMode = { tag: 'RingRemoval', playerLastRingMove: 'B' };
+  game.board.addRing('A', { x: 1, y: 0 });
+  game.board.addRing('A', { x: 2, y: -1 });
+  syncSnapshot();
+  hoverCellIndex = coordToIndex({ x: 1, y: 0 });
+  refreshMoveHints();
+  gameButtons.setStatus('Five in a row! Remove a ring');
 }
 
 function loadAssistRunPickShot() {
@@ -416,12 +503,11 @@ function loadAssistAiMoveShot() {
   syncSnapshot();
   const pathCells = buildAiMovePathCells(start, end);
   const pathWorld = buildAiMovePathWorld(start, end);
-  const ringPos = scene.getPieceWorldPosition(ringPieceId('B', end));
   lastAiMoveHighlight = {
     fromCell: coordToIndex(start),
     toCell: coordToIndex(end),
     pathCells,
-    pathWorld: applyRingLandingToPathWorld(pathWorld, ringPos ? { x: ringPos.x, z: ringPos.z } : null),
+    pathWorld,
     flipPieceIds: [`marker-B-${coordKey({ x: -1, y: 0 })}`],
   };
   refreshMoveHints();
@@ -458,6 +544,14 @@ const urlParams = new URLSearchParams(location.search);
 const shot = urlParams.get('shot');
 if (shot === 'ring-closeup') {
   loadRingCloseupShot();
+} else if (shot === 'assist-ring-place') {
+  loadAssistRingPlacementShot();
+} else if (shot === 'assist-marker-place') {
+  loadAssistMarkerPlacementShot();
+} else if (shot === 'assist-run-glow') {
+  loadAssistRunGlowShot();
+} else if (shot === 'assist-ring-removal') {
+  loadAssistRingRemovalShot();
 } else if (shot === 'assist-ring-dest') {
   loadAssistRingMoveShot();
 } else if (shot === 'assist-path-flip') {
@@ -611,6 +705,7 @@ if (urlParams.has('e2e')) {
     coordToIndex,
     simulateHoverAtCell,
     getStackBottomBaseYs: () => scene.getStackBottomBaseYs(),
+    getBoardAssistStats: () => scene.getBoardAssistStats(),
     setHoverCell: (index: number | null) => {
       hoverCellIndex = index;
       refreshMoveHints();

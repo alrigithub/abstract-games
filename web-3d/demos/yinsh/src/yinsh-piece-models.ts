@@ -30,6 +30,23 @@ export const YINSH_MARKER_WORLD_RADIUS = (YINSH_MARKER_OUTER_DIAMETER_M / 2) * Y
 /** Move-assist destination dots (~35% of marker diameter). */
 export const YINSH_ASSIST_DOT_RADIUS = YINSH_MARKER_WORLD_RADIUS * 0.35;
 
+/** World-space ring footprint for assist shadows / ghosts (matches GLB scale). */
+export const YINSH_RING_OUTER_RADIUS = YINSH_RING_TARGET_OUTER_DIAMETER / 2;
+
+/** Hollow centre — slightly larger than a seated marker. */
+export const YINSH_RING_INNER_RADIUS = YINSH_MARKER_WORLD_RADIUS + 0.012;
+
+export const YINSH_RING_FOOTPRINT = {
+  shape: 'ring' as const,
+  outerRadius: YINSH_RING_OUTER_RADIUS,
+  innerRadius: YINSH_RING_INNER_RADIUS,
+};
+
+export const YINSH_MARKER_FOOTPRINT = {
+  shape: 'disc' as const,
+  outerRadius: YINSH_MARKER_WORLD_RADIUS * 0.92,
+};
+
 const MODEL = {
   ringWhite: 'assets/yinsh-ring-white.glb',
   ringBlack: 'assets/yinsh-ring-black.glb',

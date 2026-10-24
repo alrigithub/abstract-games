@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['yinsh-ai-playthrough.spec.ts', 'yinsh-human-clicks.spec.ts'],
+  testMatch: ['yinsh-ai-playthrough.spec.ts', 'yinsh-human-clicks.spec.ts', 'yinsh-assist-hover.spec.ts'],
   fullyParallel: false,
   workers: 1,
   reporter: 'list',

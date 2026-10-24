@@ -1071,6 +1071,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       assistLayer.update(assistState, cellPosition);
       requestRender();
     },
+    getBoardAssistStats() {
+      return assistLayer.getStats();
+    },
     setFlipPreview(pieceIds) {
       flipPreviewIds = new Set(pieceIds);
       syncFlipHalos();

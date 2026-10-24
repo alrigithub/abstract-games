@@ -11,11 +11,12 @@ export function phaseLabel(state: GameState): string {
     case 'RingMovement':
       return 'Move a ring';
     case 'WaitForRunRemoval':
+      return 'Five in a row!';
     case 'RunRemoval':
-      return 'Remove five in a row';
+      return 'Click a row to remove five markers';
     case 'WaitForRingRemoval':
     case 'RingRemoval':
-      return 'Remove a ring (scored)';
+      return 'Five in a row! Remove a ring';
     case 'WaitForMarkerPlacement':
       return 'Continue';
     default:

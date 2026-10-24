@@ -4,10 +4,12 @@ import path from 'node:path';
 const screenshotDir = path.join(process.cwd(), 'e2e', 'screenshots');
 
 const shots = [
-  { slug: 'assist-ring-dest', file: 'yinsh-assist-ring-destinations' },
-  { slug: 'assist-path-flip', file: 'yinsh-assist-path-flip' },
-  { slug: 'assist-run-pick', file: 'yinsh-assist-run-pick' },
-  { slug: 'assist-ai-move', file: 'yinsh-assist-ai-last-move' },
+  { slug: 'assist-ring-place', file: 'yinsh-assist-ring-placement-hover' },
+  { slug: 'assist-marker-place', file: 'yinsh-assist-marker-placement-ghosts' },
+  { slug: 'assist-path-flip', file: 'yinsh-assist-ring-move-ghost-shadow' },
+  { slug: 'assist-ai-move', file: 'yinsh-assist-ai-last-move-ghost' },
+  { slug: 'assist-run-glow', file: 'yinsh-assist-run-glow' },
+  { slug: 'assist-ring-removal', file: 'yinsh-assist-ring-removal-prompt' },
 ] as const;
 
 test.describe('Yinsh move assist screenshots', () => {
