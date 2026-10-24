@@ -6,6 +6,7 @@ import {
   type SceneApi,
   type Selection,
 } from '@abstract/three-engine';
+import { primaryPoolCellIndex } from './boop-pool-layout';
 import type { BoopController } from './controller';
 
 const GRID = 6;
@@ -14,8 +15,8 @@ const OUTSIDE = 2;
 export interface BoopInteractionHandle {
   cancel(): void;
   dispose(): void;
-  /** Playwright: drag from pool/resting cell index to playable cell index. */
-  dragCellToCell(fromIndex: number, toIndex: number): Promise<void>;
+  /** Playwright / AI: drag from pool/resting cell index to playable cell index. */
+  dragCellToCell(fromIndex: number, toIndex: number, options?: { ai?: boolean }): Promise<void>;
 }
 
 export function wireBoopInteraction(
@@ -27,15 +28,13 @@ export function wireBoopInteraction(
   const interaction = createInteraction({
     element: stage,
     getSnapshot: () => getController().getSnapshot(),
-    canInteract: () => getController().canInteract(),
+    canInteract: () => getController().allowsPointerInteraction(),
     getPickHeight(cell, snap) {
-      const c = getController();
-      if (!c.canInteract()) return 0;
-      return c.pickHeightForCell(cell, snap);
+      return getController().pickHeightForCell(cell, snap);
     },
     hitTest: (x, y) => {
       const c = getController();
-      return c.canInteract() ? scene.hitTest(x, y) : null;
+      return c.allowsPointerInteraction() ? scene.hitTest(x, y) : null;
     },
     onView(view: InteractionView) {
       scene.setInteraction(view);
@@ -50,7 +49,7 @@ export function wireBoopInteraction(
   stage.addEventListener(
     'pointerdown',
     event => {
-      if (event.button !== 0 || !getController().canInteract()) return;
+      if (event.button !== 0 || !getController().allowsPointerInteraction()) return;
       queueMicrotask(() => {
         if (interaction.getSelection()) interaction.selectCount(1);
       });
@@ -76,30 +75,41 @@ export function wireBoopInteraction(
     true,
   );
 
-  async function dragCellToCell(fromIndex: number, toIndex: number) {
+  async function dragCellToCell(fromIndex: number, toIndex: number, options?: { ai?: boolean }) {
+    const controller = getController();
+    if (options?.ai) controller.setAiDragMode(true);
     const from = scene.cellScreen(fromIndex);
     const to = scene.cellScreen(toIndex);
+    const pointerInit = (x: number, y: number, type: 'down' | 'move' | 'up'): PointerEventInit => ({
+      clientX: x,
+      clientY: y,
+      button: 0,
+      buttons: type === 'up' ? 0 : 1,
+      bubbles: true,
+      cancelable: true,
+      pointerId: 1,
+      pointerType: 'mouse',
+      isPrimary: true,
+    });
     const down = (x: number, y: number) => {
-      stage.dispatchEvent(
-        new PointerEvent('pointerdown', { clientX: x, clientY: y, button: 0, bubbles: true, pointerId: 1 }),
-      );
+      stage.dispatchEvent(new PointerEvent('pointerdown', pointerInit(x, y, 'down')));
     };
     const move = (x: number, y: number) => {
-      window.dispatchEvent(
-        new PointerEvent('pointermove', { clientX: x, clientY: y, button: 0, bubbles: true, pointerId: 1 }),
-      );
+      window.dispatchEvent(new PointerEvent('pointermove', pointerInit(x, y, 'move')));
     };
     const up = (x: number, y: number) => {
-      window.dispatchEvent(
-        new PointerEvent('pointerup', { clientX: x, clientY: y, button: 0, bubbles: true, pointerId: 1 }),
-      );
+      window.dispatchEvent(new PointerEvent('pointerup', pointerInit(x, y, 'up')));
     };
-    down(from.x, from.y);
-    await new Promise(r => requestAnimationFrame(r));
-    move(to.x, to.y);
-    await new Promise(r => requestAnimationFrame(r));
-    up(to.x, to.y);
-    await new Promise(r => setTimeout(r, 50));
+    try {
+      down(from.x, from.y);
+      await new Promise(r => requestAnimationFrame(r));
+      move(to.x, to.y);
+      await new Promise(r => requestAnimationFrame(r));
+      up(to.x, to.y);
+      await controller.waitForInflightMove();
+    } finally {
+      if (options?.ai) controller.setAiDragMode(false);
+    }
   }
 
   return {
@@ -110,7 +120,12 @@ export function wireBoopInteraction(
 }
 
 export function poolCellIndex(): number {
-  return cellIndex(GRID, 3, -2, OUTSIDE)!;
+  return primaryPoolCellIndex('A', 'kitten');
+}
+
+export function aiPoolCellIndex(kind: 'kitten' | 'cat' = 'kitten'): number {
+  const row = kind === 'kitten' ? 3 : 5;
+  return cellIndex(GRID, row, GRID + 1, OUTSIDE)!;
 }
 
 export function cellAt(row: number, col: number): number {

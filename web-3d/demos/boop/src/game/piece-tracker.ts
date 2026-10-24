@@ -1,5 +1,6 @@
 import type { BoardSnapshot, EnginePiece } from '@abstract/three-engine';
 import { cellIndex } from '@abstract/three-engine';
+import { poolSlots } from './boop-pool-layout';
 import type { GameView, PieceKind, PlayerId } from './types';
 
 const GRID = 6;
@@ -154,20 +155,19 @@ export class PieceTracker {
       }
     }
 
-    const leftCol = -2;
-    const rightCol = GRID + 1;
-    const pushPool = (row: number, col: number, player: PlayerId, kind: PieceKind) => {
-      const idx = cellIndex(GRID, row, col, OUTSIDE);
-      if (idx === null) return;
-      for (const id of this.poolStacks[player][kind]) {
-        cells[idx]!.push({ id, player, shape: kind });
+    for (const player of ['A', 'B'] as const) {
+      for (const kind of ['kitten', 'cat'] as const) {
+        const ids = this.poolStacks[player][kind];
+        const slots = poolSlots(player, kind);
+        ids.forEach((id, i) => {
+          const slot = slots[i];
+          if (!slot) return;
+          const idx = cellIndex(GRID, slot.row, slot.col, OUTSIDE);
+          if (idx === null) return;
+          cells[idx]!.push({ id, player, shape: kind });
+        });
       }
-    };
-
-    pushPool(3, leftCol, 'A', 'kitten');
-    pushPool(3, rightCol, 'B', 'kitten');
-    pushPool(5, leftCol, 'A', 'cat');
-    pushPool(5, rightCol, 'B', 'cat');
+    }
 
     const restGroups = new Map<string, RestingPiece[]>();
     for (const r of this.resting) {
