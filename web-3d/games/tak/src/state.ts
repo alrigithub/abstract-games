@@ -84,7 +84,7 @@ export function resolveReserve(state: BoardState, reserve: Reserve): Reserve | n
   return Number.isInteger(pile) && pile >= 0 && (counts[pile] ?? 0) > 0 ? { ...reserve, pile } : null;
 }
 
-export function countSelected(elapsedMs: number, height: number, interval = HOLD_INTERVAL): number {
+export function countSelected(elapsedMs: number, height: number, interval: number = HOLD_INTERVAL): number {
   const duration = Number.isFinite(interval) && interval > 0 ? interval : HOLD_INTERVAL;
   return Math.max(0, Math.min(height, 1 + Math.floor(Math.max(0, elapsedMs) / duration)));
 }
