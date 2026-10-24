@@ -13,7 +13,7 @@ export function themeTokens(id: ThemeId): ThemeTokens {
       board: '#22242a',
       lines: '#8a8f98',
       win: WIN_ACCENT,
-      runCelebration: '#ffcc55',
+      runCelebration: '#ffb347',
       ghostOpacity: 0.28,
       shadow: '#3a4048',
       piece: {
@@ -27,7 +27,7 @@ export function themeTokens(id: ThemeId): ThemeTokens {
     board: '#e8e4dc',
     lines: '#5c564c',
     win: WIN_ACCENT,
-    runCelebration: '#e8a820',
+    runCelebration: '#ffb347',
     ghostOpacity: 0.24,
     shadow: '#19232e',
     piece: {

@@ -25,7 +25,7 @@ const PATH_HALF_WIDTH = 0.024;
 const LAST_MOVE_HALF_WIDTH = 0.028;
 const RUN_ROW_HALF_WIDTH = 0.052;
 const DEFAULT_MARKER_RADIUS = 0.31;
-const DEFAULT_HALO_SCALE = 1.72;
+const DEFAULT_HALO_SCALE = 2.2;
 const DEFAULT_MARKER_GHOST_SURFACE_Y = 0.016;
 const ASSIST_RENDER_ORDER = 0;
 /** Marker-centre previews draw above rings and seated stones. */
@@ -42,10 +42,11 @@ function createWarmCelebrationDiscTexture(): THREE.CanvasTexture | null {
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d')!;
   const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  gradient.addColorStop(0, 'rgba(255, 236, 160, 0.98)');
-  gradient.addColorStop(0.35, 'rgba(255, 200, 80, 0.72)');
-  gradient.addColorStop(0.62, 'rgba(255, 160, 40, 0.28)');
-  gradient.addColorStop(1, 'rgba(255, 140, 20, 0)');
+  gradient.addColorStop(0, 'rgba(255, 210, 120, 1)');
+  gradient.addColorStop(0.28, 'rgba(255, 179, 71, 0.92)');
+  gradient.addColorStop(0.55, 'rgba(255, 150, 40, 0.45)');
+  gradient.addColorStop(0.78, 'rgba(255, 120, 20, 0.12)');
+  gradient.addColorStop(1, 'rgba(255, 100, 10, 0)');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
   const texture = new THREE.CanvasTexture(canvas);
@@ -104,7 +105,7 @@ export class BoardAssistLayer {
   private runHaloRadius = DEFAULT_MARKER_RADIUS * DEFAULT_HALO_SCALE;
   private runGlowTexture: THREE.CanvasTexture | null = null;
   private accentColor = WIN_ACCENT;
-  private runCelebrationColor = '#e8a820';
+  private runCelebrationColor = '#ffb347';
   private shadowTint = 0x19232e;
 
   constructor() {
@@ -216,8 +217,8 @@ export class BoardAssistLayer {
   /** Gentle pulse on row halos; returns true when active. */
   tick(now: number): boolean {
     if (!this.runPulseActive) return false;
-    const pulse = 0.88 + 0.12 * Math.sin(now * 0.0045);
-    const scale = 1 + 0.06 * Math.sin(now * 0.0045 + 1.2);
+    const pulse = 0.92 + 0.08 * Math.sin(now * 0.0042);
+    const scale = 1 + 0.05 * Math.sin(now * 0.0042 + 1.1);
     const r = this.runHaloRadius;
     for (const mesh of this.runMarkerOuterPool) {
       if (!mesh.visible) continue;
@@ -453,16 +454,15 @@ export class BoardAssistLayer {
   }
 
   private runHaloOpacity(strength: AssistRunRowGlow['strength'], highlighted: boolean): number {
-    if (highlighted) {
-      return strength === 'hover' ? 0.36 : 0.3;
-    }
+    if (highlighted && strength === 'hover') return 0.84;
+    if (highlighted) return 0.76;
     switch (strength) {
       case 'hover':
-        return 0.28;
+        return 0.72;
       case 'option':
-        return 0.18;
+        return 0.5;
       default:
-        return 0.24;
+        return 0.74;
     }
   }
 

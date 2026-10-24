@@ -30,7 +30,7 @@ test.describe('Yinsh move assist screenshots', () => {
           expect(stats.markerGhostMinOpacity ?? 0).toBeGreaterThan(0.3);
         }
         if (slug === 'assist-run-glow') {
-          expect(stats.runGlowCellCount ?? 0).toBe(5);
+          expect(stats.runGlowCellCount ?? 0).toBe(6);
         }
         const suffix = theme === 'dark' ? '-dark' : '-light';
         await page.screenshot({

@@ -97,7 +97,12 @@ function runGlowRows(
   if (mode === 'pick') {
     const hoverOption = findHoveredRunOption(options, hoverCell);
     if (hoverOption) {
+      const candidates = new Set<number>();
+      for (const option of options) {
+        for (const c of option.five) candidates.add(coordToIndex(c));
+      }
       return [
+        { markerCells: [...candidates], strength: 'option' },
         {
           markerCells: indices(hoverOption.five),
           highlightCells: indices(hoverOption.five),
@@ -169,7 +174,7 @@ export function buildYinshAssist(
   if (!options.humanTurn) {
     const assist: BoardAssistState = {
       destinationDotRadius: YINSH_ASSIST_DOT_RADIUS,
-      runGlowStyle: { markerRadius: YINSH_MARKER_WORLD_RADIUS, haloScale: 1.72 },
+      runGlowStyle: { markerRadius: YINSH_MARKER_WORLD_RADIUS, haloScale: 2.2 },
       markerGhostRadius: markerGhostRadius(),
       markerGhostSurfaceY: YINSH_MARKER_GHOST_SURFACE_Y,
       ...runGlowState,
@@ -186,7 +191,7 @@ export function buildYinshAssist(
   const board = state.board;
   const assist: BoardAssistState = {
     destinationDotRadius: YINSH_ASSIST_DOT_RADIUS,
-    runGlowStyle: { markerRadius: YINSH_MARKER_WORLD_RADIUS, haloScale: 1.72 },
+    runGlowStyle: { markerRadius: YINSH_MARKER_WORLD_RADIUS, haloScale: 2.2 },
     markerGhostRadius: markerGhostRadius(),
     markerGhostSurfaceY: YINSH_MARKER_GHOST_SURFACE_Y,
     shadows: [],

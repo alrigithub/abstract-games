@@ -55,7 +55,7 @@ describe('BoardAssistLayer', () => {
     layer.update(
       {
         runGlows: [{ markerCells: [0, 1, 2, 3, 4], strength: 'announce' }],
-        runGlowStyle: { markerRadius: 0.31, haloScale: 1.4 },
+        runGlowStyle: { markerRadius: 0.31, haloScale: 2.2 },
       },
       cellPosition,
     );

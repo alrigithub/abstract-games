@@ -30,6 +30,6 @@ test.describe('Yinsh assist marker ghosts and row glow', () => {
       return fn();
     });
 
-    expect(stats.runGlowCellCount).toBe(5);
+    expect(stats.runGlowCellCount).toBe(6);
   });
 });
