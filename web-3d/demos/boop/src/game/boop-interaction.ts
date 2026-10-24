@@ -6,6 +6,7 @@ import {
   type SceneApi,
   type Selection,
 } from '@abstract/three-engine';
+import { primaryPoolCellIndex } from './boop-pool-layout';
 import type { BoopController } from './controller';
 
 const GRID = 6;
@@ -119,7 +120,7 @@ export function wireBoopInteraction(
 }
 
 export function poolCellIndex(): number {
-  return cellIndex(GRID, 3, -2, OUTSIDE)!;
+  return primaryPoolCellIndex('A', 'kitten');
 }
 
 export function aiPoolCellIndex(kind: 'kitten' | 'cat' = 'kitten'): number {

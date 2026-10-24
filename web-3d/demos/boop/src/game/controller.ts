@@ -7,6 +7,7 @@ import {
 } from '@abstract/three-engine';
 import init, { BoopGame } from '../../wasm/boop_wasm.js';
 import { BOOP_ANIM } from './animation';
+import { poolKindAtCell, primaryPoolCellIndex } from './boop-pool-layout';
 import { PieceTracker } from './piece-tracker';
 import type { GameView, MoveJson, PieceKind, PlayerId } from './types';
 import { parseGameView } from './types';
@@ -121,16 +122,19 @@ export class BoopController {
     return 0;
   }
 
+  private poolHasHand(playerIndex: 0 | 1, kind: PieceKind) {
+    const pool = this.view.pools[playerIndex]!;
+    return kind === 'kitten' ? pool.kittens_in_hand > 0 : pool.cats_in_hand > 0;
+  }
+
   private isHumanPoolCell(row: number, col: number) {
-    if (col === -2 && row === 3) return this.view.pools[0]!.kittens_in_hand > 0;
-    if (col === -2 && row === 5) return this.view.pools[0]!.cats_in_hand > 0;
-    return false;
+    const kind = poolKindAtCell(HUMAN, row, col);
+    return kind !== null && this.poolHasHand(0, kind);
   }
 
   private isAiPoolCell(row: number, col: number) {
-    if (col === GRID + 1 && row === 3) return this.view.pools[1]!.kittens_in_hand > 0;
-    if (col === GRID + 1 && row === 5) return this.view.pools[1]!.cats_in_hand > 0;
-    return false;
+    const kind = poolKindAtCell(AI, row, col);
+    return kind !== null && this.poolHasHand(1, kind);
   }
 
   private isOffBedCell(row: number, col: number) {
@@ -151,10 +155,7 @@ export class BoopController {
       const top = stack.at(-1);
       if (top?.player === player && top.shape === kind) return idx;
     }
-    if (player === HUMAN) {
-      return kind === 'kitten' ? cellIndex(GRID, 3, -2, OUTSIDE)! : cellIndex(GRID, 5, -2, OUTSIDE)!;
-    }
-    return kind === 'kitten' ? cellIndex(GRID, 3, GRID + 1, OUTSIDE)! : cellIndex(GRID, 5, GRID + 1, OUTSIDE)!;
+    return primaryPoolCellIndex(player, kind);
   }
 
   async commitPlacement(selection: Selection, targetIndex: number) {
@@ -179,10 +180,10 @@ export class BoopController {
     const top = snap.cells[sourceIndex]?.at(-1);
     if (top?.shape === 'kitten' || top?.shape === 'cat') return top.shape;
     const { row, col } = cellCoordinates(GRID, sourceIndex, OUTSIDE);
-    if (col === -2 && row === 5) return 'cat';
-    if (col === -2 && row === 3) return 'kitten';
-    if (col === GRID + 1 && row === 5) return 'cat';
-    if (col === GRID + 1 && row === 3) return 'kitten';
+    const aKind = poolKindAtCell(HUMAN, row, col);
+    if (aKind) return aKind;
+    const bKind = poolKindAtCell(AI, row, col);
+    if (bKind) return bKind;
     return 'kitten';
   }
 
@@ -342,6 +343,22 @@ export class BoopController {
   async smokePlace(x = 2, y = 2) {
     const mv = this.game.move_for_interaction_json(HUMAN, x, y, 'kitten');
     if (mv) await this.playMoveJson(mv, { scheduleAi: false });
+  }
+
+  /** Visual-only layout for screenshots: both players' kittens and cats on the bed + spread pools. */
+  stageShowcaseForScreenshots() {
+    this.newGame();
+    this.view.board[1]![2] = { player: 'A', kind: 'kitten' };
+    this.view.board[2]![1] = { player: 'A', kind: 'cat' };
+    this.view.board[4]![3] = { player: 'B', kind: 'kitten' };
+    this.view.board[3]![4] = { player: 'B', kind: 'cat' };
+    this.view.pools[0]!.kittens_in_hand = 7;
+    this.view.pools[0]!.cats_in_hand = 7;
+    this.view.pools[1]!.kittens_in_hand = 7;
+    this.view.pools[1]!.cats_in_hand = 7;
+    this.tracker.syncBoard(this.view);
+    this.publishSnapshot();
+    this.renderStatus();
   }
 
   async ensureRestingOffBoardPiece() {

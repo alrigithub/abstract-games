@@ -7,16 +7,14 @@ import {
 } from '@abstract/three-engine';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createGroundedBoopPieces } from './boop-grounding';
 
-/**
- * Target adult footprint on the 1-unit cell grid (procedural lathe shoulder Ø 0.68).
- * GLB sources are authored in metres (~4 cm wide); uniform scale preserves junior/adult ratio.
- */
-const PROCEDURAL_ADULT_XZ = 0.34 * 2;
+/** Adult cat max X/Z on a 1-unit bed cell (~80% of tile). */
+const ADULT_TILE_FOOTPRINT = 0.8;
 
-/** Authored facing +X; rotate in XZ so the front points at the default camera. */
-const FACE_CAMERA_YAW =
+/** Face +X-authored models toward the default camera in XZ. */
+export const BOOP_STONE_CAT_YAW =
   Math.atan2(CAMERA.position[0], CAMERA.position[2]) - Math.PI / 2;
 
 function glbUrl(file: string): string {
@@ -36,8 +34,6 @@ interface StoneTemplate {
   height: number;
 }
 
-export const BOOP_STONE_CAT_YAW = FACE_CAMERA_YAW;
-
 const loader = new GLTFLoader();
 
 function loadGltfScene(url: string): Promise<THREE.Group> {
@@ -46,28 +42,54 @@ function loadGltfScene(url: string): Promise<THREE.Group> {
   });
 }
 
-function firstMesh(root: THREE.Object3D): THREE.Mesh {
-  let found: THREE.Mesh | null = null;
+function collectMeshes(root: THREE.Object3D): THREE.Mesh[] {
+  const meshes: THREE.Mesh[] = [];
   root.traverse(node => {
-    if (found) return;
-    if ((node as THREE.Mesh).isMesh) found = node as THREE.Mesh;
+    if ((node as THREE.Mesh).isMesh) meshes.push(node as THREE.Mesh);
   });
-  if (!found) throw new Error(`No mesh in ${root.name || 'gltf'}`);
-  return found;
+  return meshes;
 }
 
-/** Bake mesh; floor at local y = 0, centred on X/Z (stack layout uses piece centre + height/2). */
-function bakeMeshToFloorGeometry(mesh: THREE.Mesh): StoneTemplate {
-  const geometry = mesh.geometry.clone();
-  geometry.applyMatrix4(mesh.matrixWorld);
+/**
+ * Bake full node hierarchy (scale + transforms) into one geometry; Y-up, floor at y=0.
+ * If the authored mesh is lying (thinnest axis is Y), rotate upright before anchoring.
+ */
+function bakeSceneToFloorGeometry(root: THREE.Object3D): StoneTemplate {
+  root.updateMatrixWorld(true);
+  const meshes = collectMeshes(root);
+  if (!meshes.length) throw new Error('No mesh in gltf scene');
+
+  const parts = meshes.map(mesh => {
+    const g = mesh.geometry.clone();
+    g.applyMatrix4(mesh.matrixWorld);
+    return g;
+  });
+  let geometry = parts.length === 1 ? parts[0]! : mergeGeometries(parts, false);
+  if (!geometry) throw new Error('Failed to merge gltf meshes');
+
   geometry.computeBoundingBox();
-  const box = geometry.boundingBox!;
+  let box = geometry.boundingBox!;
+  let size = new THREE.Vector3();
+  box.getSize(size);
+
+  if (size.y <= Math.min(size.x, size.z) * 0.85) {
+    geometry.rotateX(-Math.PI / 2);
+    geometry.computeBoundingBox();
+    box = geometry.boundingBox!;
+    box.getSize(size);
+  }
+
   const cx = (box.min.x + box.max.x) / 2;
   const cz = (box.min.z + box.max.z) / 2;
   geometry.translate(-cx, -box.min.y, -cz);
+  geometry.computeVertexNormals();
   geometry.computeBoundingBox();
   const height = geometry.boundingBox!.max.y - geometry.boundingBox!.min.y;
-  const material = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material).clone();
+
+  const sourceMat = meshes[0]!.material;
+  const material = (Array.isArray(sourceMat) ? sourceMat[0] : sourceMat).clone() as THREE.MeshStandardMaterial;
+  material.side = THREE.FrontSide;
+
   return { geometry, material, height };
 }
 
@@ -82,12 +104,12 @@ function prepareFromScene(scene: THREE.Group, worldScale: number): StoneTemplate
   const clone = scene.clone(true);
   clone.scale.setScalar(worldScale);
   clone.updateMatrixWorld(true);
-  return bakeMeshToFloorGeometry(firstMesh(clone));
+  return bakeSceneToFloorGeometry(clone);
 }
 
 async function loadTemplates(): Promise<Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>> {
   const adultScene = await loadGltfScene(glbUrl(GLB_FILES.A.cat));
-  const scale = PROCEDURAL_ADULT_XZ / xzExtent(adultScene);
+  const scale = ADULT_TILE_FOOTPRINT / xzExtent(adultScene);
 
   const players = ['A', 'B'] as const;
   const out = {} as Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>;

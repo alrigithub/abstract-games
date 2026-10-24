@@ -90,6 +90,8 @@ declare global {
     __boopSmokePickAndPlace?: () => Promise<void>;
     __boopAssertGrounding?: () => { ok: boolean; maxGap: number; boardTop: number; bases: number[] };
     __boopSetScreenshotCamera?: () => void;
+    __boopSetCameraPreset?: (preset: 'top' | 'axo') => void;
+    __boopStageShowcase?: () => void;
   }
 }
 
@@ -105,6 +107,15 @@ window.__boopAssertGrounding = () => {
   const bases = scene.getStackBottomBaseYs();
   const maxGap = bases.length ? Math.max(...bases.map(b => Math.abs(b - boardTop))) : 0;
   return { ok: maxGap <= 0.001, maxGap, boardTop, bases };
+};
+
+window.__boopSetCameraPreset = preset => {
+  cameraViews.setPreset(preset, false);
+  cameraViews.refit();
+};
+
+window.__boopStageShowcase = () => {
+  controller.stageShowcaseForScreenshots();
 };
 
 window.__boopSetScreenshotCamera = () => {
