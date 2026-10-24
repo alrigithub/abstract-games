@@ -151,7 +151,6 @@ export function createTapInteraction(options: InteractionOptions): InteractionAp
   window.addEventListener('pointerup', onUp, true);
   window.addEventListener('pointercancel', onPointerCancel, true);
   window.addEventListener('keydown', onKey, true);
-  emit();
 
   const tapCell = (index: number) => {
     if (!validCell(index)) return;

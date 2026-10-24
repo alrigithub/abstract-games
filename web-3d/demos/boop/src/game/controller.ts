@@ -46,7 +46,7 @@ export class BoopController {
   private pendingPlacementPieceId?: string;
   private aiWorker: Worker | null = null;
   private readonly onReady?: () => void;
-  private readonly aiPlaceTap?: (fromIndex: number, toIndex: number) => Promise<void>;
+  private aiPlaceTap?: (fromIndex: number, toIndex: number) => Promise<void>;
   private stickyKind: PieceKind = 'kitten';
 
   constructor(options: BoopControllerOptions) {
@@ -110,6 +110,10 @@ export class BoopController {
     await this.commitPlacement({ source, count: 1 }, targetIndex);
   }
 
+  setAiPlaceTap(handler: (fromIndex: number, toIndex: number) => Promise<void>) {
+    this.aiPlaceTap = handler;
+  }
+
   async init() {
     await init();
     this.newGame();
@@ -131,15 +135,22 @@ export class BoopController {
   }
 
   getSnapshot(): BoardSnapshot {
+    if (!this.view) {
+      return { playableCells: GRID * GRID, cellCount: (GRID + OUTSIDE * 2) ** 2, cells: [] };
+    }
     return this.tracker.buildSnapshot(this.view);
   }
 
+  isReady() {
+    return this.view !== undefined;
+  }
+
   isPlaceMode() {
-    return this.view.turn_mode.kind === 'place';
+    return this.view?.turn_mode.kind === 'place';
   }
 
   canInteract() {
-    return this.inputEnabled && !this.view.winner && this.view.to_move === HUMAN;
+    return this.isReady() && this.inputEnabled && !this.view!.winner && this.view!.to_move === HUMAN;
   }
 
   allowsPointerInteraction() {

@@ -72,7 +72,8 @@ export function wireBoopInteraction(
       return c.allowsPointerInteraction() ? scene.hitTest(x, y) : null;
     },
     onView(view: InteractionView) {
-      if (getController().isPlaceMode()) return;
+      const c = getController();
+      if (!c.isReady() || c.isPlaceMode()) return;
       publishView(view);
     },
     onCommit(selection: Selection, target: number) {
