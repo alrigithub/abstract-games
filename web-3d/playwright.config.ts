@@ -52,6 +52,16 @@ export default defineConfig({
       testMatch: '**/ai-worker-reliability.spec.ts',
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      name: 'shadow-lighting-before',
+      testMatch: ['**/shadow-lighting-screenshots-before.spec.ts', '**/shadow-lighting-bench-before.spec.ts'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'shadow-lighting',
+      testMatch: ['**/shadow-lighting-screenshots.spec.ts', '**/shadow-lighting-bench.spec.ts'],
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
   webServer: [
     {

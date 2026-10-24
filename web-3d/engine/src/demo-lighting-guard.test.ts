@@ -75,12 +75,16 @@ describe('demo lighting guard', () => {
   it('engine owns the single RoomEnvironment PMREM setting', () => {
     const rendererSrc = readFileSync(path.join(engineDir, 'board-renderer.ts'), 'utf8');
     const sceneSrc = readFileSync(path.join(engineDir, 'board-scene.ts'), 'utf8');
+    const lightingSrc = readFileSync(path.join(engineDir, 'board-lighting.ts'), 'utf8');
     expect(rendererSrc).toMatch(/export function applyBoardEnvironment/);
     expect(rendererSrc).toMatch(/new RoomEnvironment/);
     expect(rendererSrc).toMatch(/new THREE\.PMREMGenerator/);
     expect(rendererSrc).toMatch(/pmrem\.dispose\(\)/);
     expect(rendererSrc).toMatch(/room\.dispose\(\)/);
+    expect(lightingSrc).toMatch(/new THREE\.DirectionalLight/);
+    expect(lightingSrc).toMatch(/Math\.SQRT2/);
     expect(sceneSrc).toMatch(/applyBoardEnvironment\(scene, renderer\)/);
+    expect(sceneSrc).toMatch(/applyBoardLighting\(scene, renderer\)/);
     expect(sceneSrc).toMatch(/disposeEnvironment\(\)/);
     expect(BOARD.ENVIRONMENT_INTENSITY).toBeGreaterThan(0);
     expect(BOARD.ENVIRONMENT_INTENSITY).toBeLessThanOrEqual(2);

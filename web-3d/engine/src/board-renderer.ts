@@ -16,8 +16,20 @@ export function configureBoardWebGLRenderer(renderer: THREE.WebGLRenderer): void
   renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;
+  renderer.shadowMap.enabled = false;
   renderer.domElement.setAttribute('aria-hidden', 'true');
   renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none;';
+}
+
+/** Time one full render (ms); for headless perf checks. */
+export function measureBoardFrameMs(
+  renderer: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+): number {
+  const t0 = performance.now();
+  renderer.render(scene, camera);
+  return performance.now() - t0;
 }
 
 /**

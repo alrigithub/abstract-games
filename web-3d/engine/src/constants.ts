@@ -51,7 +51,9 @@ export const BOARD = {
    * Shared IBL strength for PBR GLBs ({@link applyBoardEnvironment}).
    * MeshBasic board/piece materials ignore this.
    */
-  ENVIRONMENT_INTENSITY: 0.85,
+  ENVIRONMENT_INTENSITY: 0.72,
+  /** Decal under pieces (complements shadow maps). */
+  PIECE_CONTACT_SHADOW_OPACITY: 0.11,
 } as const;
 
 export const CAMERA = {

@@ -36,6 +36,7 @@ const scene = await createBoardScene(board, {
   topology,
   pieces,
   initialTheme: theme,
+  stackedPiecesReceiveShadow: true,
 });
 const stage = board.querySelector('canvas') ?? board;
 

@@ -1,5 +1,6 @@
 export * from './animation-queue';
 export * from './board-renderer';
+export * from './board-lighting';
 export * from './board-grid-lines'; // zoom-stable grid line helpers
 export * from './board-scene';
 export * from './camera-views';

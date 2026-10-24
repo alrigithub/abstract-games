@@ -9,9 +9,14 @@ import {
   BOARD,
   CAMERA,
   GOMOKU_DIMS,
+  applyBoardEnvironment,
+  applyBoardLighting,
   createBoardWebGLRenderer,
   createCameraViewController,
   createContactShadowBlob,
+  measureBoardFrameMs,
+  tagPieceForShadows,
+  tagPlayfieldForShadows,
   createGomokuStoneGeometry,
   gomokuCellWorld,
   gomokuHoshiPoints,
@@ -71,6 +76,8 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
   scene.background = materials.table.clone();
 
   const renderer = createBoardWebGLRenderer();
+  const disposeEnvironment = applyBoardEnvironment(scene, renderer);
+  const boardLighting = applyBoardLighting(scene, renderer);
   container.appendChild(renderer.domElement);
 
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
@@ -139,7 +146,9 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
       star.position.set(p.x, yLine + 0.001, p.z);
       boardGroup.add(star);
     }
+    tagPlayfieldForShadows(boardGroup);
     syncBoardGridLines();
+    boardLighting.fitToPoints(gomokuFramePoints());
   }
 
   rebuildBoardMesh();
@@ -167,6 +176,9 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
     const yaw = yawForId(record.id);
     if (!mesh) {
       mesh = new THREE.Mesh(stoneGeo, mat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = false;
+      tagPieceForShadows(mesh, false);
       mesh.userData.shadow = makeShadow(yaw);
       stonesGroup.add(mesh);
       stoneMeshes.set(record.id, mesh);
@@ -341,7 +353,13 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
     camera.bottom = -halfHeight;
     camera.updateProjectionMatrix();
     syncBoardGridLines();
+    boardLighting.fitToPoints(gomokuFramePoints());
     render();
+  }
+
+  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('bench')) {
+    (window as unknown as { __benchOneFrame?: () => number }).__benchOneFrame = () =>
+      measureBoardFrameMs(renderer, scene, camera);
   }
 
   const ro = new ResizeObserver(fit);
@@ -359,9 +377,6 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
       materials.stoneShadow.dispose();
       materials = gomokuThemeMaterials(themeId);
       scene.background = materials.table.clone();
-      for (const mesh of stoneMeshes.values()) {
-        (mesh.userData.shadow as THREE.Mesh).material = materials.stoneShadow;
-      }
       rebuildBoardMesh();
       requestRender();
     },
@@ -425,6 +440,8 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
       disposed = true;
       ro.disconnect();
       controls.dispose();
+      boardLighting.dispose();
+      disposeEnvironment();
       renderer.domElement.removeEventListener('pointermove', onPointerMove);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       renderer.domElement.removeEventListener('pointerup', onPointerUp);
