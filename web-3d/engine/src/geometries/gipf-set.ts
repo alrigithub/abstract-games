@@ -3,7 +3,6 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BOARD } from '../constants';
 import type { ThemeTokens } from '../types';
 import { tagBoardGridLine } from '../board-grid-lines';
-import { createContactShadowBlob } from './contact-shadow';
 import { anchorGeometryBaseToY0 } from './anchor';
 
 /**
@@ -517,6 +516,5 @@ export function createGipfHexBoard(layout: GipfHexLayout, tokens: ThemeTokens): 
     group.add(fill, ring, inner);
   }
 
-  group.add(createContactShadowBlob(extent, GIPF_BOARD.SLAB));
   return group;
 }

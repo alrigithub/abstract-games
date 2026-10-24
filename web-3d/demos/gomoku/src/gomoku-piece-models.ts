@@ -6,6 +6,7 @@ import {
   createGomokuStoneGeometry,
   gomokuGlbStoneHeight,
   pieceGlbSideForPlayer,
+  tagGhostForShadows,
   tagPieceForShadows,
   themeTokens,
   type ThemeId,
@@ -144,6 +145,7 @@ export async function loadGomokuStoneAssets(
       createGhostVisual(player, themeId) {
         const ghost = createVisual(player);
         applyGhostOpacity(ghost, ghostOpacity(themeId));
+        tagGhostForShadows(ghost);
         return ghost;
       },
       replaceVisual(root, player) {
@@ -173,6 +175,7 @@ export async function loadGomokuStoneAssets(
         mat.transparent = true;
         mat.opacity = ghostOpacity(themeId);
         mesh.material = mat;
+        tagGhostForShadows(mesh);
         return mesh;
       },
       replaceVisual() {

@@ -601,6 +601,8 @@ export class BoardAssistLayer {
         if (!mesh) {
           mesh = new THREE.Mesh(geo, this.ghostRingMaterial);
           mesh.rotation.x = -Math.PI / 2;
+          mesh.castShadow = false;
+          mesh.receiveShadow = false;
           mesh.renderOrder = ASSIST_RENDER_ORDER;
           this.root.add(mesh);
           this.ghostRingPool.push(mesh);
@@ -620,6 +622,8 @@ export class BoardAssistLayer {
         if (!mesh) {
           mesh = new THREE.Mesh(new THREE.CircleGeometry(1, BOARD.RADIAL_SEGMENTS), this.ghostMarkerMaterial.clone());
           mesh.rotation.x = -Math.PI / 2;
+          mesh.castShadow = false;
+          mesh.receiveShadow = false;
           mesh.renderOrder = MARKER_GHOST_RENDER_ORDER;
           this.root.add(mesh);
           this.ghostMarkerPool.push(mesh);
