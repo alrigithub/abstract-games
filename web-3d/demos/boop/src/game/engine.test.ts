@@ -5,8 +5,6 @@ import {
   GameState,
   coordNew,
   moveEq,
-  poolNew,
-  type Move,
   type Piece,
   type Player,
   type Pool,
