@@ -170,7 +170,7 @@ describe('tzaar hex board', () => {
     }
   });
 
-  it('uses a regular hex slab with printed high-contrast lines', () => {
+  it('uses a flat regular hex playfield with printed high-contrast lines', () => {
     const hex = gipfRegularHexSlab(tzaarLayout());
     const slab = createTzaarBoardSlabGeometry();
     slab.computeBoundingBox();
@@ -180,9 +180,9 @@ describe('tzaar hex board', () => {
     expect((box.max.x + box.min.x) / 2).toBeCloseTo(hex.center.x, 5);
     expect((box.max.z + box.min.z) / 2).toBeCloseTo(hex.center.z, 5);
     expect(box.max.y).toBeCloseTo(BOARD.PLAYFIELD_SURFACE_Y, 5);
-    expect(box.min.y).toBeCloseTo(-BOARD.SLAB, 5);
-    expect(TZAAR_LINE_W).toBeGreaterThanOrEqual(0.04);
-    expect(TZAAR_LINE_W).toBeLessThan(0.08);
+    expect(box.min.y).toBeCloseTo(BOARD.PLAYFIELD_SURFACE_Y, 5);
+    expect(TZAAR_LINE_W).toBeGreaterThanOrEqual(0.018);
+    expect(TZAAR_LINE_W).toBeLessThan(0.04);
     slab.dispose();
 
     const geo = createTzaarBoardLineGeometry();

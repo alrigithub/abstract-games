@@ -134,6 +134,7 @@ export function yinshPieceGeometrySet(ring: THREE.BufferGeometry, marker: THREE.
       if (piece.shape !== 'marker') return null;
       return yinshMarkerMaterials(piece.player, tokens);
     },
+    geometryOrigin: 'base',
     verticalOffset(piece: EnginePiece, stackIndex: number, stack: EnginePiece[]) {
       if (piece.shape !== 'marker' || stackIndex === 0) return 0;
       const hasRingBelow = stack.slice(0, stackIndex).some(p => p.shape === 'ring');

@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { AnimationQueue } from './animation-queue';
+import {
+  applyBoardGridLineScreenScale,
+  boardGridLineScreenScale,
+  tagBoardGridLine,
+} from './board-grid-lines';
 import { createCameraViewController, fitOrthographicToWorldPoints, type CameraViewController } from './camera-views';
 import { ANIMATION, BOARD, CAMERA } from './constants';
 import { createContactShadowBlob } from './geometries/contact-shadow';
@@ -138,6 +143,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     heightOf: piece => height(piece as never),
     offsetOf: verticalOffset,
   };
+
+  function meshYFromStackCenter(centerY: number, piece: EnginePiece): number {
+    if (options.pieces.geometryOrigin === 'base') return centerY - height(piece as never) / 2;
+    return centerY;
+  }
 
   function pieceUsesOutline(piece: EnginePiece) {
     return options.pieces.useOutline?.(piece) !== false;
@@ -485,8 +495,13 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
   controls.touches.ONE = THREE.TOUCH.PAN;
   controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+  function syncBoardGridLines() {
+    applyBoardGridLineScreenScale(board, boardGridLineScreenScale(camera, viewportHeight));
+  }
+
   controls.addEventListener('change', () => {
     camera.updateMatrixWorld();
+    syncBoardGridLines();
     requestRender();
     container.dispatchEvent(new CustomEvent('camera-change'));
   });
@@ -556,6 +571,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     camera.updateMatrixWorld();
     const points = collectFramePoints().map(p => p.clone());
     fitOrthographicToWorldPoints(camera, points, aspect, CAMERA.framePadding);
+    syncBoardGridLines();
     requestRender();
   }
 
@@ -574,14 +590,15 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       })
     ) {
       buildPiles();
+      syncBoardGridLines();
       requestRender();
       return;
     }
-    const slab = new THREE.BoxGeometry(size, boardSlab, size);
-    boardGeometries.push(slab);
-    const slabMesh = new THREE.Mesh(slab, boardMaterial);
-    slabMesh.position.y = -boardSlab / 2;
-    board.add(slabMesh);
+    const planeGeo = new THREE.PlaneGeometry(size, size);
+    boardGeometries.push(planeGeo);
+    const boardPlane = new THREE.Mesh(planeGeo, boardMaterial);
+    boardPlane.rotation.x = -Math.PI / 2;
+    board.add(boardPlane);
     board.add(createContactShadowBlob(size, boardSlab));
     const half = size / 2;
     const lineWidth = BOARD.LINE_W;
@@ -592,11 +609,13 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         boardGeometries.push(geo);
         const line = new THREE.Mesh(geo, gridMaterial);
         line.rotation.x = -Math.PI / 2;
-        line.position.set(axis === 'x' ? offset : 0, 0.002, axis === 'z' ? offset : 0);
+        line.position.set(axis === 'x' ? offset : 0, BOARD.LINE_Y, axis === 'z' ? offset : 0);
+        tagBoardGridLine(line);
         board.add(line);
       }
     }
     buildPiles();
+    syncBoardGridLines();
     requestRender();
   }
 
@@ -628,7 +647,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       );
       for (let level = 0; level < slot.count; level++) {
         const mesh = createPieceVisual({ ...pieceStub, id: `reserve-${level}` } as EnginePiece);
-        mesh.position.set(position.x, centers[level]!, position.y);
+        mesh.position.set(position.x, meshYFromStackCenter(centers[level]!, pieceStub as never), position.y);
         mesh.userData.reserve = pick;
         mesh.userData.pileKey = pileKey;
         pilesGroup.add(mesh);
@@ -798,7 +817,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       stack.forEach((piece, stackIndex) => {
         present.add(piece.id);
         const h = height(piece as never);
-        const destination = new THREE.Vector3(position.x, centers[stackIndex]!, position.z);
+        const destination = new THREE.Vector3(
+          position.x,
+          meshYFromStackCenter(centers[stackIndex]!, piece),
+          position.z,
+        );
         let item = objects.get(piece.id);
         const prevPlayer = item?.mesh.userData.player as string | undefined;
         if (!item) {
@@ -995,14 +1018,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       return { x: bounds.left + ((position.x + 1) * bounds.width) / 2, y: bounds.top + ((1 - position.y) * bounds.height) / 2 };
     },
     getBoardTopY() {
-      board.updateMatrixWorld(true);
-      const box = new THREE.Box3();
-      for (const child of board.children) {
-        if (child instanceof THREE.Mesh && child.geometry instanceof THREE.BoxGeometry) {
-          box.expandByObject(child);
-        }
-      }
-      return Number.isFinite(box.max.y) ? box.max.y : playfieldY;
+      return playfieldY;
     },
     getStackBottomBaseYs() {
       const ys: number[] = [];

@@ -69,6 +69,8 @@ export interface PieceGeometrySet {
   edgeThreshold?: number;
   /** Optional stack Y tweak (e.g. marker seated inside a ring). */
   verticalOffset?(piece: EnginePiece, stackIndex: number, stack: EnginePiece[]): number;
+  /** When `'base'`, geometry min.y is on the playfield and stack centers are shifted down by half height. */
+  geometryOrigin?: 'base' | 'center';
   /** When false, skip inverted-hull outline (e.g. solid Yinsh markers). */
   useOutline?(piece: EnginePiece): boolean;
   /** Override fill material(s); return null to use theme player color. */

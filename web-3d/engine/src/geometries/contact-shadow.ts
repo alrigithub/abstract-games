@@ -23,7 +23,8 @@ export function createContactShadowBlob(scale: number, slabThickness: number = B
   });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
   mesh.rotation.x = -Math.PI / 2;
-  mesh.position.y = -slabThickness / 2 - 0.002;
+  mesh.position.y =
+    slabThickness > 1e-6 ? -slabThickness / 2 - 0.002 : -BOARD.LINE_Y * 0.5;
   mesh.scale.setScalar(scale * BOARD.CONTACT_BLOB_SOFT_SCALE);
   mesh.renderOrder = 0;
   return mesh;

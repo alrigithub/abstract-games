@@ -129,6 +129,7 @@ export async function loadTakPieceGeometrySet(): Promise<PieceGeometrySet> {
         const shape = (piece.shape === 'standing' ? 'standing' : piece.shape === 'capstone' ? 'capstone' : 'flat') as ShapeKey;
         return templates.heights[shape];
       },
+      geometryOrigin: 'base',
       yaw: fallback.yaw,
       edgeThreshold: BOARD.EDGE_THRESHOLD_TAK,
       useOutline: () => false,

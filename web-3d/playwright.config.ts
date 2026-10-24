@@ -28,6 +28,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
     {
+      name: 'flat-board-iso-screenshots',
+      testMatch: '**/flat-board-iso-screenshots.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
       name: 'unified-lighting-screenshots',
       testMatch: '**/unified-lighting-screenshots.spec.ts',
       use: { ...devices['Desktop Chrome'] },
