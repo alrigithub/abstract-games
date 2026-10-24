@@ -1,0 +1,12 @@
+{
+  "name": "@abstract/pixi-shared",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "peerDependencies": {
+    "pixi.js": "^8.9.2"
+  }
+}

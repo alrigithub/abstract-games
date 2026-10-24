@@ -1,0 +1,20 @@
+[package]
+name = "yinsh_wasm"
+version = "0.1.0"
+description = "wasm-bindgen API for Yinsh rules and AI (Pixi web client)"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1.0.204", features = ["derive"] }
+serde_json = "1.0"
+wasm-bindgen = "0.2.106"
+yinsh = { path = "../yinsh" }
+yinsh_ai = { path = "../yinsh_ai" }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-Os"]
