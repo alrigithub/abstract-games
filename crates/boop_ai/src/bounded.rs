@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 use boop::{GameState, Move};
 use minimax::{Evaluation, Evaluator, Game};

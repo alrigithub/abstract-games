@@ -97,6 +97,10 @@ export function createTapInteraction(options: InteractionOptions): InteractionAp
       return;
     }
 
+    if (cell !== null && validCell(cell) && options.tryDirectPlace?.(cell)) {
+      return;
+    }
+
     cancel();
   };
 

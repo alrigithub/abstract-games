@@ -173,6 +173,8 @@ export interface InteractionOptions {
   onCommit(selection: Selection, target: number): void;
   onReserveCommit?(selection: Selection, target: ReservePick): void;
   canInteract?(): boolean;
+  /** Tap mode: place on an empty cell without a prior selection (e.g. Tak reserve placement). */
+  tryDirectPlace?(cell: number): boolean;
 }
 
 export interface InteractionApi {

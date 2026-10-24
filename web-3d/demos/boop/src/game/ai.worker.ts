@@ -8,7 +8,11 @@ export type BoopAiRequest = {
   timeBudgetMs: number;
 };
 
-export type BoopAiResponse = { id: number; moveJson?: string };
+export type BoopAiResponse = {
+  id: number;
+  moveJson?: string;
+  source: 'search' | 'fallback';
+};
 
 let wasmReady: Promise<void> | null = null;
 
@@ -23,16 +27,21 @@ self.onmessage = async (event: MessageEvent<BoopAiRequest>) => {
     await ensureWasm();
     const game = BoopGame.import_state(stateExport);
     const moveJson = game.choose_ai_move(maxDepth, maxNodes, timeBudgetMs);
-    self.postMessage({ id, moveJson } satisfies BoopAiResponse);
-  } catch {
-    try {
-      const game = BoopGame.import_state(stateExport);
-      const raw = game.legal_moves_json();
-      const moves = JSON.parse(raw) as unknown[];
-      const moveJson = moves[0] ? JSON.stringify(moves[0]) : undefined;
-      self.postMessage({ id, moveJson } satisfies BoopAiResponse);
-    } catch {
-      self.postMessage({ id } satisfies BoopAiResponse);
+    if (moveJson) {
+      self.postMessage({ id, moveJson, source: 'search' } satisfies BoopAiResponse);
+      return;
     }
+  } catch {
+    /* fall through to legal-move fallback */
+  }
+  try {
+    await ensureWasm();
+    const game = BoopGame.import_state(stateExport);
+    const raw = game.legal_moves_json();
+    const moves = JSON.parse(raw) as unknown[];
+    const moveJson = moves[0] ? JSON.stringify(moves[0]) : undefined;
+    self.postMessage({ id, moveJson, source: 'fallback' } satisfies BoopAiResponse);
+  } catch {
+    self.postMessage({ id, source: 'fallback' } satisfies BoopAiResponse);
   }
 };

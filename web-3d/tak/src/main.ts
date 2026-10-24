@@ -5,10 +5,12 @@ import {
   createGameButtons,
   createInteraction,
   createSquareTopology,
+  createTapInteraction,
   INTERACTION,
   levelToSearchOptions,
   readInitialTheme,
   TAK_AI_STRENGTH_STORAGE_KEY,
+  type InteractionApi,
   type InteractionView,
   type ThemeId,
 } from '@abstract/three-engine';
@@ -115,6 +117,7 @@ const gameUi = createGameUi({
     sandbox = !active;
     document.querySelector<HTMLButtonElement>('#reset')!.disabled = active;
     syncFlipBarButton();
+    mountInteraction(active ? 'tap' : 'drag');
   },
   onBoard: game => {
     state = game.board;
@@ -132,56 +135,74 @@ function canUseBoardInteraction() {
   return canEditSandbox() || (gameUi.isActive() && gameUi.humanTurn());
 }
 
-const controller = createInteraction({
-  element: stage as HTMLElement,
-  getSnapshot: () => toEngineSnapshot(state),
-  canInteract: () => canUseBoardInteraction(),
-  getHoldInterval: () => INTERACTION.HOLD_INTERVAL,
-  getPickHeight(cell) {
-    const stack = state.cells[cell] ?? [];
-    if (!stack.length) return 0;
-    const playable = boardSize * boardSize;
-    if (canEditSandbox()) return stack.length;
-    if (cell >= playable) return 1;
-    if (!gameUi.isActive() || !gameUi.humanTurn()) return stack.length;
-    const mover: Color = gameUi.getGame().toMove;
-    return stackPickLimit(stack, mover, true, boardSize);
-  },
-  hitTest: (x, y) => (canUseBoardInteraction() ? scene.hitTest(x, y) : null),
-  hitReserve: (x, y) => (canEditSandbox() ? scene.hitReserve(x, y) : null),
-  onView: view => {
-    lastView = view;
-    scene.setInteraction(view);
-    selectionInfo.hidden = !view.selection;
-    board.classList.toggle('is-dragging', view.dragging);
-    syncFlipBarButton();
-    if (view.selection) {
-      label.textContent = String(view.selection.count);
-      document.querySelector<HTMLElement>('#hold-ring')!.style.setProperty('--progress', `${view.progress * 360}deg`);
-      pieceActions.hidden = !canEditSandbox();
-      const source = view.selection.source;
-      const top =
-        typeof source === 'number'
-          ? state.cells[source]?.at(-1)
-          : undefined;
-      rotateBtn.hidden = view.selection.count !== 1 || top?.kind !== 'stone';
-    } else {
-      pieceActions.hidden = true;
-    }
-  },
-  onCommit: (selection, target) => {
-    if (gameUi.isActive()) {
-      gameUi.commitDrag(toTakSelection(selection), target);
-      return;
-    }
-    const next = moveSelection(state, toTakSelection(selection), target);
-    if (next !== state) commit(next);
-  },
-  onReserveCommit: (selection, _target) => {
-    void selection;
-    void _target;
-  },
-});
+function pickHeight(cell: number) {
+  const stack = state.cells[cell] ?? [];
+  if (!stack.length) return 0;
+  const playable = boardSize * boardSize;
+  if (canEditSandbox()) return stack.length;
+  if (cell >= playable) return 1;
+  if (!gameUi.isActive() || !gameUi.humanTurn()) return stack.length;
+  const mover: Color = gameUi.getGame().toMove;
+  return stackPickLimit(stack, mover, true, boardSize);
+}
+
+function onInteractionView(view: InteractionView) {
+  lastView = view;
+  scene.setInteraction(view);
+  selectionInfo.hidden = !view.selection;
+  board.classList.toggle('is-dragging', view.dragging);
+  syncFlipBarButton();
+  if (view.selection) {
+    label.textContent = String(view.selection.count);
+    document.querySelector<HTMLElement>('#hold-ring')!.style.setProperty('--progress', `${view.progress * 360}deg`);
+    pieceActions.hidden = !canEditSandbox();
+    const source = view.selection.source;
+    const top = typeof source === 'number' ? state.cells[source]?.at(-1) : undefined;
+    rotateBtn.hidden = view.selection.count !== 1 || top?.kind !== 'stone';
+  } else {
+    pieceActions.hidden = true;
+  }
+}
+
+function onInteractionCommit(selection: Parameters<typeof toTakSelection>[0], target: number) {
+  if (gameUi.isActive()) {
+    gameUi.commitDrag(toTakSelection(selection), target);
+    return;
+  }
+  const next = moveSelection(state, toTakSelection(selection), target);
+  if (next !== state) commit(next);
+}
+
+function interactionBase() {
+  return {
+    element: stage as HTMLElement,
+    getSnapshot: () => toEngineSnapshot(state),
+    canInteract: () => canUseBoardInteraction(),
+    getPickHeight: pickHeight,
+    hitTest: (x: number, y: number) => (canUseBoardInteraction() ? scene.hitTest(x, y) : null),
+    hitReserve: (x: number, y: number) =>
+      canUseBoardInteraction() && (canEditSandbox() || gameUi.isActive()) ? scene.hitReserve(x, y) : null,
+    onView: onInteractionView,
+    onCommit: onInteractionCommit,
+    onReserveCommit: () => {},
+  };
+}
+
+let controller: InteractionApi;
+
+function mountInteraction(mode: 'drag' | 'tap') {
+  controller?.dispose();
+  const base = interactionBase();
+  controller =
+    mode === 'tap'
+      ? createTapInteraction({
+          ...base,
+          tryDirectPlace: cell => gameUi.isActive() && gameUi.tapEmptyCell(cell),
+        })
+      : createInteraction({ ...base, getHoldInterval: () => INTERACTION.HOLD_INTERVAL });
+}
+
+mountInteraction('drag');
 
 function commit(next: BoardState) {
   if (!canEditSandbox()) return;
