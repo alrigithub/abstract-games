@@ -3,6 +3,28 @@ import type { ThemeId } from './theme';
 import { setMeshShadowFlags } from './board-lighting';
 import { cloneMeshMaterials } from './ghost-visual';
 
+/** White stone exports use KHR_materials_unlit; let them share the scene lighting. */
+function lightWhiteStoneMaterial(source: THREE.Material): THREE.Material {
+  if (!(source instanceof THREE.MeshBasicMaterial) || !/white/i.test(source.name)) return source;
+  const material = new THREE.MeshStandardMaterial({
+    name: source.name,
+    color: source.color,
+    map: source.map,
+    side: source.side,
+    vertexColors: source.vertexColors,
+    roughness: 0.9,
+    metalness: 0,
+    opacity: source.opacity,
+    transparent: source.transparent,
+    alphaMap: source.alphaMap,
+    alphaTest: source.alphaTest,
+    depthTest: source.depthTest,
+    depthWrite: source.depthWrite,
+  });
+  source.dispose(); // The source was isolated below; textures remain shared and intact.
+  return material;
+}
+
 export interface ApplyPieceGlbThemeMaterialsOptions {
   /** When true, keep authored GLB materials (textures, PBR) instead of clay overrides. */
   keepGlbMaterials?: boolean;
@@ -33,5 +55,12 @@ export function tagPieceGlbMeshesForShadows(root: THREE.Object3D): void {
 export function prepareAuthoredPieceGlb(root: THREE.Object3D, themeId: ThemeId = 'light'): void {
   applyPieceGlbThemeMaterials(root, themeId, { keepGlbMaterials: true });
   cloneMeshMaterials(root);
+  root.traverse(node => {
+    if (!(node instanceof THREE.Mesh)) return;
+    node.material = Array.isArray(node.material)
+      ? node.material.map(lightWhiteStoneMaterial)
+      : lightWhiteStoneMaterial(node.material);
+    if (!node.geometry.getAttribute('normal')) node.geometry.computeVertexNormals();
+  });
   tagPieceGlbMeshesForShadows(root);
 }
