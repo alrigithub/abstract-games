@@ -189,7 +189,6 @@ fn setup_graphics(
         human_wall: materials.add(human_variant(0.85)),
         human_cap: materials.add(cap_accent()),
         human_ghost: materials.add(human_ghost_alpha(0.35)),
-        human_highlighted: base.human_highlighted.clone(),
         ai_flat: base.ai.clone(),
         ai_wall: materials.add(ai_variant(0.75)),
         ai_cap: materials.add(cap_accent()),
