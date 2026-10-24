@@ -9,8 +9,15 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createGroundedBoopPieces } from './boop-grounding';
 
-/** Max X/Z extent of an adult cat after scaling (6×6 bed cell spacing is 1 world unit). */
-const ADULT_CELL_FIT = 0.72;
+/**
+ * Target adult footprint on the 1-unit cell grid (procedural lathe shoulder Ø 0.68).
+ * GLB sources are authored in metres (~4 cm wide); uniform scale preserves junior/adult ratio.
+ */
+const PROCEDURAL_ADULT_XZ = 0.34 * 2;
+
+/** Authored facing +X; rotate in XZ so the front points at the default camera. */
+const FACE_CAMERA_YAW =
+  Math.atan2(CAMERA.position[0], CAMERA.position[2]) - Math.PI / 2;
 
 function glbUrl(file: string): string {
   return new URL(`assets/cats/${file}`, document.baseURI).toString();
@@ -29,9 +36,7 @@ interface StoneTemplate {
   height: number;
 }
 
-/** Y rotation so model fronts face the default orthographic camera. */
-export const BOOP_STONE_CAT_YAW =
-  Math.atan2(CAMERA.position[0], CAMERA.position[2]) + Math.PI;
+export const BOOP_STONE_CAT_YAW = FACE_CAMERA_YAW;
 
 const loader = new GLTFLoader();
 
@@ -51,17 +56,15 @@ function firstMesh(root: THREE.Object3D): THREE.Mesh {
   return found;
 }
 
-/** Bake world transform into geometry; center on origin for center-based stack layout (no verticalOffset). */
-function bakeMeshToCenteredGeometry(mesh: THREE.Mesh, _worldScale: number): StoneTemplate {
-  void _worldScale;
+/** Bake mesh; floor at local y = 0, centred on X/Z (stack layout uses piece centre + height/2). */
+function bakeMeshToFloorGeometry(mesh: THREE.Mesh): StoneTemplate {
   const geometry = mesh.geometry.clone();
   geometry.applyMatrix4(mesh.matrixWorld);
   geometry.computeBoundingBox();
   const box = geometry.boundingBox!;
   const cx = (box.min.x + box.max.x) / 2;
-  const cy = (box.min.y + box.max.y) / 2;
   const cz = (box.min.z + box.max.z) / 2;
-  geometry.translate(-cx, -cy, -cz);
+  geometry.translate(-cx, -box.min.y, -cz);
   geometry.computeBoundingBox();
   const height = geometry.boundingBox!.max.y - geometry.boundingBox!.min.y;
   const material = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material).clone();
@@ -79,12 +82,12 @@ function prepareFromScene(scene: THREE.Group, worldScale: number): StoneTemplate
   const clone = scene.clone(true);
   clone.scale.setScalar(worldScale);
   clone.updateMatrixWorld(true);
-  return bakeMeshToCenteredGeometry(firstMesh(clone), worldScale);
+  return bakeMeshToFloorGeometry(firstMesh(clone));
 }
 
 async function loadTemplates(): Promise<Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>> {
   const adultScene = await loadGltfScene(glbUrl(GLB_FILES.A.cat));
-  const scale = ADULT_CELL_FIT / xzExtent(adultScene);
+  const scale = PROCEDURAL_ADULT_XZ / xzExtent(adultScene);
 
   const players = ['A', 'B'] as const;
   const out = {} as Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>;
@@ -131,6 +134,9 @@ function createStonePieceSet(templates: Record<PlayerId, Record<StoneCatVariant,
   return {
     geometry: geometryFor,
     height: heightFor,
+    verticalOffset(piece) {
+      return -heightFor(piece) / 2;
+    },
     yaw: () => BOOP_STONE_CAT_YAW,
     edgeThreshold: BOARD.EDGE_THRESHOLD_BOOP,
     useOutline: () => false,
