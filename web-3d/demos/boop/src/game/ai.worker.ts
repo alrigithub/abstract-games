@@ -25,6 +25,14 @@ self.onmessage = async (event: MessageEvent<BoopAiRequest>) => {
     const moveJson = game.choose_ai_move(maxDepth, maxNodes, timeBudgetMs);
     self.postMessage({ id, moveJson } satisfies BoopAiResponse);
   } catch {
-    self.postMessage({ id } satisfies BoopAiResponse);
+    try {
+      const game = BoopGame.import_state(stateExport);
+      const raw = game.legal_moves_json();
+      const moves = JSON.parse(raw) as unknown[];
+      const moveJson = moves[0] ? JSON.stringify(moves[0]) : undefined;
+      self.postMessage({ id, moveJson } satisfies BoopAiResponse);
+    } catch {
+      self.postMessage({ id } satisfies BoopAiResponse);
+    }
   }
 };

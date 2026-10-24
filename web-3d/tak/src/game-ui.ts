@@ -1,7 +1,8 @@
 import { applyMove, createGame, placementColor, winnerScore } from './game/engine';
 import { spreadToMove } from './game/spread';
 import type { GameState, Move } from './game/engine';
-import type { AiStrengthSearchOptions, SceneApi } from '@abstract/three-engine';
+import { AiWorkerSession, recordAiThinkMetrics, type AiStrengthSearchOptions, type SceneApi } from '@abstract/three-engine';
+import { legalMoves } from './game/engine';
 import type { Color, Selection } from './types';
 
 interface GameUiOptions {
@@ -31,7 +32,7 @@ export function createGameUi(options: GameUiOptions) {
   let firstColor: Color = 'ivory';
   const scores = [0, 0];
   let aiPending = false;
-  let aiWorker: Worker | null = null;
+  const aiSession = new AiWorkerSession();
   let generation = 0;
   const humanTurn = () => !aiPending && !game.result && (mode === 'local' || (mode === 'ai' && game.toMove === firstColor));
   const colorName = (color: Color) => (color === 'ivory' ? 'White' : 'Black');
@@ -98,32 +99,41 @@ export function createGameUi(options: GameUiOptions) {
 
   function stopAi() {
     generation++;
-    aiWorker?.terminate();
-    aiWorker = null;
+    aiSession.cancel();
     aiPending = false;
   }
 
-  function maybeAi() {
-    if (!active || mode !== 'ai' || game.result || game.toMove === firstColor) return;
+  async function maybeAi() {
+    if (!active || mode !== 'ai' || game.result || game.toMove === firstColor || aiPending) return;
     aiPending = true;
     render();
     const id = ++generation;
     const search = options.getAiSearchOptions();
-    aiWorker = new Worker(new URL('./game/ai.worker.ts', import.meta.url), { type: 'module' });
-    aiWorker.onmessage = (event: MessageEvent<{ id: number; move: Move | null }>) => {
-      if (event.data.id !== generation || id !== generation || !active) return;
-      aiWorker?.terminate();
-      aiWorker = null;
-      aiPending = false;
-      if (event.data.move) {
-        options.scene.enqueueAnimation(async () => {
-          game = applyMove(game, event.data.move!);
-          countResult();
-          render();
-        });
-      } else render('AI could not move.');
-    };
-    aiWorker.postMessage({ id, game, options: search });
+    const t0 = performance.now();
+    const move = await aiSession.request<Move | null>({
+      createWorker: () => new Worker(new URL('./game/ai.worker.ts', import.meta.url), { type: 'module' }),
+      postMessage: (worker, requestId) => worker.postMessage({ id: requestId, game, options: search }),
+      parseMessage: (event, requestId) => {
+        const data = event.data as { id: number; move: Move | null };
+        if (data.id !== requestId) return undefined;
+        return data.move;
+      },
+      timeBudgetMs: search.maxTimeMs,
+    });
+    recordAiThinkMetrics(performance.now() - t0);
+    if (id !== generation || !active) return;
+    aiPending = false;
+    const resolved = move ?? legalMoves(game)[0] ?? null;
+    if (resolved) {
+      options.scene.enqueueAnimation(async () => {
+        game = applyMove(game, resolved);
+        countResult();
+        render();
+        void maybeAi();
+      });
+    } else {
+      render('AI could not move.');
+    }
   }
 
   function countResult() {

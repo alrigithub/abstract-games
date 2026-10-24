@@ -4,6 +4,8 @@ import {
   cellIndex,
   endBoopPushLandSounds,
   type BoardSnapshot,
+  AiWorkerSession,
+  recordAiThinkMetrics,
   type AiStrengthSearchOptions,
   type SceneApi,
   type Selection,
@@ -44,7 +46,7 @@ export class BoopController {
   private readonly setStatus: (text: string) => void;
   private readonly getAiSearchOptions: () => AiStrengthSearchOptions;
   private pendingPlacementPieceId?: string;
-  private aiWorker: Worker | null = null;
+  private readonly aiSession = new AiWorkerSession();
   private readonly onReady?: () => void;
   private aiPlaceTap?: (fromIndex: number, toIndex: number) => Promise<void>;
   private stickyKind: PieceKind = 'kitten';
@@ -122,8 +124,7 @@ export class BoopController {
 
   newGame() {
     this.aiGeneration++;
-    this.aiWorker?.terminate();
-    this.aiWorker = null;
+    this.aiSession.cancel();
     this.game = new BoopGame();
     this.tracker.resetFromNewGame();
     this.view = parseGameView(this.game.view_json());
@@ -420,7 +421,7 @@ export class BoopController {
     if (gen !== this.aiGeneration) return;
     if (!moveJson) {
       this.inputEnabled = true;
-      this.renderStatus('AI stuck');
+      this.renderStatus('AI could not move');
       return;
     }
     const move = JSON.parse(moveJson) as MoveJson;
@@ -433,33 +434,42 @@ export class BoopController {
     await this.playMoveJson(moveJson);
   }
 
-  private requestAiMove(
+  private quickLegalMoveJson(): string | undefined {
+    try {
+      const raw = this.game.legal_moves_json();
+      const moves = JSON.parse(raw) as unknown[];
+      if (!moves.length) return undefined;
+      return JSON.stringify(moves[0]);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async requestAiMove(
     id: number,
     stateExport: string,
     search: AiStrengthSearchOptions,
   ): Promise<string | undefined> {
-    return new Promise(resolve => {
-      this.aiWorker?.terminate();
-      this.aiWorker = new Worker(new URL('./ai.worker.ts', import.meta.url), { type: 'module' });
-      this.aiWorker.onmessage = (event: MessageEvent<{ id: number; moveJson?: string }>) => {
-        if (event.data.id !== id) return;
-        this.aiWorker?.terminate();
-        this.aiWorker = null;
-        resolve(event.data.moveJson);
-      };
-      this.aiWorker.onerror = () => {
-        this.aiWorker?.terminate();
-        this.aiWorker = null;
-        resolve(undefined);
-      };
-      this.aiWorker.postMessage({
-        id,
-        stateExport,
-        maxDepth: search.maxDepth,
-        maxNodes: search.maxNodes,
-        timeBudgetMs: search.maxTimeMs,
-      });
+    const t0 = performance.now();
+    const moveJson = await this.aiSession.request<string | undefined>({
+      createWorker: () => new Worker(new URL('./ai.worker.ts', import.meta.url), { type: 'module' }),
+      postMessage: (worker, requestId) =>
+        worker.postMessage({
+          id: requestId,
+          stateExport,
+          maxDepth: search.maxDepth,
+          maxNodes: search.maxNodes,
+          timeBudgetMs: search.maxTimeMs,
+        }),
+      parseMessage: (event, requestId) => {
+        const data = event.data as { id: number; moveJson?: string };
+        if (data.id !== requestId) return undefined;
+        return data.moveJson;
+      },
+      timeBudgetMs: search.maxTimeMs,
     });
+    recordAiThinkMetrics(performance.now() - t0);
+    return moveJson ?? this.quickLegalMoveJson();
   }
 
   async smokePlace(x = 2, y = 2) {

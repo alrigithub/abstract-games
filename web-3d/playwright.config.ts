@@ -48,6 +48,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
     {
+      name: 'ai-worker-reliability',
+      testMatch: '**/ai-worker-reliability.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
       name: 'shadow-lighting-before',
       testMatch: ['**/shadow-lighting-screenshots-before.spec.ts', '**/shadow-lighting-bench-before.spec.ts'],
       use: { ...devices['Desktop Chrome'] },
