@@ -18,6 +18,10 @@ import {
   tagPlayfieldForShadows,
 } from './board-lighting';
 import { applyBoardEnvironment, createBoardWebGLRenderer, measureBoardFrameMs } from './board-renderer';
+import { BoardAssistLayer, type BoardAssistState } from './board-assist';
+import { WIN_ACCENT } from './theme';
+
+const FLIP_HALO_NAME = 'flip-preview-halo';
 import { consumeBoopPushLandingSound, initPlaceSfx, playPiecePlaceSound, type PlaceSoundKind } from './sound/place-sfx';
 import { themeTokens, type ThemeId } from './theme';
 import type {
@@ -106,6 +110,18 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const pilesGroup = new THREE.Group();
   const shadowsGroup = new THREE.Group();
   scene.add(board, shadowsGroup, piecesGroup, ghostGroup, reserveGroup, pilesGroup);
+  const assistLayer = new BoardAssistLayer();
+  assistLayer.attach(scene);
+  assistLayer.applyTheme(tokens);
+  let assistState: BoardAssistState | null = null;
+  let flipPreviewIds = new Set<string>();
+  let flipHaloMaterial = new THREE.MeshBasicMaterial({
+    color: WIN_ACCENT,
+    transparent: true,
+    opacity: 0.72,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
 
   const edgeCache = new Map<THREE.BufferGeometry, THREE.EdgesGeometry>();
   let outlineMaterial = new THREE.MeshBasicMaterial({ color: '#000000', side: THREE.BackSide });
@@ -233,6 +249,27 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       decoratePieceMesh(item.mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache, pieceEdgeThreshold);
     }
     item.mesh.userData.shape = piece.shape;
+  }
+
+  function syncFlipHalos() {
+    for (const item of objects.values()) {
+      const active = flipPreviewIds.has(item.pieceId) && item.mesh.userData.shape === 'marker';
+      let halo = item.mesh.getObjectByName(FLIP_HALO_NAME);
+      if (active) {
+        if (!halo) {
+          const geo = new THREE.RingGeometry(0.26, 0.34, BOARD.RADIAL_SEGMENTS);
+          halo = new THREE.Mesh(geo, flipHaloMaterial);
+          halo.name = FLIP_HALO_NAME;
+          halo.rotation.x = -Math.PI / 2;
+          halo.renderOrder = 12;
+          item.mesh.add(halo);
+        }
+        halo.visible = true;
+        halo.position.set(0, -item.pieceHeight / 2 + BOARD.LINE_Y + 0.01, 0);
+      } else if (halo) {
+        halo.visible = false;
+      }
+    }
   }
 
   function refreshPieceMaterials() {
@@ -922,6 +959,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       }
     }
     updateInteraction();
+    assistLayer.update(assistState, cellPosition);
+    syncFlipHalos();
     for (const item of objects.values()) {
       if (item.landOnComplete && item.lastVertT >= 1) finishLandSound(item);
     }
@@ -1011,7 +1050,28 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       themeId = id;
       rebuildMaterials();
       refreshPieceMaterials();
+      flipHaloMaterial.color.set(tokens.win);
+      assistLayer.applyTheme(tokens);
+      assistLayer.update(assistState, cellPosition);
       requestRender();
+    },
+    setBoardAssist(state) {
+      assistState = state;
+      assistLayer.update(assistState, cellPosition);
+      requestRender();
+    },
+    setFlipPreview(pieceIds) {
+      flipPreviewIds = new Set(pieceIds);
+      syncFlipHalos();
+      requestRender();
+    },
+    getPieceWorldPosition(pieceId) {
+      const item = objects.get(pieceId);
+      if (!item) return null;
+      item.mesh.updateMatrixWorld(true);
+      const p = new THREE.Vector3();
+      item.mesh.getWorldPosition(p);
+      return { x: p.x, y: p.y, z: p.z };
     },
     setCameraMode(mode) {
       controls.mouseButtons.LEFT = mode === 'orbit' ? THREE.MOUSE.ROTATE : THREE.MOUSE.PAN;
@@ -1131,6 +1191,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       controls.dispose();
       disposeEnvironment();
       boardLighting.dispose();
+      assistLayer.dispose();
+      flipHaloMaterial.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },

@@ -176,6 +176,42 @@ export class Board {
     b.stacks = this.stacks.map(s => (s ? s.clone() : null));
     return b;
   }
+
+  /** Plain stacks for worker postMessage (structured clone). */
+  serializeStacks(): (Piece[] | null)[] {
+    return this.stacks.map(s => (s ? s.pieces.map(p => ({ ...p })) : null));
+  }
+
+  static fromSerializedStacks(stacks: (Piece[] | null)[]): Board {
+    const b = new Board();
+    b.stacks = stacks.map(pieces => (pieces?.length ? new Stack(pieces.map(p => ({ ...p }))) : null));
+    return b;
+  }
+}
+
+export type SerializedTzaarState = {
+  toMove: Player;
+  phase: TurnPhase;
+  winner: Player | null;
+  stacks: (Piece[] | null)[];
+};
+
+export function serializeForAiWorker(state: GameState): SerializedTzaarState {
+  return {
+    toMove: state.toMove,
+    phase: state.phase,
+    winner: state.winner,
+    stacks: state.board.serializeStacks(),
+  };
+}
+
+export function gameFromAiWorker(data: SerializedTzaarState): GameState {
+  const game = new GameState();
+  game.toMove = data.toMove;
+  game.phase = data.phase;
+  game.winner = data.winner;
+  game.board = Board.fromSerializedStacks(data.stacks);
+  return game;
 }
 
 export class GameState {

@@ -6,7 +6,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./board-grid-lines": "./src/board-grid-lines.ts"
+    "./board-grid-lines": "./src/board-grid-lines.ts",
+    "./tap-interaction": "./src/tap-interaction.ts"
   },
   "scripts": {
     "test": "vitest run",

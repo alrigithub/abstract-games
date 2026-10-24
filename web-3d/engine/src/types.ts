@@ -131,9 +131,35 @@ export interface GameRules {
   toggleTop?(snapshot: BoardSnapshot, source: number): BoardSnapshot | null;
 }
 
+/** Unlit overlays for legal moves (dots, paths, highlights). */
+export interface BoardAssistState {
+  destinationCells?: readonly number[];
+  pathCells?: readonly number[];
+  highlightCells?: readonly number[];
+  pickableCells?: readonly number[];
+  selectedCell?: number;
+  hoverCell?: number;
+  lastMove?: {
+    fromCell: number;
+    toCell: number;
+    pathCells?: readonly number[];
+    /** Same length as pathCells; XZ overrides (ring landing position). */
+    pathWorld?: readonly { x: number; z: number }[];
+  };
+  /** Destination dot radius in world units (~35% of marker radius for Yinsh). */
+  destinationDotRadius?: number;
+  flipPieceIds?: readonly string[];
+}
+
 export interface SceneApi {
   setSnapshot(snapshot: BoardSnapshot): void;
   setInteraction(view: InteractionView): void;
+  /** Unlit legal-move overlays (dots, paths, highlights). */
+  setBoardAssist(state: BoardAssistState | null): void;
+  /** Outline markers that would flip on a previewed move (no albedo override). */
+  setFlipPreview(pieceIds: readonly string[]): void;
+  /** World position of a piece mesh (XZ center; Y = mesh origin). */
+  getPieceWorldPosition(pieceId: string): { x: number; y: number; z: number } | null;
   setTheme(theme: ThemeId): void;
   /** Shared top / axo camera presets (Back-to-Lobby bar Camera button). */
   createCameraViews(options?: { getBounds?: () => THREE.Vector3[] }): CameraViewController;
