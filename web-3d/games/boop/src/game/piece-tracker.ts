@@ -51,7 +51,6 @@ export class PieceTracker {
     this.reserveStacks = { A: [], B: [] };
     for (const player of ['A', 'B'] as const) {
       for (let i = 0; i < 8; i++) this.poolStacks[player].kitten.push(this.mint(`pool-${player}-k`));
-      for (let i = 0; i < 8; i++) this.reserveStacks[player].push(this.mint(`pool-${player}-c-reserve`));
     }
   }
 
@@ -153,7 +152,8 @@ export class PieceTracker {
       const pool = view.pools[player === 'A' ? 0 : 1]!;
       this.resizePool(player, 'kitten', pool.kittens_in_hand);
       this.resizePool(player, 'cat', pool.cats_in_hand);
-      this.resizeReserve(player, pool.cats_in_reserve);
+      // Big vases in reserve are tracked in rules state only until earned into hand.
+      this.resizeReserve(player, 0);
     }
   }
 

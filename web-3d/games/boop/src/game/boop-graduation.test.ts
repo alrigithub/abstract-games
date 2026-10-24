@@ -28,17 +28,16 @@ describe('Boop graduation bookkeeping (engine)', () => {
     expect(view.to_move).toBe('B');
   });
 
-  it('renders graduated hand cats in the hand column without overlapping reserve slots', () => {
+  it('renders earned hand cats only in the hand column (reserve row stays empty)', () => {
     const game = playHumanFirstGraduation(new BoopGame());
     const view = parseGameView(game.view_json());
     const tracker = new PieceTracker();
     tracker.resetFromNewGame();
     tracker.syncBoard(view);
     const snap = tracker.buildSnapshot(view);
-    const reserveIds = new Set(
-      snap.cells.flat().filter(p => p.shape === 'cat' && p.player === 'A').map(p => p.id),
-    );
-    expect(reserveIds.size).toBe(view.pools[0]!.cats_in_hand + view.pools[0]!.cats_in_reserve);
+    const handCats = snap.cells.flat().filter(p => p.shape === 'cat' && p.player === 'A');
+    expect(handCats.length).toBe(view.pools[0]!.cats_in_hand);
+    expect(view.pools[0]!.cats_in_reserve).toBe(5);
     const handCols = new Set<number>();
     snap.cells.forEach((stack, idx) => {
       stack.forEach(p => {
