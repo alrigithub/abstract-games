@@ -3,6 +3,15 @@ import path from 'node:path';
 
 const screenshotDir = path.join(process.cwd(), 'e2e', 'screenshots');
 
+function attachPageErrorCollectors(page: import('@playwright/test').Page) {
+  const errors: string[] = [];
+  page.on('pageerror', err => errors.push(`pageerror: ${err.message}`));
+  page.on('console', msg => {
+    if (msg.type() === 'error') errors.push(`console.error: ${msg.text()}`);
+  });
+  return errors;
+}
+
 async function waitBoard(page: import('@playwright/test').Page) {
   await page.goto('/');
   await page.waitForSelector('[data-testid="board"] canvas', { timeout: 60_000 });
@@ -10,6 +19,17 @@ async function waitBoard(page: import('@playwright/test').Page) {
 }
 
 test.describe('Gomoku 3D', () => {
+  test('loads without runtime errors and renders canvas and controls', async ({ page }) => {
+    const errors = attachPageErrorCollectors(page);
+    await waitBoard(page);
+    await expect(page.locator('[data-testid="board"] canvas')).toBeVisible();
+    const bar = page.locator('[data-testid="game-button-bar"]');
+    await expect(bar).toBeVisible();
+    await expect(page.locator('[data-testid="theme-toggle"]')).toBeVisible();
+    await expect(page.locator('[data-testid="game-status"]')).toContainText(/AI (Easy|Medium|Hard|Expert)/i);
+    expect(errors, errors.join('\n')).toEqual([]);
+  });
+
   test('shared game button bar is present', async ({ page }) => {
     await waitBoard(page);
     await expect(page.locator('[data-testid="game-button-bar"]')).toBeVisible();
