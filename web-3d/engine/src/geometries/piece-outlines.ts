@@ -6,7 +6,7 @@ export function decoratePieceMesh(
   edgeMaterial: THREE.LineBasicMaterial,
   outlineMaterial: THREE.MeshBasicMaterial,
   edgeCache: Map<THREE.BufferGeometry, THREE.EdgesGeometry>,
-  threshold = BOARD.EDGE_THRESHOLD_TAK,
+  threshold: number = BOARD.EDGE_THRESHOLD_TAK,
 ): THREE.Mesh {
   mesh.clear();
   const outline = new THREE.Mesh(mesh.geometry, outlineMaterial);

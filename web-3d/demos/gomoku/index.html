@@ -20,9 +20,24 @@
           <button class="icon-button" id="theme-toggle" data-testid="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">◐</button>
         </div>
       </header>
+      <p id="game-status" class="game-status" role="status" aria-live="polite" data-testid="game-status"></p>
+      <div class="toolbar">
+        <button type="button" id="new-game" data-testid="new-game">New game</button>
+      </div>
       <div class="viewport">
         <div id="board" data-testid="board" aria-label="Gomoku board"></div>
       </div>
+      <dialog id="first-player" class="first-player-dialog" data-testid="first-player-dialog">
+        <form method="dialog" class="dialog-form">
+          <h2>Who goes first?</h2>
+          <p>You play against the AI. Choose your color.</p>
+          <div class="dialog-actions">
+            <button type="button" data-first="black" data-testid="first-black">You · Black</button>
+            <button type="button" data-first="white" data-testid="first-white">You · White</button>
+            <button type="button" class="secondary" data-cancel>Cancel</button>
+          </div>
+        </form>
+      </dialog>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

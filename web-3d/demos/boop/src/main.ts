@@ -4,6 +4,7 @@ import {
   createBoopCatGeometry,
   createBoopKittenGeometry,
   createSquareTopology,
+  bindThemeToggle,
   readStoredTheme,
 } from '@abstract/three-engine';
 import type { BoardSnapshot } from '@abstract/three-engine';
@@ -23,3 +24,4 @@ const snapshot: BoardSnapshot = { playableCells: size * size, cellCount: size * 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 const scene = await createBoardScene(board, { gridSize: size, topology, pieces, initialTheme: readStoredTheme() });
 scene.setSnapshot(snapshot);
+bindThemeToggle(document.querySelector('#theme-toggle')!, t => scene.setTheme(t));

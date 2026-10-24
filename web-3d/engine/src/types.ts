@@ -60,6 +60,23 @@ export interface PieceGeometrySet {
   geometry(piece: EnginePiece): THREE.BufferGeometry;
   /** Stable yaw for visual variety. */
   yaw(id: string): number;
+  /** EdgesGeometry threshold angle (degrees). */
+  edgeThreshold?: number;
+  /** Optional stack Y tweak (e.g. marker seated inside a ring). */
+  verticalOffset?(piece: EnginePiece, stackIndex: number, stack: EnginePiece[]): number;
+}
+
+export interface YinshCoord {
+  x: number;
+  y: number;
+}
+
+export interface BoardBuildContext {
+  board: THREE.Group;
+  boardMaterial: THREE.MeshBasicMaterial;
+  gridMaterial: THREE.MeshBasicMaterial;
+  boardGeometries: THREE.BufferGeometry[];
+  gridSize: number;
 }
 
 export interface Topology {
@@ -69,6 +86,10 @@ export interface Topology {
   cellAtWorld(x: number, z: number, snapshot: BoardSnapshot): number | null;
   /** Screen-space cell center for accessibility overlays. */
   projectCell(index: number, snapshot: BoardSnapshot): THREE.Vector3;
+  /** Custom board mesh/lines; return true to skip the default square slab grid. */
+  buildBoard?(ctx: BoardBuildContext): boolean;
+  /** Extra world points for camera framing (e.g. hex boards, exterior piles, side racks). */
+  frameCorners?(snapshot: BoardSnapshot): THREE.Vector3[];
 }
 
 export interface ReserveLayout {
@@ -102,6 +123,9 @@ export interface SceneApi {
   cellScreen(index: number): Point;
   /** Queue AI / remote moves through the same animation path. */
   enqueueAnimation(task: () => Promise<void>): void;
+  /** Animate a flippable piece (Yinsh marker, Tak flat/standing stone). */
+  flipPiece(pieceId: string): Promise<void>;
+  flipPieces(pieceIds: string[], staggerMs?: number): Promise<void>;
   dispose(): void;
 }
 

@@ -14,9 +14,8 @@ export const GOMOKU_DIMS = {
   STAR_R: 0.055,
   STONE_R: 0.47,
   STONE_H: 0.21,
-  FLOOR: 0.018,
-  BOWL_X: 9.2,
-  RESERVE_VISUAL: 12,
+  /** Board surface is y=0; stone center sits at half height (flush, no air gap). */
+  STONE_CENTER_Y: 0.105,
 } as const;
 
 const HOSHI_15: readonly (readonly [number, number])[] = [
@@ -49,19 +48,8 @@ export function createGomokuStoneGeometry(
   return geo;
 }
 
-/** Wooden go bowl beside the board (lathe). */
-export function createGoBowlGeometry(): THREE.BufferGeometry {
-  const profile = [
-    new THREE.Vector2(1.55, 0.0),
-    new THREE.Vector2(1.85, 0.06),
-    new THREE.Vector2(1.72, 0.28),
-    new THREE.Vector2(1.35, 0.52),
-    new THREE.Vector2(0.92, 0.62),
-    new THREE.Vector2(0.92, 0.68),
-  ];
-  const geo = new THREE.LatheGeometry(profile, 48);
-  geo.computeVertexNormals();
-  return geo;
+export function gomokuStoneCenterY(): number {
+  return GOMOKU_DIMS.STONE_H / 2;
 }
 
 export interface GomokuThemeMaterials {
@@ -69,7 +57,6 @@ export interface GomokuThemeMaterials {
   board: THREE.MeshStandardMaterial;
   line: THREE.MeshBasicMaterial;
   star: THREE.MeshBasicMaterial;
-  bowl: THREE.MeshStandardMaterial;
   stoneA: THREE.MeshStandardMaterial;
   stoneB: THREE.MeshStandardMaterial;
   contactShadow: THREE.MeshBasicMaterial;
@@ -86,11 +73,6 @@ export function gomokuThemeMaterials(theme: ThemeId): GomokuThemeMaterials {
     }),
     line: new THREE.MeshBasicMaterial({ color: dark ? '#8a8f98' : '#1a1a1a', side: THREE.DoubleSide }),
     star: new THREE.MeshBasicMaterial({ color: dark ? '#8a8f98' : '#1a1a1a', side: THREE.DoubleSide }),
-    bowl: new THREE.MeshStandardMaterial({
-      color: dark ? '#3a3228' : '#b8943a',
-      roughness: 0.72,
-      metalness: 0.02,
-    }),
     stoneA: new THREE.MeshStandardMaterial({
       color: dark ? '#f5f5f2' : '#fafaf8',
       roughness: 0.32,
