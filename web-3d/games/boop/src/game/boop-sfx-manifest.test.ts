@@ -3,6 +3,9 @@ import {
   BOOP_DEMO_BOOP_SFX_URLS,
   BOOP_DEMO_PLACE_SFX_URLS,
   BOOP_DEMO_SFX_MANIFEST,
+  BOOP_KNOCK_FOUR_SFX_URL,
+  BOOP_KNOCK_SINGLE_SFX_URLS,
+  BOOP_KNOCK_THREE_SFX_URLS,
   BOOP_UPGRADE_SFX_URL,
 } from './boop-sfx-manifest';
 
@@ -24,5 +27,12 @@ describe('boop sfx manifest', () => {
       expect(url).toMatch(/swoosh-\d{2}\.mp3$/);
     }
     expect(BOOP_UPGRADE_SFX_URL).toContain('assets/sfx/boop/boop-upgrade.mp3');
+    for (const url of BOOP_KNOCK_SINGLE_SFX_URLS) {
+      expect(url).toContain('assets/sfx/boop/knock/knock-1');
+    }
+    for (const url of BOOP_KNOCK_THREE_SFX_URLS) {
+      expect(url).toContain('assets/sfx/boop/knock/knock-3');
+    }
+    expect(BOOP_KNOCK_FOUR_SFX_URL).toContain('assets/sfx/boop/knock/knock-4.mp3');
   });
 });

@@ -12,6 +12,7 @@ import {
   type Selection,
 } from '@abstract/three-engine';
 import { playBoopUpgradeSound, playBoopWinSound, stopBoopWinSound } from './boop-extra-sfx';
+import { beginBoopKnockPushBatch, endBoopKnockPushBatch } from './boop-knock-sfx';
 import { winMarkerCells } from './boop-win-glow';
 import { BoopGame } from './engine';
 import './ai';
@@ -432,11 +433,14 @@ export class BoopController {
       }
     }
 
-    const pushFromPlacement =
-      move.type === 'place' && (effects.displacements.length > 0 || effects.off_board.length > 0);
-    if (pushFromPlacement) beginBoopPushLandSounds();
+    const pushedPieceCount = effects.displacements.length + effects.off_board.length;
+    const pushFromPlacement = move.type === 'place' && pushedPieceCount > 0;
+    if (pushFromPlacement) {
+      beginBoopKnockPushBatch(pushedPieceCount);
+      beginBoopPushLandSounds();
+    }
 
-    const hasBoopPush = effects.displacements.length > 0 || effects.off_board.length > 0;
+    const hasBoopPush = pushedPieceCount > 0;
     if (hasBoopPush) {
       applyParallelBoopPushEffects(this.tracker, effects);
       this.view = viewDuringMechanicalEffects(before, after, move, actor);
@@ -444,7 +448,10 @@ export class BoopController {
       await sleep(step);
     }
 
-    if (pushFromPlacement) endBoopPushLandSounds();
+    if (pushFromPlacement) {
+      endBoopPushLandSounds();
+      endBoopKnockPushBatch();
+    }
 
     const line = lineCellsFromHighlight(effects.line_highlight);
     if (lineClearNeedsSequence(effects.line_highlight, effects.graduated_cells)) {

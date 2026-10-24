@@ -18,6 +18,7 @@ import { cellAt, poolCellIndex, wireBoopInteraction, type BoopInteractionHandle 
 import { boardPlayfieldTopY } from './game/boop-grounding';
 import { createBoopPieceGeometrySet } from './game/boop-stone-cats';
 import { BOOP_DEMO_BOOP_SFX_URLS, BOOP_DEMO_PLACE_SFX_URLS } from './game/boop-sfx-manifest';
+import { initBoopKnockPushSounds } from './game/boop-knock-sfx';
 import { BoopController } from './game/controller';
 import {
   boopPlayfieldGroundSize,
@@ -28,6 +29,7 @@ import { BOOP_GRID as size, BOOP_OUTSIDE as OUTSIDE_ROWS } from './game/boop-gri
 import { createBoopPrerenderTopology, loadBoopPrerender } from './game/boop-prerender';
 
 applyBoopAnimationPacing(ANIMATION);
+initBoopKnockPushSounds();
 
 const fallbackCat = createBoopCatGeometry();
 const fallbackKitten = createBoopKittenGeometry();

@@ -87,6 +87,12 @@ let boopBuffers: AudioBuffer[] | null = null;
 let loadPromise: Promise<void> | null = null;
 let boopPushBatchDepth = 0;
 let lastBoopClipIndex: number | null = null;
+let boopPushLandingPlayer: (() => void) | null = null;
+
+/** Override push-landing audio during {@link beginBoopPushLandSounds} (game-specific knock clips). */
+export function setBoopPushLandingSoundPlayer(player: (() => void) | null): void {
+  boopPushLandingPlayer = player;
+}
 
 function ensureContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -204,7 +210,8 @@ export function isBoopPushLandingBatchActive(): boolean {
  */
 export function consumeBoopPushLandingSound(): boolean {
   if (boopPushBatchDepth <= 0) return true;
-  playBoopSound();
+  if (boopPushLandingPlayer) boopPushLandingPlayer();
+  else playBoopSound();
   return false;
 }
 
