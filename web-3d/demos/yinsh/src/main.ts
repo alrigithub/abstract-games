@@ -2,7 +2,6 @@ import {
   YINSH_COORDS,
   createBoardScene,
   createGameButtons,
-  DEFAULT_LOBBY_HREF,
   createYinshMarkerGeometry,
   createYinshRingGeometry,
   createYinshTopology,
@@ -99,7 +98,6 @@ function renderStatus(extra?: string) {
 
 const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
-  lobbyHref: DEFAULT_LOBBY_HREF,
   applyTheme,
   onNewGameReset: () => {
     snapshot = buildDemoSnapshot();

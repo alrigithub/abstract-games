@@ -6,7 +6,6 @@ import {
   createInteraction,
   createSquareTopology,
   createTakPieceGeometries,
-  DEFAULT_LOBBY_HREF,
   INTERACTION,
   levelToSearchOptions,
   readInitialTheme,
@@ -55,7 +54,6 @@ function applyTheme(id: ThemeId) {
 
 const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
-  lobbyHref: DEFAULT_LOBBY_HREF,
   aiStrengthStorageKey: TAK_AI_STRENGTH_STORAGE_KEY,
   applyTheme,
   firstPlayer: {

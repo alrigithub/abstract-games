@@ -1,6 +1,5 @@
 import {
   createGameButtons,
-  DEFAULT_LOBBY_HREF,
   GOMOKU_AI_STRENGTH_STORAGE_KEY,
   levelToSearchOptions,
   readInitialTheme,
@@ -29,7 +28,6 @@ let aiWorker: Worker | null = null;
 
 const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
-  lobbyHref: DEFAULT_LOBBY_HREF,
   aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
   onAiStrengthChange: level => renderStatus(undefined, level.label),
   applyTheme,

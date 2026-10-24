@@ -7,8 +7,8 @@ import {
 import { bindThemeToggle, type ThemeId } from '../theme';
 import { ensureBasePageStyles } from './page-styles';
 
-/** Hub lobby when serving the monorepo `web/` tree from the site root. */
-export const DEFAULT_LOBBY_HREF = '/web/index.html';
+/** Site root lobby (Firebase hosting). */
+export const DEFAULT_LOBBY_HREF = '/';
 
 /** Shared top-bar CSS; exported so tooling/tests can read the single source. */
 export { GAME_BUTTONS_CSS };
