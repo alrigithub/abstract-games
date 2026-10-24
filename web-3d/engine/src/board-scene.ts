@@ -120,6 +120,8 @@ export interface BoardSceneOptions {
 }
 
 export interface PlayfieldGroundOptions {
+  /** Cosmetic ground height, independent of piece placement on the arena. */
+  surfaceY?: number;
   /** World units (square plane side). */
   size: number;
   /** Ground + scene backdrop in light theme. */
@@ -795,6 +797,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     const groundMaterial = options.playfieldGround ? ensurePlayfieldGroundMaterial() : boardMaterial;
     syncPlayfieldGroundAppearance();
     const ground = createPlayfieldGroundMesh(groundMaterial, groundSize);
+    ground.position.y = options.playfieldGround?.surfaceY ?? BOARD.PLAYFIELD_SURFACE_Y;
     boardGeometries.push(ground.geometry as THREE.BufferGeometry);
     board.add(ground);
     if (

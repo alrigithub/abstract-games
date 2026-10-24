@@ -1,6 +1,8 @@
 /// <reference path="./n8ao.d.ts" />
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { N8AOPass } from 'n8ao';
 import { CLAY } from './constants';
 
@@ -58,6 +60,12 @@ export function createBoardRenderPipeline(
   aoPass.configuration.distanceFalloff = CLAY.AO_DISTANCE_FALLOFF;
   aoPass.configuration.gammaCorrection = false;
   composer.addPass(aoPass);
+  // Canvas MSAA cannot smooth N8AO's offscreen beauty target. SMAA operates
+  // in linear space in r180; OutputPass then applies AgX and sRGB exactly once.
+  const antialiasPass = new SMAAPass();
+  const outputPass = new OutputPass();
+  composer.addPass(antialiasPass);
+  composer.addPass(outputPass);
 
   return {
     render() {
@@ -66,9 +74,11 @@ export function createBoardRenderPipeline(
     setSize(width, height) {
       renderer.setSize(width, height, false);
       composer.setSize(width, height);
-      aoPass.setSize(width, height);
     },
     dispose() {
+      aoPass.dispose();
+      antialiasPass.dispose();
+      outputPass.dispose();
       composer.dispose();
     },
   };

@@ -7,15 +7,34 @@ import {
 } from './board-arena-glb';
 import { CLAY } from './constants';
 import { syncClayMaterialTheme } from './clay-materials';
+import { tagPlayfieldForShadows } from './board-lighting';
 
 describe('board arena glb helpers', () => {
-  it('tags arena meshes to receive (not cast) directional shadows', () => {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
+  it('keeps paving as a receiver and preserves ruin shadows through board rebuilds', () => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 0.05, 1));
+    const column = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2, 0.4));
     const root = new THREE.Group();
-    root.add(mesh);
+    root.add(mesh, column);
     tagArenaGlbForShadows(root);
+    tagPlayfieldForShadows(root);
     expect(mesh.castShadow).toBe(false);
     expect(mesh.receiveShadow).toBe(true);
+    expect(column.castShadow).toBe(true);
+    expect(column.receiveShadow).toBe(true);
+  });
+
+  it('tints arena albedo across themes without removing its normal-map detail', () => {
+    const normalMap = new THREE.Texture();
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial({ normalMap }));
+    const root = new THREE.Group();
+    root.add(mesh);
+    applyArenaGlbThemeMaterials(root, 'light', { tintToTheme: true });
+    expect(mesh.material.color.getHexString()).toBe(CLAY.ENV.slice(1));
+    expect(mesh.material.normalMap).toBe(normalMap);
+    applyArenaGlbThemeMaterials(root, 'dark', { tintToTheme: true });
+    expect(mesh.material.color.getHexString()).toBe(CLAY.ENV_DARK.slice(1));
+    expect(mesh.material.normalMap).toBe(normalMap);
+    normalMap.dispose();
   });
 
   it('strips baked colour maps when normalizing authored arena materials', () => {

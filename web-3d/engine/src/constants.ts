@@ -56,7 +56,7 @@ export const BOARD = {
    * Shared IBL strength for PBR GLBs ({@link applyBoardEnvironment}).
    * MeshBasic board/piece materials ignore this.
    */
-  ENVIRONMENT_INTENSITY: 0.78,
+  ENVIRONMENT_INTENSITY: 0.5,
   /** Decal under pieces (complements shadow maps). */
   PIECE_CONTACT_SHADOW_OPACITY: 0.24,
 } as const;
@@ -65,31 +65,32 @@ export const BOARD = {
 export const CLAY = {
   TONE_MAPPING_EXPOSURE: 0.98,
   AO_ENABLED: true,
-  /** Low: stable on laptops; Performance is noisier. */
-  AO_QUALITY: 'Low' as const,
+  /** Medium quality with half-resolution AO balances smooth contact shading and cost. */
+  AO_QUALITY: 'Medium' as const,
   AO_HALF_RES: true,
-  AO_INTENSITY: 2.35,
+  AO_INTENSITY: 1.5,
   /** World-space contact radius (~board is ~10u); avoids edge-halo AO. */
-  AO_RADIUS: 1.55,
-  AO_DISTANCE_FALLOFF: 0.72,
-  KEY_LIGHT_INTENSITY: 0.82,
+  AO_RADIUS: 0.6,
+  AO_DISTANCE_FALLOFF: 0.55,
+  KEY_LIGHT_INTENSITY: 1.6,
   /** VSM gives softer penumbra than PCFSoft on directional lights (laptop-friendly blur). */
   SHADOW_MAP_TYPE: 'vsm' as const,
   SHADOW_MAP_SIZE: 2048,
   SHADOW_BIAS: -0.00004,
   SHADOW_NORMAL_BIAS: 0.0014,
   /** VSM blur passes (ignored for PCFSoft). */
-  SHADOW_BLUR_SAMPLES: 6,
+  SHADOW_BLUR_SAMPLES: 12,
+  SHADOW_RADIUS: 8,
   /** Tight ortho fit → more texels on playfield, less blocky penumbra. */
   SHADOW_FRUSTUM_EXPAND: 0.26,
   SHADOW_FRUSTUM_PAD_MIN: 0.42,
   SHADOW_FRUSTUM_PAD_XZ_RATIO: 0.085,
-  /** Soft cool daylight (not warm studio). */
-  KEY_LIGHT_COLOR: 0xf4f6f3,
+  /** Soft ivory daylight keeps avocado stone warm without yellow highlights. */
+  KEY_LIGHT_COLOR: 0xfff4e5,
   /** Playfield / board / arena GLB albedo (light airy grey-green). */
-  ENV: '#d0d0cc',
+  ENV: '#cbd0be',
   /** Fog + scene background (subtle vignette, still grey-green). */
-  BACKDROP: '#cbcac7',
+  BACKDROP: '#d9dad3',
   /** Dark-theme environment albedo. */
   ENV_DARK: '#72716e',
   PIECE_LIGHT: '#e8e4dc',
