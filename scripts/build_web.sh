@@ -7,14 +7,16 @@ cd "$ROOT"
 
 TARGET=wasm32-unknown-unknown
 PROFILE=wasm-release
-export RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
 
 # Must match wasm-bindgen version in Cargo.lock (currently 0.2.106)
 WASM_BINDGEN_VERSION="${WASM_BINDGEN_VERSION:-0.2.106}"
 if ! wasm-bindgen --version 2>/dev/null | grep -q "$WASM_BINDGEN_VERSION"; then
   echo "Installing wasm-bindgen-cli ${WASM_BINDGEN_VERSION} (must match Cargo.lock)..."
-  cargo install wasm-bindgen-cli --version "${WASM_BINDGEN_VERSION}" --locked --force
+  # Host install: do not use WASM getrandom RUSTFLAGS (breaks getrandom on native).
+  env -u RUSTFLAGS cargo install wasm-bindgen-cli --version "${WASM_BINDGEN_VERSION}" --locked --force
 fi
+
+export RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
 
 rustup target add "${TARGET}" >/dev/null 2>&1 || true
 
