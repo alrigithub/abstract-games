@@ -33,11 +33,11 @@ function handPiecesInSnapshot(
 }
 
 describe('boop pool layout', () => {
-  it('does not place pool pieces on row −1 above the bed', () => {
+  it('centers the hand column vertically on the bed', () => {
+    const bedCenter = (BOOP_GRID - 1) / 2;
     for (const player of ['A', 'B'] as const) {
-      for (const slot of poolSlots(player, 'cat_hand')) {
-        expect(slot.row).toBeGreaterThanOrEqual(0);
-      }
+      const rows = poolSlots(player, 'cat_hand').map(s => s.row);
+      expect((Math.min(...rows) + Math.max(...rows)) / 2).toBe(bedCenter);
     }
   });
 
@@ -100,7 +100,7 @@ describe('boop pool layout', () => {
     expect(occupied.length).toBe(handPieceCount(afterGrad));
     const handCol = poolSlots('A', 'cat_hand')[0]!.col;
     const catRows = occupied.filter((_, i) => i < afterGrad.cats_in_hand).map(s => s.row);
-    expect(catRows).toEqual([0, 1, 2]);
+    expect(catRows).toEqual([-1, 0, 1]);
     expect(occupied.every(s => s.col === handCol)).toBe(true);
 
     const view = parseGameView(
