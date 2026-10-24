@@ -2,18 +2,14 @@ import * as THREE from 'three';
 import { BOARD } from '../constants';
 import type { EnginePiece, PieceGeometrySet, ThemeTokens } from '../types';
 import { anchorGeometryBaseToY0 } from './anchor';
+import { GIPF_CHIP, createGipfChipGeometry } from './gipf-set';
 
-/** Physical set ratios from `yinsh_gui` (annulus 20–25 mm, marker Ø32 mm). */
+/** Yinsh ring annulus — inner hole fits the shared GIPF chip with clearance. */
 export const YINSH = {
   SPACING: 1,
-  /** Outer radius 25 mm at 80 mm spacing. */
-  RING_OUTER: 0.3125,
-  /** Inner hole 20 mm — wide enough for a marker with clearance. */
-  RING_INNER: 0.22,
-  /** Marker radius 16 mm — solid disc inside the ring hole. */
-  MARKER_RADIUS: 0.16,
+  RING_INNER: GIPF_CHIP.RADIUS + 0.028,
+  RING_OUTER: 0.48,
   RING_HEIGHT: 0.056,
-  MARKER_HEIGHT: 0.014,
   EDGE_THRESHOLD: 18,
 } as const;
 
@@ -32,15 +28,50 @@ export function createYinshRingGeometry(): THREE.BufferGeometry {
   return flatAnnulus(YINSH.RING_INNER, YINSH.RING_OUTER, YINSH.RING_HEIGHT);
 }
 
+/** Match {@link THREE.CylinderGeometry} groups: 0 side, 1 top cap, 2 bottom cap. */
+function assignGipfChipFlipGroups(geo: THREE.BufferGeometry): void {
+  geo.computeBoundingBox();
+  const box = geo.boundingBox!;
+  const maxY = box.max.y;
+  const minY = box.min.y;
+  const eps = GIPF_CHIP.HEIGHT * 0.08;
+  const pos = geo.getAttribute('position');
+  const index = geo.getIndex();
+  if (!index) return;
+
+  const side: number[] = [];
+  const top: number[] = [];
+  const bottom: number[] = [];
+
+  for (let i = 0; i < index.count; i += 3) {
+    const ia = index.getX(i);
+    const ib = index.getX(i + 1);
+    const ic = index.getX(i + 2);
+    const avgY = (pos.getY(ia) + pos.getY(ib) + pos.getY(ic)) / 3;
+    const tri = [index.getX(i), index.getX(i + 1), index.getX(i + 2)];
+    if (avgY >= maxY - eps) top.push(...tri);
+    else if (avgY <= minY + eps) bottom.push(...tri);
+    else side.push(...tri);
+  }
+
+  const merged = [...side, ...top, ...bottom];
+  geo.setIndex(merged);
+  geo.clearGroups();
+  let start = 0;
+  if (side.length) {
+    geo.addGroup(start, side.length, 0);
+    start += side.length;
+  }
+  if (top.length) {
+    geo.addGroup(start, top.length, 1);
+    start += top.length;
+  }
+  if (bottom.length) geo.addGroup(start, bottom.length, 2);
+}
+
 export function createYinshMarkerGeometry(): THREE.BufferGeometry {
-  const geo = new THREE.CylinderGeometry(
-    YINSH.MARKER_RADIUS,
-    YINSH.MARKER_RADIUS,
-    YINSH.MARKER_HEIGHT,
-    BOARD.RADIAL_SEGMENTS,
-    1,
-    false,
-  );
+  const geo = createGipfChipGeometry();
+  assignGipfChipFlipGroups(geo);
   return anchorGeometryBaseToY0(geo);
 }
 
@@ -51,9 +82,9 @@ export function yinshMarkerMaterials(player: string, tokens: ThemeTokens): THREE
   const topColor = player === 'A' ? white : black;
   const bottomColor = player === 'A' ? black : white;
   return [
+    new THREE.MeshBasicMaterial({ color: edge, toneMapped: false }),
     new THREE.MeshBasicMaterial({ color: topColor, toneMapped: false }),
     new THREE.MeshBasicMaterial({ color: bottomColor, toneMapped: false }),
-    new THREE.MeshBasicMaterial({ color: edge, toneMapped: false }),
   ];
 }
 

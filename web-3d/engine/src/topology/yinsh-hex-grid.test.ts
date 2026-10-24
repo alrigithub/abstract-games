@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { GIPF_AXIAL_STEPS } from '../geometries/gipf-set';
 import { YINSH_COORDS, isYinshCoordInside, yinshCoordKey } from './yinsh-hex-grid';
-
-const SEGMENT_DIRS = [
-  { x: -1, y: 0 },
-  { x: -1, y: -1 },
-  { x: 0, y: 1 },
-] as const;
 
 describe('yinsh hex grid', () => {
   it('has 85 playable intersections', () => {
@@ -17,11 +12,11 @@ describe('yinsh hex grid', () => {
     let segments = 0;
     const families = new Set<string>();
     for (const coord of YINSH_COORDS) {
-      for (const dir of SEGMENT_DIRS) {
-        const neighbor = { x: coord.x + dir.x, y: coord.y + dir.y };
+      for (const [dq, dr] of GIPF_AXIAL_STEPS) {
+        const neighbor = { x: coord.x + dq, y: coord.y + dr };
         if (!inside.has(yinshCoordKey(neighbor))) continue;
         segments++;
-        families.add(`${dir.x},${dir.y}`);
+        families.add(`${dq},${dr}`);
       }
     }
     expect(segments).toBeGreaterThan(200);
