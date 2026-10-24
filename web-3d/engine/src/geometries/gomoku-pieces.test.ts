@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { GOMOKU_DIMS, createGomokuStoneGeometry, gomokuStoneRestCenterY } from './gomoku-pieces';
+import {
+  GOMOKU_DIMS,
+  GOMOKU_GLB_DIAMETER_M,
+  GOMOKU_GLB_WORLD_SCALE,
+  createGomokuStoneGeometry,
+  gomokuGlbStoneHeight,
+  gomokuStoneRestCenterY,
+} from './gomoku-pieces';
+
+describe('gomoku GLB constants', () => {
+  it('scales authored diameter to STONE_R', () => {
+    expect(GOMOKU_GLB_WORLD_SCALE * (GOMOKU_GLB_DIAMETER_M / 2)).toBeCloseTo(GOMOKU_DIMS.STONE_R, 8);
+    expect(gomokuGlbStoneHeight()).toBeGreaterThan(0);
+  });
+});
 
 describe('createGomokuStoneGeometry', () => {
   it('is a smooth biconvex lens with poles at y=0 and y=height', () => {

@@ -15,9 +15,7 @@ import {
   createCameraViewController,
   createContactShadowBlob,
   measureBoardFrameMs,
-  tagPieceForShadows,
   tagPlayfieldForShadows,
-  createGomokuStoneGeometry,
   gomokuCellWorld,
   gomokuHoshiPoints,
   gomokuStoneRestCenterY,
@@ -28,6 +26,7 @@ import {
   type CameraViewController,
   type ThemeId,
 } from '@abstract/three-engine';
+import { loadGomokuStoneAssets, type GomokuStoneAssets } from './gomoku-piece-models';
 
 export const GOMOKU_WIN_ACCENT = '#3b82f6';
 
@@ -42,6 +41,7 @@ export interface StoneRecord {
 
 export interface GomokuSceneOptions {
   theme?: ThemeId;
+  stoneAssets?: GomokuStoneAssets;
   onCellClick?: (row: number, col: number) => void;
   canInteract?: () => boolean;
   hoverPlayer?: () => ScenePlayer | null;
@@ -60,16 +60,20 @@ export interface GomokuSceneApi {
 const DROP_MS = 180;
 const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
 
-export function createGomokuScene(container: HTMLElement, options: GomokuSceneOptions = {}): GomokuSceneApi {
+export async function createGomokuScene(
+  container: HTMLElement,
+  options: GomokuSceneOptions = {},
+): Promise<GomokuSceneApi> {
   initPlaceSfx();
   let themeId: ThemeId = options.theme ?? 'light';
   let materials = gomokuThemeMaterials(themeId);
   let inputEnabled = true;
 
+  const stoneAssets = options.stoneAssets ?? (await loadGomokuStoneAssets(materials));
+
   const size = GOMOKU_DIMS.GRID;
-  const stoneGeo = createGomokuStoneGeometry();
   const restY = gomokuStoneRestCenterY();
-  const dropLift = GOMOKU_DIMS.STONE_H * 2;
+  const dropLift = stoneAssets.stoneHeight * 2;
   const shadowY = 0.003;
 
   const scene = new THREE.Scene();
@@ -93,8 +97,8 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
   scene.add(boardGroup, shadowsGroup, stonesGroup, ghostGroup, winGroup);
 
   const disposables: THREE.BufferGeometry[] = [];
-  const stoneMeshes = new Map<string, THREE.Mesh>();
-  let ghostMesh: THREE.Mesh | null = null;
+  const stoneMeshes = new Map<string, THREE.Object3D>();
+  let ghostMesh: THREE.Object3D | null = null;
   let pickPlane = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ visible: false }));
   pickPlane.rotation.x = -Math.PI / 2;
   boardGroup.add(pickPlane);
@@ -153,37 +157,24 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
 
   rebuildBoardMesh();
 
-  function stoneMaterial(player: ScenePlayer) {
-    return player === 'A' ? materials.stoneA : materials.stoneB;
-  }
-
   function makeShadow(rotationY: number) {
-    const shadow = makePieceShadow(stoneGeo, materials.stoneShadow, shadowsGroup);
+    const shadow = makePieceShadow(stoneAssets.shadowGeometry, materials.stoneShadow, shadowsGroup);
     shadow.rotation.y = rotationY;
     return shadow;
   }
 
-  function yawForId(id: string): number {
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
-    return ((hash >>> 0) % 1000) / 1000 * (Math.PI / 8);
-  }
-
-  function upsertStone(record: StoneRecord, y = restY): THREE.Mesh {
+  function upsertStone(record: StoneRecord, y = restY): THREE.Object3D {
     let mesh = stoneMeshes.get(record.id);
-    const mat = stoneMaterial(record.player);
     const p = gomokuCellWorld(size, record.row, record.col);
-    const yaw = yawForId(record.id);
+    const yaw = stoneAssets.yawForId(record.id);
     if (!mesh) {
-      mesh = new THREE.Mesh(stoneGeo, mat);
-      mesh.castShadow = true;
-      mesh.receiveShadow = false;
-      tagPieceForShadows(mesh, false);
+      mesh = stoneAssets.createVisual(record.player);
       mesh.userData.shadow = makeShadow(yaw);
       stonesGroup.add(mesh);
       stoneMeshes.set(record.id, mesh);
-    } else {
-      mesh.material = mat;
+    } else if (!stoneAssets.usesGlb) {
+      const mat = record.player === 'A' ? materials.stoneA : materials.stoneB;
+      if (mesh instanceof THREE.Mesh) mesh.material = mat;
     }
     mesh.rotation.y = yaw;
     (mesh.userData.shadow as THREE.Mesh).rotation.y = yaw;
@@ -256,10 +247,7 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
     ghostGroup.clear();
     ghostMesh = null;
     if (row === null || col === null || !player) return;
-    const mat = stoneMaterial(player).clone();
-    mat.transparent = true;
-    mat.opacity = themeId === 'dark' ? 0.38 : 0.32;
-    ghostMesh = new THREE.Mesh(stoneGeo, mat);
+    ghostMesh = stoneAssets.createGhostVisual(player, themeId);
     const p = gomokuCellWorld(size, row, col);
     ghostMesh.position.set(p.x, restY, p.z);
     ghostGroup.add(ghostMesh);
@@ -319,7 +307,7 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
 
   function gomokuFramePoints(): THREE.Vector3[] {
     const half = size / 2 + GOMOKU_DIMS.MARGIN * 0.65;
-    const yTop = restY + 0.08;
+    const yTop = restY + stoneAssets.stoneHeight * 0.4;
     return [
       new THREE.Vector3(-half, 0, -half),
       new THREE.Vector3(half, 0, half),
@@ -447,7 +435,7 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
       renderer.domElement.removeEventListener('pointerup', onPointerUp);
       renderer.dispose();
       renderer.domElement.remove();
-      stoneGeo.dispose();
+      stoneAssets.dispose();
       for (const g of disposables) g.dispose();
     },
   };

@@ -15,8 +15,21 @@ export const GOMOKU_DIMS = {
   LINE_W: BOARD.LINE_W,
   STAR_R: 0.055,
   STONE_R: 0.47,
+  /** Procedural fallback height; Alex GLB uses {@link gomokuGlbStoneHeight}. */
   STONE_H: 0.21,
 } as const;
+
+/** Alex go-stone GLB diameter (Y-up meters, origin at base centre). */
+export const GOMOKU_GLB_DIAMETER_M = 0.022;
+/** Alex go-stone GLB height at authored scale. */
+export const GOMOKU_GLB_HEIGHT_M = 0.009;
+/** Uniform scale so GLB footprint matches {@link GOMOKU_DIMS.STONE_R}. */
+export const GOMOKU_GLB_WORLD_SCALE = GOMOKU_DIMS.STONE_R / (GOMOKU_GLB_DIAMETER_M / 2);
+
+/** Resting stone height after {@link GOMOKU_GLB_WORLD_SCALE}. */
+export function gomokuGlbStoneHeight(): number {
+  return GOMOKU_GLB_HEIGHT_M * GOMOKU_GLB_WORLD_SCALE;
+}
 
 const HOSHI_15: readonly (readonly [number, number])[] = [
   [3, 3],

@@ -145,7 +145,7 @@ async function playMove(col: number, row: number, isHuman: boolean) {
   if (!game.winner) maybeAiTurn();
 }
 
-const scene = createGomokuScene(board, {
+const scene = await createGomokuScene(board, {
   theme,
   onCellClick: (row, col) => void playMove(col, row, true),
   canInteract: () => !aiPending && !game.winner && game.toMove === humanColor,
