@@ -15,11 +15,9 @@ pub const RING_WIDTH_FRAC: f32 = 0.08;
 /// `(±1,0), (0,±1), (±1,±1)`: `x = 1.5 s q`, `y = √3 s (r − q/2)`,
 /// with `s = spacing / √3` so each of those six steps has length `spacing`.
 /// Screen Y is flipped so TEMPLATE row 0 sits at the top of the window.
-#[allow(dead_code)]
 pub const LATTICE_STEPS: [(i8, i8); 6] = [(1, 0), (0, 1), (1, 1), (-1, 0), (0, -1), (-1, -1)];
 
 /// Six outline vertices of the playable hex (Waltz / official board).
-#[allow(dead_code)]
 pub const BOARD_CORNERS: [Coord; 6] = [
     Coord { x: 0, y: 0 },
     Coord { x: 4, y: 0 },
@@ -40,12 +38,10 @@ impl Vec2 {
         Self { x, y }
     }
 
-    #[allow(dead_code)]
     pub fn sub(self, other: Self) -> Self {
         Self::new(self.x - other.x, self.y - other.y)
     }
 
-    #[allow(dead_code)]
     pub fn length(self) -> f32 {
         self.x.hypot(self.y)
     }
@@ -98,6 +94,127 @@ pub fn ortho_scale_to_fit(window_w: f32, window_h: f32, spacing: f32) -> f32 {
 pub fn origin_to_center(spacing: f32) -> Vec2 {
     let (min, max) = playable_bounds(spacing);
     Vec2::new(-(min.x + max.x) * 0.5, -(min.y + max.y) * 0.5)
+}
+
+const HOLE: Coord = Coord { x: 4, y: 4 };
+const SEGMENT_EPS: f32 = 1e-3;
+
+fn coord_key(c: Coord) -> (i8, i8) {
+    (c.x, c.y)
+}
+
+fn ordered_pair(a: Coord, b: Coord) -> (Coord, Coord) {
+    if coord_key(a) <= coord_key(b) {
+        (a, b)
+    } else {
+        (b, a)
+    }
+}
+
+fn touches_hole(a: Coord, b: Coord) -> bool {
+    a == HOLE || b == HOLE
+}
+
+/// Undirected playable edges whose pixel length is exactly `spacing`.
+///
+/// Built from pixel distance, never from crate [`tzaar::DIRECTIONS`]. The
+/// opposite-sign diagonal `(1,-1)` is a √3 step in this map and must not be
+/// drawn. Segments that touch the centre hole are omitted.
+pub fn neighbour_segments(spacing: f32) -> Vec<(Coord, Coord)> {
+    let coords = tzaar::all_playable_coords();
+    let mut segments = Vec::new();
+    for (i, &a) in coords.iter().enumerate() {
+        for &b in coords.iter().skip(i + 1) {
+            if touches_hole(a, b) {
+                continue;
+            }
+            let d = hex_to_pixel(a, spacing)
+                .sub(hex_to_pixel(b, spacing))
+                .length();
+            if (d - spacing).abs() < SEGMENT_EPS {
+                segments.push(ordered_pair(a, b));
+            }
+        }
+    }
+    segments
+}
+
+/// Unit edges along the six outer hexagon sides (corner → corner).
+pub fn perimeter_segments(spacing: f32) -> Vec<(Coord, Coord)> {
+    let mut segments = Vec::new();
+    for i in 0..BOARD_CORNERS.len() {
+        let start = BOARD_CORNERS[i];
+        let end = BOARD_CORNERS[(i + 1) % BOARD_CORNERS.len()];
+        let steps = walk_unit_edge(start, end, spacing);
+        segments.extend(steps);
+    }
+    segments
+}
+
+/// All segments the board should draw: true pixel neighbours plus the hull.
+pub fn grid_segments(spacing: f32) -> Vec<(Coord, Coord)> {
+    let mut segments = neighbour_segments(spacing);
+    for edge in perimeter_segments(spacing) {
+        if !segments.contains(&edge) {
+            segments.push(edge);
+        }
+    }
+    segments
+}
+
+fn walk_unit_edge(start: Coord, end: Coord, spacing: f32) -> Vec<(Coord, Coord)> {
+    let mut points = vec![start];
+    let mut current = start;
+    // Walk nearest-neighbour steps toward `end` (at most the hex diameter).
+    for _ in 0..16 {
+        if current == end {
+            break;
+        }
+        let target = hex_to_pixel(end, spacing);
+        let mut best: Option<(Coord, f32)> = None;
+        for dir in LATTICE_STEPS {
+            let next = tzaar::step(current, dir);
+            if touches_hole(current, next) || !tzaar::is_playable(next) {
+                continue;
+            }
+            let here = hex_to_pixel(current, spacing);
+            let nxt = hex_to_pixel(next, spacing);
+            if (nxt.sub(here).length() - spacing).abs() >= SEGMENT_EPS {
+                continue;
+            }
+            let remaining = target.sub(nxt).length();
+            if best.is_none_or(|(_, d)| remaining < d - 1e-4) {
+                best = Some((next, remaining));
+            }
+        }
+        let Some((next, _)) = best else {
+            break;
+        };
+        if points.contains(&next) {
+            break;
+        }
+        points.push(next);
+        current = next;
+    }
+    points
+        .windows(2)
+        .map(|w| ordered_pair(w[0], w[1]))
+        .collect()
+}
+
+/// Absolute heading of `b - a` folded into `[0, 180)`.
+#[allow(dead_code)]
+pub fn segment_angle_deg(a: Coord, b: Coord, spacing: f32) -> f32 {
+    let pa = hex_to_pixel(a, spacing);
+    let pb = hex_to_pixel(b, spacing);
+    let mut deg = (pb.y - pa.y).atan2(pb.x - pa.x).to_degrees();
+    while deg < 0.0 {
+        deg += 180.0;
+    }
+    while deg >= 180.0 {
+        deg -= 180.0;
+    }
+    deg
 }
 
 #[cfg(test)]
@@ -171,5 +288,47 @@ mod tests {
         let visible_h = 820.0 * scale;
         assert!(visible_w + 1e-3 >= (max.x - min.x) + 2.0 * margin);
         assert!(visible_h + 1e-3 >= (max.y - min.y) + 2.0 * margin);
+    }
+
+    fn angle_is_hex_family(deg: f32) -> bool {
+        [30.0_f32, 90.0, 150.0]
+            .into_iter()
+            .any(|want| (deg - want).abs() < 1.0)
+    }
+
+    #[test]
+    fn drawn_segments_are_unit_hex_families() {
+        let segments = grid_segments(S);
+        assert!(
+            !segments.is_empty(),
+            "expected neighbour + perimeter segments"
+        );
+        for (a, b) in &segments {
+            assert_ne!(*a, HOLE);
+            assert_ne!(*b, HOLE);
+            let len = hex_to_pixel(*a, S).sub(hex_to_pixel(*b, S)).length();
+            assert!(
+                (len - S).abs() < 1e-3,
+                "segment {a}–{b} length {len}, expected {S}"
+            );
+            let deg = segment_angle_deg(*a, *b, S);
+            assert!(
+                angle_is_hex_family(deg),
+                "segment {a}–{b} angle {deg}, expected 30/90/150"
+            );
+        }
+    }
+
+    #[test]
+    fn crate_opposite_diagonal_is_not_drawn() {
+        let segments = grid_segments(S);
+        for (a, b) in &segments {
+            let dx = (b.x - a.x).abs();
+            let dy = (b.y - a.y).abs();
+            assert!(
+                !(dx == 1 && dy == 1 && (b.x - a.x) == -(b.y - a.y)),
+                "opposite-sign diagonal {a}–{b} must not be a grid segment"
+            );
+        }
     }
 }
