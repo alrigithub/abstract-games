@@ -4,51 +4,57 @@ Guidance for coding agents working in this repository.
 
 ## Product
 
-TypeScript + **three.js** abstract board games. Human vs AI, offline, in the browser.
-Feel target: polished 3D boards, async minimax in Web Workers, smooth piece motion.
+**TypeScript + three.js only** — browser games, human vs AI, offline. No Rust, Bevy, or WASM game shells.
 
-## Games
+Polished 3D boards, minimax AI in **Web Workers**, smooth piece motion via the shared engine.
 
-| Game | Package |
-|------|---------|
-| Yinsh | `web-3d/games/yinsh` (`@abstract/yinsh`) |
-| Gomoku | `web-3d/games/gomoku` (`@abstract/gomoku`) |
-| Boop | `web-3d/games/boop` (`@abstract/boop`) |
-| Tak | `web-3d/games/tak` (`@abstract/tak`) |
-| Tzaar | `web-3d/games/tzaar` (`@abstract/tzaar`) |
+## Layout
 
-Shared rendering and UI: `web-3d/engine` (`@abstract/three-engine`).
+| Path | Package / role |
+|------|----------------|
+| `web-3d/engine` | `@abstract/three-engine` — scene, camera, picking, lighting, themes, GLB loading |
+| `web-3d/games/<g>` | `@abstract/<g>` — rules, AI worker, Vite app (`yinsh`, `gomoku`, `boop`, `tak`, `tzaar`) |
+| `web-3d/hub` | Static lobby (`index.html`, rules TL;DR SVGs) |
+| `web-3d/e2e` | One Playwright smoke spec per game |
+| `web-3d/scripts` | `compress-glb.mjs` and workspace utilities |
+| `scripts/stage_web3d_hosting.sh` | Build all games + copy hub into `hosting-staging/` |
 
 ## Commands
 
+From `web-3d`:
+
 ```bash
-cd web-3d
 npm ci
+npm run dev -w @abstract/tak    # example; each game has its own Vite port
 npm test
 npm run build
-npx playwright test
+npm run test:e2e
+npm run compress-glb            # recompress committed GLBs under games/*/public
 ```
 
-Stage a static hosting tree (hub + all game bundles):
+Stage for hosting:
 
 ```bash
 ./scripts/stage_web3d_hosting.sh
 ```
 
-Hub page: `web-3d/hub/index.html` (copied to staging root by the script above).
+Deploy the **entire** `hosting-staging/` tree to Firebase Hosting site **bimsavage-games** (atomic upload so hashed assets stay in sync with `index.html`).
 
 ## Patterns
 
-- Pure game rules in each game package’s `src/game/` (no three.js imports in engine modules when possible)
-- AI via dedicated workers (`*.worker.ts`); never block the render loop
-- Shared UI: `createGameButtons`, themes, camera presets, placement SFX in `@abstract/three-engine`
-- Vitest unit tests per package; Playwright e2e under `web-3d/e2e/`
+- **Rules** live in each game’s `src/game/` (pure TypeScript; no three.js in rule modules when possible).
+- **Game state** (authoritative rules) stays separate from **interaction state** (selection, drag, drafts, UI) — e.g. `GameState` / `snapshot` vs `game-ui`, bridge, or engine `BoardSnapshot`.
+- **AI** only in `*.worker.ts`; never block the render loop.
+- **Tests:** Vitest for rules/engine per package; Playwright smoke in `web-3d/e2e/` (`data-testid="board"`). No committed screenshot baselines — Playwright may capture on failure only.
+- **GLBs:** Before committing assets under `games/*/public`, run `npm run compress-glb`. Load at runtime with the engine meshopt loader (`ensureMeshoptDecoderReady`, `loadGltfAsync` / `createMeshoptGltfLoader` in `@abstract/three-engine`).
+- **Lighting:** Shared sun direction `LIGHT_DIR = normalize(1, √2, -1)` in `board-lighting.ts`; directional light with **real drop shadows** on every piece (shadow map fitted to playfield).
+- **Look:** Line-drawn boards on a large white playfield ground; **dark theme** is a full token inversion of the light palette (`invertThemeTokens`), not a separate art pass.
 
 ## Do not
 
 - Add online multiplayer in v1
-- Reintroduce Rust/Bevy/WASM game shells for these titles
-- Commit secrets or large binary assets without need
+- Reintroduce Rust/Bevy/WASM shells or old `crates/` / `web/` hub layouts
+- Commit secrets or uncompressed multi‑MB GLBs when `compress-glb` would shrink them
 
 ## Attribution
 

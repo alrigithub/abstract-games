@@ -59,9 +59,14 @@ Call `scene.setTheme('light' \| 'dark')`. Defaults follow `prefers-color-scheme`
 
 Use `scene.enqueueAnimation(async () => { … applyMove … scene.setSnapshot(next); })` so moves never overlap player drags.
 
+## GLB assets
+
+Game repos store meshopt-compressed GLBs under `public/`. Run `npm run compress-glb` from `web-3d` before committing. Use `ensureMeshoptDecoderReady()` then `loadGltfAsync()` (or `createMeshoptGltfLoader()`) from this package.
+
 ## Demos
 
 - `web-3d/games/tak` — full Tak vs AI
 - `web-3d/games/gomoku` — intersection board + Go lens stones
 - `web-3d/games/boop` — beveled crown cats / kitten cylinders
 - `web-3d/games/tzaar` — GIPF-set chip + printed hex board (`gipf-set.ts`), 60-point Tzaar layout, stackable discs (Tott / Tzarra / Tzaar)
+- `web-3d/games/yinsh` — hex grid rings and markers
