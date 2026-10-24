@@ -7,12 +7,13 @@
     "tak",
     "demos/gomoku",
     "demos/boop",
+    "demos/yinsh",
     "demos/tzaar"
   ],
   "scripts": {
     "test": "npm run test -w @abstract/three-engine",
     "test:e2e": "playwright test",
-    "build": "npm run build -w @abstract/three-engine && npm run build -w tak-3d && npm run build -w gomoku-3d-demo && npm run build -w boop-3d-demo && npm run build -w tzaar-3d-demo"
+    "build": "npm run build -w @abstract/three-engine && npm run build -w tak-3d && npm run build -w gomoku-3d-demo && npm run build -w boop-3d-demo && npm run build -w yinsh-3d-demo && npm run build -w tzaar-3d-demo"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.1",

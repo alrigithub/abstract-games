@@ -64,6 +64,10 @@ export interface PieceGeometrySet {
   edgeThreshold?: number;
   /** Optional stack Y tweak (e.g. marker seated inside a ring). */
   verticalOffset?(piece: EnginePiece, stackIndex: number, stack: EnginePiece[]): number;
+  /** When false, skip inverted-hull outline (e.g. solid Yinsh markers). */
+  useOutline?(piece: EnginePiece): boolean;
+  /** Override fill material(s); return null to use theme player color. */
+  materialFor?(piece: EnginePiece, tokens: ThemeTokens, selected?: boolean): THREE.Material | THREE.Material[] | null;
 }
 
 export interface YinshCoord {
@@ -135,6 +139,8 @@ export interface InteractionOptions {
   hitTest(x: number, y: number): number | null;
   hitReserve?(x: number, y: number): ReservePick | null;
   getHoldInterval?(): number;
+  /** Max stack suffix that press-and-hold may grow (defaults to full stack / reserve count). */
+  getPickHeight?(cell: number, snapshot: BoardSnapshot): number;
   onView(view: InteractionView): void;
   onCommit(selection: Selection, target: number): void;
   onReserveCommit?(selection: Selection, target: ReservePick): void;

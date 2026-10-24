@@ -1,0 +1,30 @@
+:root {
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #1a1a1a;
+  background: #ffffff;
+}
+:root[data-theme='dark'] {
+  color: #e8e8e8;
+  background: #16171a;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#app {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.viewport {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+#board {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}

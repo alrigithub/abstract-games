@@ -1,36 +1,174 @@
 import {
-  createBoardScene,
-  createGomokuStoneGeometry,
-  createSquareTopology,
-  gomokuPieceGeometrySet,
-  bindThemeToggle,
+  createGameButtons,
+  DEFAULT_LOBBY_HREF,
+  GOMOKU_AI_STRENGTH_STORAGE_KEY,
+  levelToSearchOptions,
   readStoredTheme,
+  THEME_STORAGE_KEY,
+  type ThemeId,
 } from '@abstract/three-engine';
-import type { BoardSnapshot, EnginePiece } from '@abstract/three-engine';
-
-const size = 15;
-const stone = createGomokuStoneGeometry();
-const pieces = gomokuPieceGeometrySet(stone);
-const topology = createSquareTopology({ size });
-
-const cells: EnginePiece[][] = Array.from({ length: size * size }, () => []);
-const sample: EnginePiece[] = [
-  { id: 'b1', player: 'B', shape: 'stone' },
-  { id: 'w1', player: 'A', shape: 'stone' },
-  { id: 'b2', player: 'B', shape: 'stone' },
-];
-cells[7 * size + 7] = [sample[0]!];
-cells[7 * size + 8] = [sample[1]!];
-cells[8 * size + 7] = [sample[2]!];
-
-const snapshot: BoardSnapshot = { playableCells: size * size, cellCount: size * size, cells };
+import { createGomokuScene, type ScenePlayer, type StoneRecord } from './gomoku-scene';
+import {
+  applyMove,
+  coordIndex,
+  createGame,
+  indexCoord,
+  winningLine,
+  type GameState,
+  type Player,
+} from './game/engine';
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
-const scene = await createBoardScene(board, {
-  gridSize: size,
-  topology,
-  pieces,
-  initialTheme: readStoredTheme(),
+
+let theme: ThemeId = readStoredTheme();
+document.documentElement.dataset.theme = theme;
+
+let humanColor: Player = 'black';
+let game: GameState = createGame();
+let aiPending = false;
+let aiGeneration = 0;
+let aiWorker: Worker | null = null;
+
+const gameButtons = createGameButtons({
+  mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  lobbyHref: DEFAULT_LOBBY_HREF,
+  aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
+  onAiStrengthChange: level => renderStatus(undefined, level.label),
+  applyTheme,
+  onFirstPlayerSelected: color => startGame(color),
 });
-scene.setSnapshot(snapshot);
-bindThemeToggle(document.querySelector('#theme-toggle')!, t => scene.setTheme(t));
+
+function applyTheme(id: ThemeId) {
+  theme = id;
+  document.documentElement.dataset.theme = id;
+  scene.setTheme(id);
+  syncBoard();
+}
+
+try {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    try {
+      if (localStorage.getItem(THEME_STORAGE_KEY) === null) applyTheme(readStoredTheme());
+    } catch {
+      /* ignore */
+    }
+  });
+} catch {
+  /* ignore */
+}
+
+function toScenePlayer(player: Player): ScenePlayer {
+  return player === 'white' ? 'A' : 'B';
+}
+
+function stonesFromGame(): StoneRecord[] {
+  const out: StoneRecord[] = [];
+  for (let i = 0; i < game.cells.length; i++) {
+    const occupant = game.cells[i];
+    if (!occupant) continue;
+    const { x, y } = indexCoord(i);
+    out.push({ id: `c-${x}-${y}`, row: y, col: x, player: toScenePlayer(occupant) });
+  }
+  return out;
+}
+
+function stoneCount(): number {
+  return game.cells.filter(Boolean).length;
+}
+
+function winLineCells(): { row: number; col: number }[] | null {
+  if (!game.winner || !game.lastMove) return null;
+  return winningLine(game, game.lastMove)?.map(c => ({ row: c.y, col: c.x })) ?? null;
+}
+
+function renderStatus(extra?: string, strengthLabel?: string) {
+  const human = humanColor === 'black' ? 'Black' : 'White';
+  const strength = strengthLabel ?? gameButtons.aiStrength!.getLevel().label;
+  let detail = extra;
+  if (!detail) {
+    if (game.winner) detail = `${game.winner === 'black' ? 'Black' : 'White'} wins`;
+    else if (aiPending) detail = 'AI thinking…';
+    else if (game.toMove === humanColor) detail = `Your turn · ${human}`;
+    else detail = 'AI to move';
+  }
+  gameButtons.setStatus(`${detail} · AI ${strength}`);
+}
+
+function syncBoard() {
+  document.body.dataset.stoneCount = String(stoneCount());
+  scene.setStones(stonesFromGame(), winLineCells());
+  renderStatus();
+}
+
+function stopAi() {
+  aiGeneration++;
+  aiWorker?.terminate();
+  aiWorker = null;
+  aiPending = false;
+}
+
+function maybeAiTurn() {
+  if (game.winner || game.toMove === humanColor) return;
+  aiPending = true;
+  scene.setInputEnabled(false);
+  renderStatus();
+  const gen = ++aiGeneration;
+  const search = levelToSearchOptions(gameButtons.aiStrength!.getLevel());
+  document.body.dataset.lastAiDepth = String(search.maxDepth);
+  document.body.dataset.lastAiMaxNodes = String(search.maxNodes);
+  aiWorker = new Worker(new URL('./game/ai.worker.ts', import.meta.url), { type: 'module' });
+  aiWorker.onmessage = (event: MessageEvent<{ id: number; move: { type: 'place'; coord: { x: number; y: number } } | null }>) => {
+    if (event.data.id !== gen || gen !== aiGeneration) return;
+    aiWorker?.terminate();
+    aiWorker = null;
+    aiPending = false;
+    const move = event.data.move;
+    if (move && !game.winner) {
+      void playMove(move.coord.x, move.coord.y, false);
+    } else {
+      scene.setInputEnabled(true);
+      renderStatus();
+    }
+  };
+  aiWorker.postMessage({ id: gen, game, options: search });
+}
+
+async function playMove(col: number, row: number, isHuman: boolean) {
+  if (game.winner) return;
+  const idx = coordIndex({ x: col, y: row });
+  if (game.cells[idx]) return;
+  if (isHuman && (aiPending || game.toMove !== humanColor)) return;
+
+  scene.setInputEnabled(false);
+  const move = { type: 'place' as const, coord: { x: col, y: row } };
+  game = applyMove(game, move);
+  const placed = game.cells[idx]!;
+  const record: StoneRecord = {
+    id: `c-${col}-${row}`,
+    row,
+    col,
+    player: toScenePlayer(placed),
+  };
+  await scene.animateDrop(record);
+  syncBoard();
+  scene.setInputEnabled(!game.winner && game.toMove === humanColor && !aiPending);
+  if (!game.winner) maybeAiTurn();
+}
+
+const scene = createGomokuScene(board, {
+  theme,
+  onCellClick: (row, col) => void playMove(col, row, true),
+  canInteract: () => !aiPending && !game.winner && game.toMove === humanColor,
+  hoverPlayer: () => (game.winner || game.toMove !== humanColor ? null : toScenePlayer(humanColor)),
+});
+
+function startGame(color: Player) {
+  stopAi();
+  humanColor = color;
+  game = createGame();
+  syncBoard();
+  scene.setInputEnabled(true);
+  if (game.toMove !== humanColor) maybeAiTurn();
+}
+
+startGame('black');
