@@ -19,7 +19,7 @@ describe('boop pool layout', () => {
     const cols = new Set(a.map(c => c.col));
     expect(cols.size).toBe(3);
     expect(cols.has(-5)).toBe(true);
-    expect(cols.has(-2)).toBe(true);
+    expect(cols.has(-4)).toBe(true);
     expect(cols.has(-1)).toBe(true);
     for (const slot of a) {
       expect(cellIndex(BOOP_GRID, slot.row, slot.col, BOOP_OUTSIDE)).not.toBeNull();
