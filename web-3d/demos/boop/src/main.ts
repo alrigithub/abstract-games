@@ -24,7 +24,6 @@ const size = 6;
 const OUTSIDE_ROWS = 2;
 const cellTotal = (size + OUTSIDE_ROWS * 2) ** 2;
 const KITTENS_PER_PLAYER = 8;
-const CATS_PER_PLAYER = 3;
 
 const cat = createBoopCatGeometry();
 const kitten = createBoopKittenGeometry();
@@ -51,9 +50,7 @@ function fullSidePools(cells: EnginePiece[][]) {
   const leftCol = -2;
   const rightCol = size + 1;
   pushStack(cells, 3, leftCol, 'A', 'kitten', KITTENS_PER_PLAYER, 'pool-a-k');
-  pushStack(cells, 5, leftCol, 'A', 'cat', CATS_PER_PLAYER, 'pool-a-c');
   pushStack(cells, 3, rightCol, 'B', 'kitten', KITTENS_PER_PLAYER, 'pool-b-k');
-  pushStack(cells, 5, rightCol, 'B', 'cat', CATS_PER_PLAYER, 'pool-b-c');
 }
 
 /** Midgame layout for piece preview (initial view). */
