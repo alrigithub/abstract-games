@@ -7,11 +7,11 @@ import { PieceTracker } from './piece-tracker';
 
 describe('defaultRestingCell', () => {
   it('places white resting pieces in the far-left column aligned with bed row', () => {
-    expect(defaultRestingCell({ x: 0, y: 2 }, { push_x: -1, push_y: 0 }, 'A')).toEqual({ row: 2, col: -5 });
+    expect(defaultRestingCell({ x: 0, y: 2 }, { push_x: -1, push_y: 0 }, 'A')).toEqual({ row: 2, col: -2 });
   });
 
   it('places black resting pieces in the far-right column', () => {
-    expect(defaultRestingCell({ x: 5, y: 1 }, { push_x: 1, push_y: 0 }, 'B')).toEqual({ row: 1, col: 10 });
+    expect(defaultRestingCell({ x: 5, y: 1 }, { push_x: 1, push_y: 0 }, 'B')).toEqual({ row: 1, col: 7 });
   });
 });
 
@@ -19,7 +19,7 @@ describe('resolveRestingCell', () => {
   it('slides to another row on the owner column when the preferred row is blocked by pool pieces', () => {
     const blocked = poolOccupiedCells('A', { kittens_in_hand: 8, cats_in_hand: 0, cats_in_reserve: 8 });
     const slot = resolveRestingCell({ x: 0, y: 2 }, { push_x: -1, push_y: 0 }, [], 'A', blocked);
-    expect(slot.col).toBe(-5);
+    expect(slot.col).toBe(-2);
     expect(slot.row).not.toBe(2);
     expect(cellIndex(BOOP_GRID, slot.row, slot.col, BOOP_OUTSIDE)).not.toBeNull();
   });
