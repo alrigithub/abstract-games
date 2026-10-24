@@ -14,6 +14,8 @@ export const ANIMATION = {
   HORIZONTAL_DURATION: 60,
   /** Out cubic ease: `1 - (1 - t) ** 3` */
   easeOutCubic: (t: number) => 1 - (1 - t) ** 3,
+  /** Marker flip duration (ms), matched to Bevy Yinsh GUI. */
+  FLIP_DURATION: 500,
 } as const;
 
 export const INTERACTION = {

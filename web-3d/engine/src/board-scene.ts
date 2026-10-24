@@ -6,7 +6,16 @@ import { createContactShadowBlob } from './geometries/contact-shadow';
 import { decoratePieceMesh, makePieceShadow } from './geometries/piece-outlines';
 import { stackHeight } from './stack';
 import { themeTokens, type ThemeId } from './theme';
-import type { BoardSnapshot, InteractionView, PieceGeometrySet, Point, ReservePick, SceneApi, Topology } from './types';
+import type {
+  BoardSnapshot,
+  EnginePiece,
+  InteractionView,
+  PieceGeometrySet,
+  Point,
+  ReservePick,
+  SceneApi,
+  Topology,
+} from './types';
 
 const EMPTY_VIEW: InteractionView = { selection: null, dragging: false, pointer: null, origin: null, target: null, progress: 0 };
 
@@ -24,6 +33,11 @@ interface PieceObject {
   horizontalStarted: number;
   horizontalFrom: THREE.Vector2;
   horizontalTo: THREE.Vector2;
+  flipFromX: number;
+  flipToX: number;
+  flipStarted: number;
+  flipDuration: number;
+  flipSwapped: boolean;
 }
 
 export interface BoardSceneOptions {
@@ -105,6 +119,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const height = (piece: { shape: string; id: string }) => options.pieces.height(piece as never);
   const geometry = (piece: { shape: string }) => options.pieces.geometry(piece as never);
   const pieceYaw = (id: string) => options.pieces.yaw(id);
+  const verticalOffset = (piece: EnginePiece, stackIndex: number, stack: EnginePiece[]) =>
+    options.pieces.verticalOffset?.(piece, stackIndex, stack) ?? 0;
 
   const boardGeometries: THREE.BufferGeometry[] = [];
   const reserveTargets = new Map<string, THREE.Mesh>();
@@ -167,8 +183,24 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         item.mesh.position.z = THREE.MathUtils.lerp(item.horizontalFrom.y, item.horizontalTo.y, eased);
         if (horizontalT < 1) animated = true;
       }
+      if (item.flipDuration > 0) {
+        const flipT = reducedMotion.matches
+          ? 1
+          : Math.min(1, Math.max(0, (now - item.flipStarted) / item.flipDuration));
+        const easedFlip = ANIMATION.easeOutCubic(flipT);
+        item.mesh.rotation.x = THREE.MathUtils.lerp(item.flipFromX, item.flipToX, easedFlip);
+        if (!item.flipSwapped && flipT >= 0.5) {
+          item.flipSwapped = true;
+          const player = (item.mesh.userData.player as string) === 'A' ? 'B' : 'A';
+          item.mesh.userData.player = player;
+          item.mesh.material = pieceMaterials[player] ?? pieceMaterials.A!;
+        }
+        if (flipT < 1) animated = true;
+        else item.flipDuration = 0;
+      }
       item.shadow.position.x = item.mesh.position.x;
       item.shadow.position.z = item.mesh.position.z;
+      item.shadow.rotation.x = item.mesh.rotation.x;
       if (t < 1) animated = true;
     }
     renderer.render(scene, camera);
@@ -319,9 +351,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     }
     framed = true;
     camera.updateMatrixWorld();
-    const points: THREE.Vector3[] = [];
-    const half = size / 2 + 0.04;
-    for (const x of [-half, half]) for (const z of [-half, half]) points.push(new THREE.Vector3(x, 0, z));
+    const points: THREE.Vector3[] = options.topology.frameCorners?.(snapshot) ?? [];
+    if (!points.length) {
+      const half = size / 2 + 0.04;
+      for (const x of [-half, half]) for (const z of [-half, half]) points.push(new THREE.Vector3(x, 0, z));
+    }
     for (const slot of snapshot.reserves ?? []) {
       const top = stackHeight(Array.from({ length: slot.count }, () => ({ shape: slot.shape, id: 'x', player: slot.player })), p => height(p as never)) + 0.025;
       for (const dx of [-0.43, 0.43]) for (const dz of [-0.43, 0.43]) {
@@ -352,6 +386,19 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     for (const geo of boardGeometries) geo.dispose();
     boardGeometries.length = 0;
     const size = options.gridSize;
+    if (
+      options.topology.buildBoard?.({
+        board,
+        boardMaterial,
+        gridMaterial,
+        boardGeometries,
+        gridSize: size,
+      })
+    ) {
+      buildPiles();
+      requestRender();
+      return;
+    }
     const slab = new THREE.BoxGeometry(size, BOARD.SLAB, size);
     boardGeometries.push(slab);
     const slabMesh = new THREE.Mesh(slab, boardMaterial);
@@ -575,10 +622,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     snapshot.cells.forEach((stack, index) => {
       const position = cellPosition(index);
       let y = ANIMATION.FLOOR;
-      for (const piece of stack) {
+      stack.forEach((piece, stackIndex) => {
         present.add(piece.id);
         const h = height(piece as never);
-        const destination = new THREE.Vector3(position.x, y + h / 2, position.z);
+        const yOffset = verticalOffset(piece, stackIndex, stack);
+        const destination = new THREE.Vector3(position.x, y + h / 2 + yOffset, position.z);
         let item = objects.get(piece.id);
         if (!item) {
           const mesh = decoratePieceMesh(
@@ -589,9 +637,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
           );
           mesh.position.copy(destination);
           mesh.rotation.y = pieceYaw(piece.id);
+          if (piece.shape === 'marker') mesh.rotation.x = piece.player === 'B' ? Math.PI : 0;
           mesh.userData.pieceId = piece.id;
           mesh.userData.cellIndex = index;
           mesh.userData.player = piece.player;
+          mesh.userData.shape = piece.shape;
           piecesGroup.add(mesh);
           item = {
             mesh,
@@ -607,8 +657,14 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
             horizontalStarted: 0,
             horizontalFrom: new THREE.Vector2(mesh.position.x, mesh.position.z),
             horizontalTo: new THREE.Vector2(mesh.position.x, mesh.position.z),
+            flipFromX: 0,
+            flipToX: 0,
+            flipStarted: 0,
+            flipDuration: 0,
+            flipSwapped: false,
           };
           item.shadow.rotation.y = pieceYaw(piece.id);
+          if (piece.shape === 'marker') item.shadow.rotation.x = mesh.rotation.x;
           objects.set(piece.id, item);
         }
         item.pieceId = piece.id;
@@ -617,10 +673,17 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
           item.shadow.geometry = geometry(piece as never);
           decoratePieceMesh(item.mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache);
         }
+        item.mesh.userData.player = piece.player;
+        item.mesh.material = pieceMaterials[piece.player] ?? pieceMaterials.A!;
+        if (piece.shape === 'marker' && item.flipDuration <= 0) {
+          const targetX = piece.player === 'B' ? Math.PI : 0;
+          if (Math.abs(item.mesh.rotation.x - targetX) > 0.05) item.mesh.rotation.x = targetX;
+          item.shadow.rotation.x = item.mesh.rotation.x;
+        }
         item.mesh.userData.cellIndex = index;
         item.position.copy(destination);
         y += h;
-      }
+      });
     });
     for (const [id, item] of objects) {
       if (!present.has(id)) {
@@ -650,6 +713,36 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   resizeObserver.observe(container);
   buildBoard();
   fit();
+
+  async function runFlipPiece(pieceId: string) {
+    const item = objects.get(pieceId);
+    if (!item || item.mesh.userData.shape !== 'marker') return;
+    item.flipFromX = item.mesh.rotation.x;
+    item.flipToX = item.mesh.rotation.x + Math.PI;
+    item.flipStarted = performance.now();
+    item.flipDuration = reducedMotion.matches ? 0 : ANIMATION.FLIP_DURATION;
+    item.flipSwapped = false;
+    requestRender();
+    if (item.flipDuration <= 0) {
+      item.mesh.rotation.x = item.flipToX;
+      const player = (item.mesh.userData.player as string) === 'A' ? 'B' : 'A';
+      item.mesh.userData.player = player;
+      item.mesh.material = pieceMaterials[player] ?? pieceMaterials.A!;
+      item.shadow.rotation.x = item.mesh.rotation.x;
+      return;
+    }
+    await new Promise<void>(done => {
+      const wait = () => {
+        if (item.flipDuration <= 0) {
+          item.shadow.rotation.x = item.mesh.rotation.x;
+          done();
+          return;
+        }
+        requestAnimationFrame(wait);
+      };
+      wait();
+    });
+  }
 
   return {
     setSnapshot,
@@ -698,6 +791,25 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     },
     enqueueAnimation(task) {
       void animQueue.enqueue(task);
+    },
+    flipPiece(pieceId) {
+      return new Promise<void>(resolve => {
+        void animQueue.enqueue(async () => {
+          await runFlipPiece(pieceId);
+          resolve();
+        });
+      });
+    },
+    flipPieces(pieceIds, staggerMs = 80) {
+      return new Promise<void>(resolve => {
+        void animQueue.enqueue(async () => {
+          for (let i = 0; i < pieceIds.length; i++) {
+            if (i > 0 && staggerMs > 0) await new Promise(r => setTimeout(r, staggerMs));
+            await runFlipPiece(pieceIds[i]!);
+          }
+          resolve();
+        });
+      });
     },
     dispose() {
       disposed = true;
