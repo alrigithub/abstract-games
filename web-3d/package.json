@@ -1,0 +1,20 @@
+{
+  "name": "abstract-web-3d",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "engine",
+    "tak",
+    "demos/gomoku",
+    "demos/boop"
+  ],
+  "scripts": {
+    "test": "npm run test -w @abstract/three-engine",
+    "test:e2e": "playwright test",
+    "build": "npm run build -w @abstract/three-engine && npm run build -w tak-3d && npm run build -w gomoku-3d-demo && npm run build -w boop-3d-demo"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.1",
+    "typescript": "^5.9.3"
+  }
+}
