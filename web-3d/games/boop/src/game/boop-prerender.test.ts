@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { BOOP_PRERENDER_MANIFEST as manifest, batchBoopColumns, createBoopPrerenderTopology } from './boop-prerender';
+import { BOOP_PRERENDER_MANIFEST as manifest, batchBoopColumns, createBoopPrerenderTopology, createBoopGroundGeometry } from './boop-prerender';
 import type { BoardSnapshot } from '@abstract/three-engine';
 
 const snapshot: BoardSnapshot = { cells: [], cellCount: 324, playableCells: 36 };
@@ -26,7 +26,9 @@ describe('Boop Blender grid registration', () => {
   it('matches all 36 source cells exactly and picks the displaced cells at their own centers', () => {
     const topology = createBoopPrerenderTopology({ size: 6, outsideRows: 6 }, new THREE.Group());
     expect(manifest.referenceCellCount).toBe(36);
-    expect(manifest.maxSourceAlignmentError).toBeLessThan(1e-5);
+    // The saved arena intentionally moves some tiles relative to the original
+    // reference. Placement and picking must match those exported centers.
+    expect(manifest.maxSourceAlignmentError).toBeGreaterThan(0);
     const indices = new Set<number>();
     for (const cell of manifest.cells) {
       const index = cell.row * 6 + cell.col;
@@ -45,5 +47,17 @@ describe('Boop Blender grid registration', () => {
     expect(index).not.toBeNull();
     if (index === null) throw new Error('Missing pool cell');
     expect(topology.cellPosition(index, snapshot).toArray()).toEqual([-5.5, 0, -2.5]);
+  });
+  it('leaves the zero-height ground open over the lowered arena', () => {
+    const mesh = new THREE.Mesh(createBoopGroundGeometry(30), new THREE.MeshBasicMaterial());
+    mesh.updateMatrixWorld(true);
+    const cut = manifest.groundCutout;
+    function surface(x: number, z: number) {
+      const ray = new THREE.Raycaster(new THREE.Vector3(x, 2, z), new THREE.Vector3(0, -1, 0));
+      return ray.intersectObject(mesh)[0]?.point.y;
+    }
+    expect(surface((cut.minX + cut.maxX) / 2, (cut.minZ + cut.maxZ) / 2)).toBeCloseTo(cut.floorY);
+    expect(surface(cut.maxX + 1, 0)).toBeCloseTo(0);
+    mesh.geometry.dispose();
   });
 });

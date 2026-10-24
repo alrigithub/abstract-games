@@ -6,6 +6,28 @@ import { loadBoopShadowGeometry } from './boop-stone-cats';
 
 export const BOOP_PRERENDER_MANIFEST = manifest;
 
+/** Match the invisible depth/shadow floor to Blender's actual arena opening. */
+export function createBoopGroundGeometry(size: number): THREE.BufferGeometry {
+  const cut = manifest.groundCutout;
+  const half = size / 2;
+  const parts: THREE.BufferGeometry[] = [];
+  function rectangle(x0: number, x1: number, z0: number, z1: number, y = 0) {
+    const plane = new THREE.PlaneGeometry(x1 - x0, z1 - z0);
+    plane.rotateX(-Math.PI / 2);
+    plane.translate((x0 + x1) / 2, y, (z0 + z1) / 2);
+    parts.push(plane);
+  }
+  rectangle(-half, half, -half, cut.minZ);
+  rectangle(-half, half, cut.maxZ, half);
+  rectangle(-half, cut.minX, cut.minZ, cut.maxZ);
+  rectangle(cut.maxX, half, cut.minZ, cut.maxZ);
+  rectangle(cut.minX, cut.maxX, cut.minZ, cut.maxZ, cut.floorY);
+  const geometry = mergeGeometries(parts);
+  parts.forEach(part => part.dispose());
+  if (!geometry) throw new Error('Could not create recessed Boop ground');
+  return geometry;
+}
+
 function asset(name: string): string {
   return `${import.meta.env.BASE_URL}prerender/${name}`;
 }
@@ -83,6 +105,13 @@ export function createBoopPrerenderTopology(options: SquareGridOptions, columns:
       return outside !== null && outside >= 36 ? outside : null;
     },
     buildBoard(ctx) {
+      for (const child of ctx.board.children) {
+        if (!(child instanceof THREE.Mesh) || !child.userData.playfieldGround) continue;
+        child.geometry.computeBoundingBox();
+        const box = child.geometry.boundingBox!;
+        child.geometry = createBoopGroundGeometry(box.max.x - box.min.x);
+        ctx.boardGeometries.push(child.geometry);
+      }
       ctx.board.add(columns.clone(true));
       // Two batched low-poly surfaces provide depth/AO and live shadows over the image.
       const parts = manifest.cells.map(c => {
