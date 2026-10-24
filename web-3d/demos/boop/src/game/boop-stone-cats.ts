@@ -37,13 +37,15 @@ function kittenFileCandidates(player: PlayerId): string[] {
 
 export type StoneCatVariant = 'cat' | 'kitten';
 
+/** Full GLB hierarchy for display (PBR materials intact); baked geo for contact shadows only. */
 interface StoneTemplate {
-  geometry: THREE.BufferGeometry;
-  material: THREE.Material;
+  visual: THREE.Object3D;
+  shadowGeometry: THREE.BufferGeometry;
   height: number;
 }
 
 const loader = new GLTFLoader();
+const _box = new THREE.Box3();
 
 function loadGltfScene(url: string): Promise<THREE.Group> {
   return new Promise((resolve, reject) => {
@@ -71,11 +73,37 @@ function collectMeshes(root: THREE.Object3D): THREE.Mesh[] {
   return meshes;
 }
 
-/**
- * Bake full node hierarchy (scale + transforms) into one geometry; Y-up, floor at y=0.
- * If the authored mesh is lying (thinnest axis is Y), rotate upright before anchoring.
- */
-function bakeSceneToFloorGeometry(root: THREE.Object3D): StoneTemplate {
+function uprightIfNeeded(object: THREE.Object3D): void {
+  object.updateMatrixWorld(true);
+  _box.setFromObject(object);
+  const size = new THREE.Vector3();
+  _box.getSize(size);
+  if (size.y <= Math.min(size.x, size.z) * 0.85) {
+    object.rotation.x = -Math.PI / 2;
+    object.updateMatrixWorld(true);
+  }
+}
+
+/** Floor at y=0, centre on XZ (authored base-centre). */
+function anchorObjectBaseToFloor(object: THREE.Object3D): void {
+  object.updateMatrixWorld(true);
+  _box.setFromObject(object);
+  if (!Number.isFinite(_box.min.y)) return;
+  const cx = (_box.min.x + _box.max.x) / 2;
+  const cz = (_box.min.z + _box.max.z) / 2;
+  object.position.x -= cx;
+  object.position.z -= cz;
+  object.position.y -= _box.min.y;
+  object.updateMatrixWorld(true);
+}
+
+function measureHeight(object: THREE.Object3D): number {
+  _box.setFromObject(object);
+  return _box.max.y - _box.min.y;
+}
+
+/** World-space merge for shadow meshes only (not used for the visible piece). */
+function bakeShadowGeometry(root: THREE.Object3D): THREE.BufferGeometry {
   root.updateMatrixWorld(true);
   const meshes = collectMeshes(root);
   if (!meshes.length) throw new Error('No mesh in gltf scene');
@@ -104,27 +132,25 @@ function bakeSceneToFloorGeometry(root: THREE.Object3D): StoneTemplate {
   const cz = (box.min.z + box.max.z) / 2;
   geometry.translate(-cx, -box.min.y, -cz);
   geometry.computeVertexNormals();
-  geometry.computeBoundingBox();
-  const height = geometry.boundingBox!.max.y - geometry.boundingBox!.min.y;
-
-  const sourceMat = meshes[0]!.material;
-  const material = (Array.isArray(sourceMat) ? sourceMat[0] : sourceMat).clone();
-
-  return { geometry, material, height };
+  return geometry;
 }
 
 function xzExtent(root: THREE.Object3D): number {
-  const box = new THREE.Box3().setFromObject(root);
+  _box.setFromObject(root);
   const size = new THREE.Vector3();
-  box.getSize(size);
+  _box.getSize(size);
   return Math.max(size.x, size.z);
 }
 
-function prepareFromScene(scene: THREE.Group, worldScale: number): StoneTemplate {
-  const clone = scene.clone(true);
-  clone.scale.setScalar(worldScale);
-  clone.updateMatrixWorld(true);
-  return bakeSceneToFloorGeometry(clone);
+function prepareVisualTemplate(scene: THREE.Group, worldScale: number): StoneTemplate {
+  const visual = scene.clone(true);
+  visual.scale.setScalar(worldScale);
+  visual.updateMatrixWorld(true);
+  uprightIfNeeded(visual);
+  anchorObjectBaseToFloor(visual);
+  const height = measureHeight(visual);
+  const shadowGeometry = bakeShadowGeometry(visual.clone(true));
+  return { visual, shadowGeometry, height };
 }
 
 async function loadVariantTemplate(
@@ -134,7 +160,7 @@ async function loadVariantTemplate(
 ): Promise<StoneTemplate> {
   const names = variant === 'kitten' ? kittenFileCandidates(player) : catFileCandidates(player);
   const scene = await loadFirstGltf(names);
-  return prepareFromScene(scene, scale);
+  return prepareVisualTemplate(scene, scale);
 }
 
 async function loadTemplates(): Promise<Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>> {
@@ -164,15 +190,14 @@ function resolveTemplate(
   return templates[player][variant];
 }
 
-function mountVisual(root: THREE.Group, template: StoneTemplate) {
+function mountModel(root: THREE.Group, model: THREE.Object3D) {
   root.clear();
-  const mesh = new THREE.Mesh(template.geometry, template.material.clone());
-  root.add(mesh);
+  root.add(model);
   root.rotation.y = BOOP_STONE_CAT_YAW;
 }
 
 function createStonePieceSet(templates: Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>): PieceGeometrySet {
-  const geometryFor = (piece: EnginePiece) => resolveTemplate(templates, piece).geometry;
+  const geometryFor = (piece: EnginePiece) => resolveTemplate(templates, piece).shadowGeometry;
   const heightFor = (piece: EnginePiece) => resolveTemplate(templates, piece).height;
   const templateFor = (piece: EnginePiece) => resolveTemplate(templates, piece);
 
@@ -185,14 +210,15 @@ function createStonePieceSet(templates: Record<PlayerId, Record<StoneCatVariant,
     yaw: () => BOOP_STONE_CAT_YAW,
     edgeThreshold: BOARD.EDGE_THRESHOLD_BOOP,
     useOutline: () => false,
+    /** Keep embedded GLB PBR materials; board IBL supplies lighting (see engine applyBoardEnvironment). */
     materialFor: () => null,
     createVisual(piece: EnginePiece) {
       const root = new THREE.Group();
-      mountVisual(root, templateFor(piece));
+      mountModel(root, templateFor(piece).visual.clone(true));
       return root;
     },
     replaceVisual(root: THREE.Object3D, piece: EnginePiece) {
-      mountVisual(root as THREE.Group, templateFor(piece));
+      mountModel(root as THREE.Group, templateFor(piece).visual.clone(true));
     },
   };
 }
