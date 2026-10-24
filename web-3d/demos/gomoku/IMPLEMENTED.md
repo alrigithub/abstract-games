@@ -10,9 +10,9 @@ World scale: **1 unit = one intersection spacing** (~40 mm). Board slab **0.25**
 | Grid line width | 0.018 | |
 | Star point (hoshi) radius | 0.055 | Five points on 15×15 |
 | Go stone max radius | 0.47 | |
-| Go stone height | 0.21 | Biconvex lens |
-| Stone center Y (rest) | 0.105 | `height / 2`, bottom on board surface y=0 |
-| Contact shadow Y | 0.003 | Flattened stone mesh under stone |
+| Go stone height | 0.21 | Biconvex lens (geometry unchanged) |
+| Stone center Y (rest) | 0.0525 | `STONE_H/2 − 0.25×STONE_H` (seated 25% lower) |
+| Contact shadow Y | 0.003 | Flattened stone mesh on board surface |
 
 Star points (row, col), 0-based: (3,3), (3,11), (7,7), (11,3), (11,11).
 

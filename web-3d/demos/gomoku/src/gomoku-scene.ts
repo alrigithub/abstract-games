@@ -10,7 +10,7 @@ import {
   createGomokuStoneGeometry,
   gomokuCellWorld,
   gomokuHoshiPoints,
-  gomokuStoneCenterY,
+  gomokuStoneRestCenterY,
   gomokuThemeMaterials,
   makePieceShadow,
   type CameraViewController,
@@ -55,7 +55,8 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
 
   const size = GOMOKU_DIMS.GRID;
   const stoneGeo = createGomokuStoneGeometry();
-  const restY = gomokuStoneCenterY();
+  const restY = gomokuStoneRestCenterY();
+  const dropLift = GOMOKU_DIMS.STONE_H * 2;
   const shadowY = 0.003;
 
   const scene = new THREE.Scene();
@@ -368,13 +369,13 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
       updateGhost(row, col, player);
     },
     animateDrop(stone: StoneRecord) {
-      const mesh = upsertStone(stone, restY + 0.42);
+      const mesh = upsertStone(stone, restY + dropLift);
       const shadow = mesh.userData.shadow as THREE.Mesh;
       const start = performance.now();
       return new Promise<void>(resolve => {
         const tick = (now: number) => {
           const t = easeOutCubic(Math.min(1, (now - start) / DROP_MS));
-          const y = THREE.MathUtils.lerp(restY + 0.42, restY, t);
+          const y = THREE.MathUtils.lerp(restY + dropLift, restY, t);
           mesh.position.y = y;
           shadow.position.y = shadowY;
           requestRender();
