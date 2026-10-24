@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BOARD } from './constants';
+import { BOARD, CLAY } from './constants';
 import { expandBoxByPlayfieldContent, tagExcludeFromBounds } from './playfield-bounds';
 import { PLAYFIELD_GROUND_USER_DATA } from './playfield-ground';
 import { themeTokens, type ThemeId } from './theme';
@@ -40,7 +40,7 @@ function applyShadowMapSettings(light: THREE.DirectionalLight, size: number) {
   light.shadow.mapSize.set(size, size);
   light.shadow.bias = -0.00015;
   light.shadow.normalBias = 0.004;
-  light.shadow.radius = 1.25;
+  light.shadow.radius = 2.15;
 }
 
 function fillBoxCorners(box: THREE.Box3, out: THREE.Vector3[]) {
@@ -96,7 +96,7 @@ export function applyBoardLighting(
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const pieceHeightMargin = options.pieceHeightMargin ?? 1.35;
-  const light = new THREE.DirectionalLight(0xffffff, 1.05);
+  const light = new THREE.DirectionalLight(CLAY.KEY_LIGHT_COLOR, CLAY.KEY_LIGHT_INTENSITY);
   light.position.set(7, 11, -8);
   light.castShadow = true;
   applyShadowMapSettings(light, chooseShadowMapSize());
@@ -123,7 +123,7 @@ export function applyBoardLighting(
     const ground = surface.clone().multiplyScalar(0.62);
     hemisphere.color.copy(sky);
     hemisphere.groundColor.copy(ground);
-    hemisphere.intensity = themeId === 'light' ? 0.34 : 0.26;
+    hemisphere.intensity = themeId === 'light' ? 0.22 : 0.18;
   }
   syncThemeAmbientFill('light');
 
@@ -194,7 +194,7 @@ export function setMeshShadowFlags(
 }
 
 /** Drop-shadow strength on unlit (MeshBasic) boards. */
-export const PIECE_DROP_SHADOW_OPACITY = 0.35;
+export const PIECE_DROP_SHADOW_OPACITY = 0.42;
 
 function createPlayfieldShadowCatcher(): THREE.Mesh {
   const catcher = new THREE.Mesh(

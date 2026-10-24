@@ -8,6 +8,7 @@ import {
   applyBoardLighting,
   fitPlayfieldShadowCatcher,
   syncSceneShadowCatcher,
+  createBoardRenderPipeline,
   createBoardWebGLRenderer,
   createCameraViewController,
   applyPlayfieldBackdrop,
@@ -87,6 +88,7 @@ export async function createGomokuScene(
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
   camera.position.set(...CAMERA.position);
   camera.lookAt(0, 0, 0);
+  const renderPipeline = createBoardRenderPipeline(renderer, scene, camera);
   const orbitTarget = new THREE.Vector3(0, 0, 0);
 
   const boardGroup = new THREE.Group();
@@ -182,7 +184,7 @@ export async function createGomokuScene(
   function render(now = performance.now()) {
     if (disposed) return;
     winGlow.tick(now);
-    renderer.render(scene, camera);
+    renderPipeline.render();
   }
 
   function stopPulseLoop() {
@@ -288,7 +290,7 @@ export async function createGomokuScene(
     const bounds = container.getBoundingClientRect();
     viewportW = Math.max(1, bounds.width);
     viewportH = Math.max(1, bounds.height);
-    renderer.setSize(viewportW, viewportH, false);
+    renderPipeline.setSize(viewportW, viewportH);
     return viewportW / viewportH;
   }
 
@@ -325,7 +327,7 @@ export async function createGomokuScene(
 
   if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('bench')) {
     (window as unknown as { __benchOneFrame?: () => number }).__benchOneFrame = () =>
-      measureBoardFrameMs(renderer, scene, camera);
+      measureBoardFrameMs(renderer, scene, camera, () => renderPipeline.render());
   }
 
   const ro = new ResizeObserver(fit);
@@ -414,6 +416,7 @@ export async function createGomokuScene(
       ro.disconnect();
       controls.dispose();
       boardLighting.dispose();
+      renderPipeline.dispose();
       disposeEnvironment();
       renderer.domElement.removeEventListener('pointermove', onPointerMove);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);

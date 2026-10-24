@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { themeTokens, type ThemeId } from './theme';
 
-const ARENA_ROUGHNESS = 0.82;
+const ARENA_ROUGHNESS = 0.91;
 
 function retintStandardMaterial(source: THREE.Material, color: THREE.Color): THREE.Material {
   if (source instanceof THREE.MeshStandardMaterial || source instanceof THREE.MeshPhysicalMaterial) {

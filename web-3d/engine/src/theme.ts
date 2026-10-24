@@ -14,14 +14,14 @@ const PIECE_LIGHT = {
 
 /** Canonical light palette; dark theme is always derived via {@link invertThemeTokens}. */
 /** Warm off-white arena tiles in light mode (not pure #fff). */
-export const LIGHT_ARENA_SURFACE = '#e8e3da';
+export const LIGHT_ARENA_SURFACE = '#d8d2c8';
 
 /** Warm mid-grey slate for dark-mode arena (not colour-inverted white). */
 export const DARK_ARENA_SURFACE = '#5a5652';
 
 export const LIGHT_THEME_TOKENS: ThemeTokens = {
-  table: '#ffffff',
-  board: '#ffffff',
+  table: '#d4cec4',
+  board: '#dcd6cc',
   lines: '#5c564c',
   arenaSurface: LIGHT_ARENA_SURFACE,
   win: WIN_ACCENT,

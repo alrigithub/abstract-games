@@ -24,6 +24,7 @@ import {
   tagPieceForShadows,
   tagPlayfieldForShadows,
 } from './board-lighting';
+import { createBoardRenderPipeline } from './board-render-pipeline';
 import { applyBoardEnvironment, createBoardWebGLRenderer, measureBoardFrameMs } from './board-renderer';
 import { BoardAssistLayer, type AssistGhostPieceRenderer } from './board-assist';
 import { WIN_ACCENT } from './theme';
@@ -133,6 +134,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
   camera.position.set(...CAMERA.position);
   camera.lookAt(0, 0, 0);
+  const renderPipeline = createBoardRenderPipeline(renderer, scene, camera);
 
   const board = new THREE.Group();
   const piecesGroup = new THREE.Group();
@@ -477,7 +479,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       item.lastVertT = t;
     }
     const assistAnim = assistLayer.tick(now);
-    renderer.render(scene, camera);
+    renderPipeline.render();
     if (animated || assistAnim) requestRender();
   }
 
@@ -675,7 +677,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     if (nextBufferWidth !== bufferWidth || nextBufferHeight !== bufferHeight) {
       bufferWidth = nextBufferWidth;
       bufferHeight = nextBufferHeight;
-      renderer.setSize(bufferWidth, bufferHeight, false);
+      renderPipeline.setSize(bufferWidth, bufferHeight);
     }
     return width / viewportHeight;
   }
@@ -1235,6 +1237,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       window.removeEventListener('pointercancel', onPointerRelease);
       controls.dispose();
       disposeEnvironment();
+      renderPipeline.dispose();
       boardLighting.dispose();
       assistLayer.dispose();
       flipHaloMaterial.dispose();
@@ -1245,7 +1248,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
 
   if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('bench')) {
     (window as unknown as { __benchOneFrame?: () => number }).__benchOneFrame = () =>
-      measureBoardFrameMs(renderer, scene, camera);
+      measureBoardFrameMs(renderer, scene, camera, () => renderPipeline.render());
   }
   return api;
 }

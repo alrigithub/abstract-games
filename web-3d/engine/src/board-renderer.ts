@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { BOARD } from './constants';
+import { BOARD, CLAY } from './constants';
 
 /**
- * Shared unlit board rendering: sRGB output, no tone mapping, pixel ratio 1.
- * MeshBasic board/piece materials stay unlit. PBR GLBs use {@link applyBoardEnvironment}.
+ * Shared board rendering: sRGB output, AgX tone mapping, pixel ratio 1.
+ * PBR GLBs use {@link applyBoardEnvironment}; optional N8AO via {@link createBoardRenderPipeline}.
  */
 export function createBoardWebGLRenderer(): THREE.WebGLRenderer {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
@@ -15,7 +15,8 @@ export function createBoardWebGLRenderer(): THREE.WebGLRenderer {
 export function configureBoardWebGLRenderer(renderer: THREE.WebGLRenderer): void {
   renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.toneMapping = THREE.AgXToneMapping;
+  renderer.toneMappingExposure = CLAY.TONE_MAPPING_EXPOSURE;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.domElement.setAttribute('aria-hidden', 'true');
@@ -27,9 +28,10 @@ export function measureBoardFrameMs(
   renderer: THREE.WebGLRenderer,
   scene: THREE.Scene,
   camera: THREE.Camera,
+  renderFrame: () => void = () => renderer.render(scene, camera),
 ): number {
   const t0 = performance.now();
-  renderer.render(scene, camera);
+  renderFrame();
   return performance.now() - t0;
 }
 

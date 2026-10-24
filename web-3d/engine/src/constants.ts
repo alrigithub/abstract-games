@@ -56,9 +56,24 @@ export const BOARD = {
    * Shared IBL strength for PBR GLBs ({@link applyBoardEnvironment}).
    * MeshBasic board/piece materials ignore this.
    */
-  ENVIRONMENT_INTENSITY: 0.72,
+  ENVIRONMENT_INTENSITY: 0.4,
   /** Decal under pieces (complements shadow maps). */
   PIECE_CONTACT_SHADOW_OPACITY: 0.24,
+} as const;
+
+/** Central tuning for the shared clay / maquette look (tone map, AO, key light). */
+export const CLAY = {
+  TONE_MAPPING_EXPOSURE: 0.82,
+  AO_ENABLED: true,
+  AO_QUALITY: 'Performance' as const,
+  AO_HALF_RES: true,
+  AO_INTENSITY: 3.35,
+  AO_RADIUS: 2.65,
+  AO_DISTANCE_FALLOFF: 1.05,
+  KEY_LIGHT_INTENSITY: 0.78,
+  KEY_LIGHT_COLOR: 0xfff6ee,
+  /** Scene background / fog vs playfield table (cyclorama falloff). */
+  BACKDROP_DARKEN: 0.9,
 } as const;
 
 export const CAMERA = {
