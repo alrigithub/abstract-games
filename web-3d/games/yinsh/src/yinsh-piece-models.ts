@@ -5,6 +5,7 @@ import {
   createYinshRingGeometry,
   yinshPieceGeometrySet,
   type EnginePiece,
+  applyClayPieceMaterials,
   applyGhostOpacity,
   clonePieceVisualTemplate,
   loadGltfAsync,
@@ -79,17 +80,10 @@ function modelUrl(path: string): string {
   return new URL(`${prefix}${path}`, origin).href;
 }
 
-function configureStoneMeshes(object: THREE.Object3D, shape: ShapeKey): void {
+function configureStoneRenderOrder(object: THREE.Object3D, shape: ShapeKey): void {
   object.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;
     node.renderOrder = shape === 'marker' ? 2 : 1;
-    const mats = Array.isArray(node.material) ? node.material : [node.material];
-    for (const mat of mats) {
-      if (!(mat instanceof THREE.MeshStandardMaterial)) continue;
-      if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
-      if (mat.normalMap) mat.normalMap.colorSpace = THREE.LinearSRGBColorSpace;
-      mat.envMapIntensity = 1;
-    }
   });
 }
 
@@ -109,7 +103,7 @@ function prepareTemplate(scene: THREE.Object3D, shape: ShapeKey): THREE.Object3D
   root.scale.setScalar(YINSH_GLB_WORLD_SCALE);
   root.updateMatrixWorld(true);
   anchorObjectBaseToY0(root);
-  configureStoneMeshes(root, shape);
+  configureStoneRenderOrder(root, shape);
   return root;
 }
 
@@ -130,6 +124,10 @@ async function buildTemplates(): Promise<YinshTemplates> {
     loadScene(modelUrl(MODEL.markerWhite)),
     loadScene(modelUrl(MODEL.markerBlack)),
   ]);
+  applyClayPieceMaterials(ringWhite, 'light');
+  applyClayPieceMaterials(ringBlack, 'dark');
+  applyClayPieceMaterials(markerWhite, 'light');
+  applyClayPieceMaterials(markerBlack, 'dark');
   const ring = { A: prepareTemplate(ringWhite, 'ring'), B: prepareTemplate(ringBlack, 'ring') };
   const marker = { A: prepareTemplate(markerWhite, 'marker'), B: prepareTemplate(markerBlack, 'marker') };
   return {
@@ -163,7 +161,7 @@ function buildAssistGhostVisual(
   if (!shape) return null;
   const piece: EnginePiece = { id: 'assist-ghost', player: hint.player, shape };
   const model = clonePieceVisualTemplate(templateFor(templates, piece));
-  configureStoneMeshes(model, shape === 'marker' ? 'marker' : 'ring');
+  configureStoneRenderOrder(model, shape === 'marker' ? 'marker' : 'ring');
   applyGhostOpacity(model, 0.5);
   const root = new THREE.Group();
   mountModel(root, model);
@@ -200,14 +198,14 @@ export async function loadYinshPieceGeometrySet(): Promise<PieceGeometrySet> {
         const root = new THREE.Group();
         const shape = piece.shape === 'marker' ? 'marker' : 'ring';
         const model = clonePieceVisualTemplate(templateFor(templates, piece));
-        configureStoneMeshes(model, shape);
+        configureStoneRenderOrder(model, shape);
         mountModel(root, model);
         return root;
       },
       replaceVisual(root, piece) {
         const shape = piece.shape === 'marker' ? 'marker' : 'ring';
         const model = clonePieceVisualTemplate(templateFor(templates, piece));
-        configureStoneMeshes(model, shape);
+        configureStoneRenderOrder(model, shape);
         mountModel(root as THREE.Group, model);
       },
       onThemeChange(id) {

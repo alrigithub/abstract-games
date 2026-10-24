@@ -11,9 +11,9 @@ import {
 import * as THREE from 'three';
 import { PropertyBinding } from 'three';
 
-/** Verified SHA-256 of the meshopt-compressed arena in `public/models/`. */
+/** Verified SHA-256 of the arena GLB in `public/models/`. */
 export const GOMOKU_ARENA_GLB_SHA256 =
-  'c9039302c8ae352efd8a1ed3aaa28b8587a4168a8d7fa46f2a1e849e1681e6fa';
+  '2ab55d328aad294079aae72baa8149a97c3c146ee43cb3eaee4f58a42d2bf101';
 export const GOMOKU_ARENA_GLB_FILE = 'arena-15x15-white-150mm.glb';
 
 /** Real-world tile pitch (150 mm) mapped to one world unit per intersection. */

@@ -78,6 +78,8 @@ describe('demo lighting guard', () => {
     const lightingSrc = readFileSync(path.join(engineDir, 'board-lighting.ts'), 'utf8');
     expect(rendererSrc).toMatch(/shadowMap\.enabled = true/);
     expect(rendererSrc).toMatch(/PCFSoftShadowMap/);
+    expect(rendererSrc).toMatch(/AgXToneMapping/);
+    expect(rendererSrc).toMatch(/toneMappingExposure/);
     expect(rendererSrc).toMatch(/export function applyBoardEnvironment/);
     expect(rendererSrc).toMatch(/new RoomEnvironment/);
     expect(rendererSrc).toMatch(/new THREE\.PMREMGenerator/);
@@ -87,7 +89,7 @@ describe('demo lighting guard', () => {
     expect(lightingSrc).toMatch(/HemisphereLight/);
     expect(lightingSrc).toMatch(/Math\.SQRT2/);
     expect(sceneSrc).toMatch(/applyBoardEnvironment\(scene, renderer\)/);
-    expect(sceneSrc).toMatch(/applyBoardLighting\(scene, renderer\)/);
+    expect(sceneSrc).toMatch(/applyBoardLighting\(scene, renderer/);
     expect(sceneSrc).toMatch(/disposeEnvironment\(\)/);
     expect(BOARD.ENVIRONMENT_INTENSITY).toBeGreaterThan(0);
     expect(BOARD.ENVIRONMENT_INTENSITY).toBeLessThanOrEqual(2);

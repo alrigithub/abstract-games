@@ -6,6 +6,7 @@ import {
   heightFromBoundingBox,
   takPieceGeometrySet,
   type EnginePiece,
+  applyClayPieceMaterials,
   clonePieceVisualTemplate,
   loadGltfAsync,
   pieceGlbSideForPlayer,
@@ -83,6 +84,8 @@ async function buildTemplates(): Promise<TakTemplates> {
     loadScene(modelUrl(MODEL.capWhite)),
     loadScene(modelUrl(MODEL.capBlack)),
   ]);
+  for (const scene of [flatWhite, uprightWhite, capWhite]) applyClayPieceMaterials(scene, 'light');
+  for (const scene of [flatBlack, uprightBlack, capBlack]) applyClayPieceMaterials(scene, 'dark');
   const flat = { A: prepareTemplate(flatWhite), B: prepareTemplate(flatBlack) };
   const capstone = { A: prepareTemplate(capWhite), B: prepareTemplate(capBlack) };
   const standing = { A: prepareTemplate(uprightWhite), B: prepareTemplate(uprightBlack) };

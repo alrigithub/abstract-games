@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BOARD } from '../constants';
+import { clayMaterialForPlayer } from '../clay-materials';
 import type { EnginePiece, PieceBuildContext, PieceGeometrySet, ThemeTokens } from '../types';
 import { anchorGeometryBaseToY0 } from './anchor';
 import {
@@ -88,22 +89,30 @@ export function createYinshMarkerMesh(player: string, ctx: PieceBuildContext): T
   outline.side = THREE.BackSide;
   const group = new THREE.Group();
   group.userData.gipfMarker = true;
-  const disc = decoratePieceMesh(new THREE.Mesh(markerDiscGeo, basic(palette.fill)), edge, outline, ctx.edgeCache);
-  const rim = decoratePieceMesh(new THREE.Mesh(markerRimGeo, basic(palette.rim)), edge, outline, ctx.edgeCache);
+  const disc = decoratePieceMesh(
+    new THREE.Mesh(markerDiscGeo, clayMaterialForPlayer(player)),
+    edge,
+    outline,
+    ctx.edgeCache,
+  );
+  const rim = decoratePieceMesh(
+    new THREE.Mesh(markerRimGeo, clayMaterialForPlayer(player === 'A' ? 'B' : 'A')),
+    edge,
+    outline,
+    ctx.edgeCache,
+  );
   group.add(disc, rim);
   return group;
 }
 
 export function yinshMarkerMaterials(player: string, tokens: ThemeTokens): THREE.Material[] {
-  const white = tokens.piece.A!.fill;
-  const black = tokens.piece.B!.fill;
   const edge = tokens.lines;
-  const topColor = player === 'A' ? white : black;
-  const bottomColor = player === 'A' ? black : white;
+  const top = clayMaterialForPlayer(player);
+  const bottom = clayMaterialForPlayer(player === 'A' ? 'B' : 'A');
   return [
     new THREE.MeshBasicMaterial({ color: edge, toneMapped: false }),
-    new THREE.MeshBasicMaterial({ color: topColor, toneMapped: false }),
-    new THREE.MeshBasicMaterial({ color: bottomColor, toneMapped: false }),
+    top,
+    bottom,
   ];
 }
 

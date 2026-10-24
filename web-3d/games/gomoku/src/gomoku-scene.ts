@@ -6,9 +6,9 @@ import {
   GOMOKU_DIMS,
   applyBoardEnvironment,
   applyBoardLighting,
-  fitPlayfieldShadowCatcher,
-  syncSceneShadowCatcher,
+  createBoardRenderPipeline,
   createBoardWebGLRenderer,
+  syncClayMaterialTheme,
   createCameraViewController,
   applyPlayfieldBackdrop,
   measureBoardFrameMs,
@@ -64,6 +64,7 @@ export async function createGomokuScene(
 ): Promise<GomokuSceneApi> {
   initPlaceSfx();
   let themeId: ThemeId = options.theme ?? 'light';
+  syncClayMaterialTheme(themeId);
   let materials = gomokuThemeMaterials(themeId);
   let inputEnabled = true;
 
@@ -87,6 +88,7 @@ export async function createGomokuScene(
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
   camera.position.set(...CAMERA.position);
   camera.lookAt(0, 0, 0);
+  const renderPipeline = createBoardRenderPipeline(renderer, scene, camera);
   const orbitTarget = new THREE.Vector3(0, 0, 0);
 
   const boardGroup = new THREE.Group();
@@ -117,14 +119,11 @@ export async function createGomokuScene(
   }
 
   function syncShadowFrustum() {
-    const points = gomokuFramePoints();
-    boardLighting.fitToPoints(points);
     const bounds = arenaLayout.frameBounds();
     bounds.min.y = BOARD.PLAYFIELD_SURFACE_Y;
     bounds.max.y = Math.max(bounds.max.y, stoneBaseY(7, 7) + stoneAssets.stoneHeight);
-    bounds.expandByScalar(0.15);
-    syncSceneShadowCatcher(scene, bounds, 0.55);
-    fitPlayfieldShadowCatcher(boardGroup, bounds, 0.55);
+    bounds.expandByScalar(0.2);
+    boardLighting.fitToBox(bounds);
   }
 
   syncShadowFrustum();
@@ -182,7 +181,7 @@ export async function createGomokuScene(
   function render(now = performance.now()) {
     if (disposed) return;
     winGlow.tick(now);
-    renderer.render(scene, camera);
+    renderPipeline.render();
   }
 
   function stopPulseLoop() {
@@ -288,7 +287,7 @@ export async function createGomokuScene(
     const bounds = container.getBoundingClientRect();
     viewportW = Math.max(1, bounds.width);
     viewportH = Math.max(1, bounds.height);
-    renderer.setSize(viewportW, viewportH, false);
+    renderPipeline.setSize(viewportW, viewportH);
     return viewportW / viewportH;
   }
 
@@ -325,7 +324,7 @@ export async function createGomokuScene(
 
   if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('bench')) {
     (window as unknown as { __benchOneFrame?: () => number }).__benchOneFrame = () =>
-      measureBoardFrameMs(renderer, scene, camera);
+      measureBoardFrameMs(renderer, scene, camera, () => renderPipeline.render());
   }
 
   const ro = new ResizeObserver(fit);
@@ -335,11 +334,9 @@ export async function createGomokuScene(
   return {
     setTheme(id: ThemeId) {
       themeId = id;
-      materials.board.dispose();
       materials.line.dispose();
       materials.star.dispose();
-      materials.stoneA.dispose();
-      materials.stoneB.dispose();
+      syncClayMaterialTheme(themeId);
       materials = gomokuThemeMaterials(themeId);
       applyPlayfieldBackdrop(scene, materials.table);
       arenaLayout.setTheme(themeId);
@@ -414,6 +411,7 @@ export async function createGomokuScene(
       ro.disconnect();
       controls.dispose();
       boardLighting.dispose();
+      renderPipeline.dispose();
       disposeEnvironment();
       renderer.domElement.removeEventListener('pointermove', onPointerMove);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
