@@ -15,7 +15,8 @@ import { exportHumanGraduationSetup } from './boop-graduation-fixture';
 import { BOOP_ANIM } from './animation';
 import { BOOP_GRID as GRID, BOOP_OUTSIDE as OUTSIDE } from './boop-grid';
 import { poolKindAtCell, primaryPoolCellIndex } from './boop-pool-layout';
-import { boardAfterDisplacements, boardWithOffBoardOnBed } from './boop-push-board';
+import { applyParallelBoopPushEffects } from './boop-push-schedule';
+import { exportDualAdjacentBoopSetup } from './boop-push-fixture';
 import { PieceTracker } from './piece-tracker';
 import type { GameView, MoveJson, PieceKind, PlayerId } from './types';
 import { parseGameView } from './types';
@@ -400,30 +401,9 @@ export class BoopController {
       move.type === 'place' && (effects.displacements.length > 0 || effects.off_board.length > 0);
     if (pushFromPlacement) beginBoopPushLandSounds();
 
-    const pushBaseView = this.view;
-    for (let i = 0; i < effects.displacements.length; i++) {
-      const d = effects.displacements[i]!;
-      this.tracker.moveBoardId(d.from, d.to);
-      this.view = boardAfterDisplacements(pushBaseView, effects.displacements, i + 1, after);
-      this.publishSnapshot();
-      await sleep(step);
-    }
-
-    const afterDisplacementsView = boardAfterDisplacements(
-      pushBaseView,
-      effects.displacements,
-      effects.displacements.length,
-      after,
-    );
-
-    for (let j = 0; j < effects.off_board.length; j++) {
-      const o = effects.off_board[j]!;
-      const id = this.tracker.ensureIdAt(o.from.x, o.from.y, o.player, o.kind);
-      this.view = boardWithOffBoardOnBed(afterDisplacementsView, effects.off_board, j);
-      this.publishSnapshot();
-      await sleep(step);
-      this.tracker.removeFromBoard(o.from.x, o.from.y);
-      this.tracker.addRestingFromBoop(id, o.player, o.kind, o.from, o);
+    const hasBoopPush = effects.displacements.length > 0 || effects.off_board.length > 0;
+    if (hasBoopPush) {
+      applyParallelBoopPushEffects(this.tracker, effects);
       this.view = after;
       this.publishSnapshot();
       await sleep(step);
@@ -607,6 +587,23 @@ export class BoopController {
     const boop = this.game.move_for_interaction_json(AI, 1, 0, 'kitten');
     if (!boop) return false;
     void this.playMoveJson(boop, { scheduleAi: false });
+    return true;
+  }
+
+  /** Two adjacent black kittens boop when white plays corner (parallel push screenshot setup). */
+  async prepareDualAdjacentBoopPush() {
+    this.newGame();
+    this.game = BoopGame.import_state(exportDualAdjacentBoopSetup(this.game));
+    this.view = parseGameView(this.game.view_json());
+    this.tracker.syncBoard(this.view);
+    this.publishSnapshot();
+    return !!this.game.move_for_interaction_json(HUMAN, 0, 0, 'kitten');
+  }
+
+  fireDualAdjacentBoopPushAnimation() {
+    const mv = this.game.move_for_interaction_json(HUMAN, 0, 0, 'kitten');
+    if (!mv) return false;
+    void this.playMoveJson(mv, { scheduleAi: false });
     return true;
   }
 }
