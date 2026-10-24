@@ -10,7 +10,9 @@ import {
   isInsideBoard,
 } from './coord';
 import { gameStateToSnapshot } from './snapshot';
+import { movesInclude, possibleMoves } from './moves';
 import { GameState } from './state';
+import { listRunOptions } from './runs';
 
 describe('coord grid', () => {
   it('has 85 playable intersections', () => {
@@ -32,6 +34,20 @@ describe('board check_run (from rust board tests)', () => {
     board.addMarker('A', coordNew(0, 2));
     expect(checkRunResultHasRun(board.checkRun(), 'A')).toBe(true);
     expect(checkRunResultHasRun(board.checkRun(), 'B')).toBe(false);
+  });
+
+  it('detects a row of six markers and offers removable fives', () => {
+    const board = Board.empty();
+    for (let y = -2; y <= 3; y++) {
+      board.addMarker('A', coordNew(0, y));
+    }
+    expect(checkRunResultHasRun(board.checkRun(), 'A')).toBe(true);
+    const options = listRunOptions(board, 'A');
+    expect(options.length).toBeGreaterThanOrEqual(1);
+    for (const opt of options) {
+      expect(opt.five).toHaveLength(5);
+      expect(opt.chain.length).toBeGreaterThanOrEqual(5);
+    }
   });
 
   it('matches exhaustive direction runs', () => {
@@ -65,6 +81,45 @@ describe('flip_markers_between after ring move', () => {
     expect(board.elementColorAt(coordNew(0, -2))).toBe('A');
     expect(board.numMarkers('A')).toBe(3);
     expect(board.numMarkers('B')).toBe(0);
+  });
+});
+
+describe('GameState run removal flow', () => {
+  it('enters run removal when a row of six is on the board after a ring move', () => {
+    const state = GameState.initial();
+    for (let y = -2; y <= 3; y++) {
+      state.board.addMarker('A', coordNew(0, y));
+    }
+    const start = coordNew(3, 0);
+    const end = coordNew(4, 0);
+    state.board.addRing('A', start);
+    state.activePlayer = 'A';
+    state.turnMode = { tag: 'RingMovement', start };
+    const move = { tag: 'MoveRing' as const, start, end };
+    expect(movesInclude(possibleMoves(state), move)).toBe(true);
+
+    state.performMove(move);
+
+    expect(['WaitForRunRemoval', 'RunRemoval']).toContain(state.turnMode.tag);
+    expect(checkRunResultHasRun(state.board.checkRun(), 'A')).toBe(true);
+    expect(listRunOptions(state.board, 'A').length).toBeGreaterThan(0);
+  });
+
+  it('ring path flips can complete a sixth marker in a row', () => {
+    const board = Board.empty();
+    const start = coordNew(0, 0);
+    const end = coordNew(0, -3);
+    board.addRing('A', end);
+    board.addMarker('A', start);
+    board.addMarker('B', coordNew(0, -1));
+    board.addMarker('B', coordNew(0, -2));
+    for (let y = 1; y <= 3; y++) {
+      board.addMarker('A', coordNew(0, y));
+    }
+    expect(checkRunResultHasRun(board.checkRun(), 'A')).toBe(false);
+    board.flipMarkersBetween(start, end);
+    expect(checkRunResultHasRun(board.checkRun(), 'A')).toBe(true);
+    expect(listRunOptions(board, 'A').length).toBeGreaterThan(0);
   });
 });
 

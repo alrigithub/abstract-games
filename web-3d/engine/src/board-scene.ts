@@ -415,8 +415,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       else if (prevT < 1 && item.landOnComplete) finishLandSound(item);
       item.lastVertT = t;
     }
+    const assistAnim = assistLayer.tick(now);
     renderer.render(scene, camera);
-    if (animated) requestRender();
+    if (animated || assistAnim) requestRender();
   }
 
   function targetObject(item: PieceObject, target: THREE.Vector3, immediate: boolean, duration: number = ANIMATION.DURATION) {
@@ -1076,6 +1077,10 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       assistState = state;
       assistLayer.update(assistState, cellPosition);
       requestRender();
+      if (assistLayer.needsContinuousRender()) requestRender();
+    },
+    getBoardAssistStats() {
+      return assistLayer.getStats();
     },
     setFlipPreview(pieceIds) {
       flipPreviewIds = new Set(pieceIds);

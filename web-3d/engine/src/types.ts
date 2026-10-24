@@ -131,6 +131,30 @@ export interface GameRules {
   toggleTop?(snapshot: BoardSnapshot, source: number): BoardSnapshot | null;
 }
 
+/** Flat piece silhouette for projected shadows and translucent ghosts. */
+export interface AssistFootprint {
+  shape: 'ring' | 'disc';
+  outerRadius: number;
+  innerRadius?: number;
+}
+
+/** Soft dark footprint at a future placement (hover or legal spot). */
+export interface AssistShadowHint {
+  cell: number;
+  footprint: AssistFootprint;
+  /** `hover` is strongest; `legal` is softened legal-move hint. */
+  strength?: 'legal' | 'hover';
+}
+
+/** Translucent piece preview at a past or hypothetical position (no lift). */
+export interface AssistGhostHint {
+  cell: number;
+  player: PlayerId;
+  ring?: AssistFootprint;
+  marker?: { radius: number };
+  strength?: 'normal' | 'strong';
+}
+
 /** Unlit overlays for legal moves (dots, paths, highlights). */
 export interface BoardAssistState {
   destinationCells?: readonly number[];
@@ -143,14 +167,69 @@ export interface BoardAssistState {
     fromCell: number;
     toCell: number;
     pathCells?: readonly number[];
-    /** Same length as pathCells; XZ overrides (ring landing position). */
+    /** Same length as pathCells; XZ overrides per vertex. */
     pathWorld?: readonly { x: number; z: number }[];
+    /** When true, skip endpoint dots (use {@link ghosts} at from instead). */
+    omitFromEndpoint?: boolean;
+    /** When true, skip all endpoint dots. */
+    omitEndpointDots?: boolean;
   };
+  /** World XZ anchor for the first path vertex (e.g. selected ring centre). */
+  pathFromWorld?: { x: number; z: number };
+  /** World XZ anchor for the last path vertex. */
+  pathToWorld?: { x: number; z: number };
   /** Destination dot radius in world units (~35% of marker radius for Yinsh). */
   destinationDotRadius?: number;
-  /** Flat marker preview (no piece lift) during Yinsh marker placement hover. */
+  /** @deprecated Prefer {@link ghosts}. */
   markerGhost?: { cell: number; player: string; radius: number };
+  /** Projected piece-shaped shadows (future positions). */
+  shadows?: readonly AssistShadowHint[];
+  /** Ghosted piece silhouettes (past positions / marker fill previews). */
+  ghosts?: readonly AssistGhostHint[];
+  /** Warm celebratory halos under the five scoring markers (no path ribbons). */
+  runGlows?: readonly AssistRunRowGlow[];
+  runGlowStyle?: AssistRunGlowStyle;
+  /** Marker preview disc radius for ring-centre ghosts (world units). */
+  markerGhostRadius?: number;
+  /** World Y for marker preview discs (above playfield, below seated stones). */
+  markerGhostSurfaceY?: number;
+  /** Ring-removal step: halos under removable rings. */
+  ringPickGlows?: readonly AssistRingPickGlow[];
   flipPieceIds?: readonly string[];
+}
+
+/** Warm halos under exactly five markers in a scoring row. */
+export interface AssistRunRowGlow {
+  /** The five markers that form (or will form) the scored run. */
+  markerCells: readonly number[];
+  /** Brighter subset when hovering one run option among several. */
+  highlightCells?: readonly number[];
+  strength: 'announce' | 'option' | 'hover';
+}
+
+/** World-space sizing for row halos (game-specific marker radius). */
+export interface AssistRunGlowStyle {
+  /** Seated marker radius in world units. */
+  markerRadius: number;
+  /** Halo outer radius = markerRadius × scale (default 1.4). */
+  haloScale?: number;
+}
+
+/** Ring removal pick hints (after a row is scored). */
+export interface AssistRingPickGlow {
+  cell: number;
+  strength?: 'option' | 'hover';
+}
+
+export interface BoardAssistStats {
+  visibleMeshCount: number;
+  pathSegmentCount: number;
+  /** Visible marker-preview discs (ring-centre placement ghosts). */
+  markerGhostCount: number;
+  /** Minimum opacity among visible marker ghosts (0 when none). */
+  markerGhostMinOpacity: number;
+  /** Distinct board cells with row celebration halos. */
+  runGlowCellCount: number;
 }
 
 export interface SceneApi {
@@ -158,6 +237,8 @@ export interface SceneApi {
   setInteraction(view: InteractionView): void;
   /** Unlit legal-move overlays (dots, paths, highlights). */
   setBoardAssist(state: BoardAssistState | null): void;
+  /** Debug / e2e: counts visible assist meshes after the last {@link setBoardAssist}. */
+  getBoardAssistStats(): BoardAssistStats;
   /** Outline markers that would flip on a previewed move (no albedo override). */
   setFlipPreview(pieceIds: readonly string[]): void;
   /** World position of a piece mesh (XZ center; Y = mesh origin). */
@@ -220,6 +301,8 @@ export interface ThemeTokens {
   board: string;
   lines: string;
   win: string;
+  /** Warm gold/amber accent for five-in-a-row celebration halos. */
+  runCelebration: string;
   piece: Record<PlayerId, { fill: string; rim: string; edge: string }>;
   ghostOpacity: number;
   shadow: string;

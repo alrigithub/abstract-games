@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: /yinsh-(gipf-comparison|ai-playthrough|glb-screenshots|ring-closeup|move-hints-screenshots)\.spec\.ts/,
+  testMatch: /yinsh-(gipf-comparison|ai-playthrough|glb-screenshots|ring-closeup|move-hints-screenshots|assist-hover|assist-marker-run-glow)\.spec\.ts/,
   fullyParallel: false,
   workers: 1,
   reporter: 'list',
