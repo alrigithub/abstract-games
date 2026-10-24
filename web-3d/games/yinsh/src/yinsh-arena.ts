@@ -4,6 +4,7 @@ import {
   YINSH,
   applyArenaGlbThemeMaterials,
   createYinshTopology,
+  liftAuthoredArenaBoardLines,
   loadGltfAsync,
   mapUrl,
   tagArenaGlbForShadows,
@@ -75,6 +76,7 @@ function prepareArenaScene(scene: THREE.Group, themeId: ThemeId): THREE.Group {
   for (const obj of remove) obj.parent?.remove(obj);
 
   applyArenaGlbThemeMaterials(scene, themeId, YINSH_ARENA_MATERIALS);
+  liftAuthoredArenaBoardLines(scene);
   tagArenaGlbForShadows(scene);
   scene.name = 'yinsh-white-epic-arena';
   return scene;

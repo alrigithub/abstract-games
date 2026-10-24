@@ -25,6 +25,11 @@ export const INTERACTION = {
   RESERVE_STACK_SIZE: 7,
 } as const;
 
+/** World Y of the shared playfield / table top (piece bases rest here). */
+const BOARD_PLAYFIELD_SURFACE_Y = 0;
+/** Grid line meshes sit this far above {@link BOARD_PLAYFIELD_SURFACE_Y} (avoids z-fighting with the ground). */
+const BOARD_LINE_LIFT = 0.004;
+
 export const BOARD = {
   /** World units per side of the shared infinite-style playfield plane. */
   PLAYFIELD_GROUND_SIZE: 8192,
@@ -36,9 +41,11 @@ export const BOARD = {
   /** Tak board thickness (same flat plane as other games). */
   TAK_SLAB: 0,
   /** Top of board / table where piece bases rest (world Y). */
-  PLAYFIELD_SURFACE_Y: 0,
-  /** Grid / intersection lines sit slightly above the board plane. */
-  LINE_Y: 0.002,
+  PLAYFIELD_SURFACE_Y: BOARD_PLAYFIELD_SURFACE_Y,
+  /** Small lift for grid line meshes above {@link PLAYFIELD_SURFACE_Y}. */
+  LINE_LIFT: BOARD_LINE_LIFT,
+  /** World Y for grid / intersection line meshes (`PLAYFIELD_SURFACE_Y + LINE_LIFT`). */
+  LINE_Y: BOARD_PLAYFIELD_SURFACE_Y + BOARD_LINE_LIFT,
   /** Contact shadow sits this far above the piece base (world Y). */
   SHADOW_CONTACT_EPSILON: 0.001,
   LINE_W: 0.009,

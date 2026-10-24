@@ -3,6 +3,7 @@ import {
   GOMOKU_DIMS,
   applyArenaGlbAuthoredMaterials,
   gomokuCellWorld,
+  liftAuthoredArenaBoardLines,
   loadGltfAsync,
   mapUrl,
   tagArenaGlbForShadows,
@@ -97,6 +98,7 @@ function prepareArenaScene(scene: THREE.Group): THREE.Group {
   for (const obj of remove) obj.parent?.remove(obj);
 
   applyArenaGlbAuthoredMaterials(scene);
+  liftAuthoredArenaBoardLines(scene);
   tagArenaGlbForShadows(scene);
   return scene;
 }

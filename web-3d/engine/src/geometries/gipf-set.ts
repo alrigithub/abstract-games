@@ -358,7 +358,7 @@ function linePlane(from: THREE.Vector3, to: THREE.Vector3, width: number): THREE
   const geo = new THREE.PlaneGeometry(width, len + width);
   geo.rotateX(-Math.PI / 2);
   geo.rotateY(Math.atan2(dx, dz));
-  geo.translate((from.x + to.x) / 2, BOARD.LINE_Y + 0.0015, (from.z + to.z) / 2);
+  geo.translate((from.x + to.x) / 2, BOARD.LINE_Y, (from.z + to.z) / 2);
   return geo;
 }
 

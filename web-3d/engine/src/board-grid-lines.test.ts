@@ -4,11 +4,17 @@ import {
   applyBoardGridLineScreenScale,
   boardGridLineScreenScale,
   boardGridLineWorldWidth,
+  boardGridLineWorldY,
   tagBoardGridLine,
 } from './board-grid-lines';
 import { BOARD } from './constants';
 
 describe('board grid line screen scale', () => {
+  it('sits grid lines slightly above the playfield surface', () => {
+    expect(boardGridLineWorldY()).toBe(BOARD.PLAYFIELD_SURFACE_Y + BOARD.LINE_LIFT);
+    expect(BOARD.LINE_Y).toBe(boardGridLineWorldY());
+  });
+
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, 0.1, 100);
   camera.zoom = 1;
 
