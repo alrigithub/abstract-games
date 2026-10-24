@@ -42,6 +42,7 @@ function applyTheme(next: ThemeId) {
 
 function syncSnapshot() {
   scene.setSnapshot(gameToSnapshot(game));
+  board.dataset.ready = 'true';
   renderStatus();
 }
 
@@ -161,6 +162,8 @@ createTapInteraction({
     void humanMove({ tag: 'Action', from, to });
   },
 });
+
+syncSnapshot();
 
 if (new URLSearchParams(location.search).has('e2e')) startGame('A');
 

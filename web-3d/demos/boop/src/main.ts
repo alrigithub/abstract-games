@@ -64,10 +64,7 @@ controller = new BoopController({
   onReady: () => {
     board.dataset.ready = 'true';
   },
-  aiPlaceTap: (from, to) => interaction.tapPlaceOnBed(from, to, { ai: true }),
 });
-
-interaction = wireBoopInteraction(stage as HTMLElement, board, scene, () => controller);
 
 gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
@@ -103,8 +100,11 @@ gameButtons = createGameButtons({
   },
 });
 
-window.__boopController = controller;
 await controller.init();
+interaction = wireBoopInteraction(stage as HTMLElement, board, scene, () => controller);
+controller.setAiPlaceTap((from, to) => interaction.tapPlaceOnBed(from, to, { ai: true }));
+
+window.__boopController = controller;
 
 declare global {
   interface Window {

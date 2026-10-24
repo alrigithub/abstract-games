@@ -51,6 +51,13 @@ describe('createTapInteraction', () => {
     expect(TAP_MOVE_THRESHOLD).toBe(8);
   });
 
+  it('does not emit an initial view before user input', () => {
+    const onView = vi.fn();
+    const local = createTapInteraction({ ...options, onView });
+    expect(onView).not.toHaveBeenCalled();
+    local.dispose();
+  });
+
   it('selects on first tap and commits on second without dragging', () => {
     pointer(stage, 'pointerdown', 20);
     pointer(host, 'pointerup', 20);
