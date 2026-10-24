@@ -161,7 +161,7 @@ function applyTheme(id: ThemeId) {
   const shadowMat = new THREE.MeshBasicMaterial({
     color: tokens.shadow,
     transparent: true,
-    opacity: 0.09,
+    opacity: 0.28,
     depthWrite: false,
     side: THREE.DoubleSide,
   });
@@ -185,7 +185,7 @@ function applyTheme(id: ThemeId) {
       y += GIPF_CHIP.HEIGHT;
     }
     const shadow = new THREE.Mesh(discGeo, shadowMat);
-    shadow.scale.set(BOARD.SHADOW_SCALE, 0.001, BOARD.SHADOW_SCALE);
+    shadow.scale.set(BOARD.CONTACT_BLOB_SOFT_SCALE, 0.001, BOARD.CONTACT_BLOB_SOFT_SCALE);
     shadow.position.set(pos.x, surface + BOARD.SHADOW_CONTACT_EPSILON, pos.z);
     shadow.renderOrder = 1;
     shadowsRoot.add(shadow);
