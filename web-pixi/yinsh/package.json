@@ -12,6 +12,7 @@
     "test:e2e:ci": "npm run build && playwright test"
   },
   "dependencies": {
+    "@abstract/pixi-shared": "*",
     "pixi.js": "^8.9.2"
   },
   "devDependencies": {

@@ -1,3 +1,4 @@
+import { PixiWorkerAiBridge } from "@abstract/pixi-shared";
 import { theme } from "./theme";
 import type { MoveJson, Player, RenderState } from "./types";
 import {
@@ -167,26 +168,13 @@ export class GameController {
   private scoringLinger = false;
   private aiThinking = false;
   private aiDepth = 10;
-  private aiWorker: Worker;
-  private aiReqId = 0;
-  private pendingAiId: number | null = null;
+  private aiBridge: PixiWorkerAiBridge;
   private deferredAi = false;
 
   constructor() {
-    this.aiWorker = new Worker(new URL("./ai-worker.ts", import.meta.url), {
-      type: "module",
-    });
-    this.aiWorker.onmessage = (ev: MessageEvent<{ id: number; moveJson: string; error?: string }>) => {
-      const { id, moveJson, error } = ev.data;
-      if (this.pendingAiId !== id) return;
-      this.pendingAiId = null;
-      this.aiThinking = false;
-      if (error) {
-        this.notify("AI error: " + error);
-        return;
-      }
-      void this.applyMove(JSON.parse(moveJson) as MoveJson, false);
-    };
+    this.aiBridge = new PixiWorkerAiBridge(
+      new URL("./ai-worker.ts", import.meta.url),
+    );
   }
 
   setAiDepth(depth: number) {
@@ -346,13 +334,19 @@ export class GameController {
     this.aiThinking = true;
     this.notify("Floyd is thinking…");
     this.emit();
-    const id = ++this.aiReqId;
-    this.pendingAiId = id;
-    this.aiWorker.postMessage({
-      id,
-      stateJson: JSON.stringify(this.state),
-      depth: this.aiDepth,
-    });
+    const stateJson = JSON.stringify(this.state);
+    const depth = this.aiDepth;
+    try {
+      const { moveJson, error } = await this.aiBridge.requestMove(stateJson, depth);
+      this.aiThinking = false;
+      if (error) {
+        this.notify("AI error: " + error);
+        return;
+      }
+      await this.applyMove(JSON.parse(moveJson) as MoveJson, false);
+    } catch {
+      this.aiThinking = false;
+    }
   }
 
   private statusText(fromHuman: boolean): string {

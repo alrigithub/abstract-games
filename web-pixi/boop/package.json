@@ -1,0 +1,23 @@
+{
+  "name": "boop-pixi",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4174",
+    "test:e2e": "playwright test",
+    "test:e2e:ci": "npm run build && playwright test"
+  },
+  "dependencies": {
+    "@abstract/pixi-shared": "*",
+    "pixi.js": "^8.9.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.15.3",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}
