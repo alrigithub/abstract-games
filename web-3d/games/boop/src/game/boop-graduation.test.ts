@@ -28,25 +28,16 @@ describe('Boop graduation bookkeeping (engine)', () => {
     expect(view.to_move).toBe('B');
   });
 
-  it('renders earned hand cats only in the hand column (reserve row stays empty)', () => {
+  it('renders only in-hand cats (no reserve pool vases)', () => {
     const game = playHumanFirstGraduation(new BoopGame());
     const view = parseGameView(game.view_json());
     const tracker = new PieceTracker();
     tracker.resetFromNewGame();
     tracker.syncBoard(view);
     const snap = tracker.buildSnapshot(view);
-    const handCats = snap.cells.flat().filter(p => p.shape === 'cat' && p.player === 'A');
-    expect(handCats.length).toBe(view.pools[0]!.cats_in_hand);
-    expect(view.pools[0]!.cats_in_reserve).toBe(5);
-    const handCols = new Set<number>();
-    snap.cells.forEach((stack, idx) => {
-      stack.forEach(p => {
-        if (p.player === 'A' && p.shape === 'cat') {
-          handCols.add(idx);
-        }
-      });
-    });
-    expect(handCols.size).toBeGreaterThan(1);
+    const handCats = snap.cells.flat().filter(p => p.shape === 'cat' && p.player === 'A').length;
+    expect(handCats).toBe(view.pools[0]!.cats_in_hand);
+    expect(handCats).toBe(3);
   });
 
   it('AI has a legal reply immediately after human graduation', () => {
