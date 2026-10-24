@@ -14,7 +14,7 @@ import { PropertyBinding } from 'three';
 
 /** Documented SHA-256 of Alex's arena GLB (see `public/assets/overgrown-arena-two-depressions2-white.glb`). */
 export const BOOP_ARENA_GLB_SHA256 =
-  '458520dc233381c85ae630a0407b4ae7365a36abbec5f3296f8196e9cfe60408';
+  'd16c644fdd0851eb9b5f95401d660d060907d040257080fbd12ab234b2ff4f60';
 export const BOOP_ARENA_GLB_FILE = 'overgrown-arena-two-depressions2-white.glb';
 
 /**
