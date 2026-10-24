@@ -1,4 +1,11 @@
-import { readStoredTheme, storeTheme, type ThemeId } from '@abstract/three-engine';
+import {
+  createAiStrengthControl,
+  GOMOKU_AI_STRENGTH_STORAGE_KEY,
+  levelToSearchOptions,
+  readStoredTheme,
+  storeTheme,
+  type ThemeId,
+} from '@abstract/three-engine';
 import { createGomokuScene, type ScenePlayer, type StoneRecord } from './gomoku-scene';
 import {
   applyMove,
@@ -24,6 +31,12 @@ let aiPending = false;
 let aiGeneration = 0;
 let aiWorker: Worker | null = null;
 
+const aiStrength = createAiStrengthControl({
+  container: document.querySelector('#ai-strength-mount')!,
+  storageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
+  onChange: level => renderStatus(undefined, level.label),
+});
+
 function toScenePlayer(player: Player): ScenePlayer {
   return player === 'white' ? 'A' : 'B';
 }
@@ -44,9 +57,10 @@ function winLineCells(): { row: number; col: number }[] | null {
   return winningLine(game, game.lastMove)?.map(c => ({ row: c.y, col: c.x })) ?? null;
 }
 
-function renderStatus(extra?: string) {
+function renderStatus(extra?: string, strengthLabel?: string) {
   const human = humanColor === 'black' ? 'Black' : 'White';
   const ai = humanColor === 'black' ? 'White' : 'Black';
+  const strength = strengthLabel ?? aiStrength.getLevel().label;
   let detail = extra;
   if (!detail) {
     if (game.winner) detail = `${game.winner === 'black' ? 'Black' : 'White'} wins`;
@@ -54,7 +68,7 @@ function renderStatus(extra?: string) {
     else if (game.toMove === humanColor) detail = `Your turn (${human})`;
     else detail = `${ai} to move`;
   }
-  statusEl.textContent = `You · ${human} vs AI · ${ai} — ${detail}`;
+  statusEl.textContent = `You · ${human} vs AI · ${ai} · AI ${strength} — ${detail}`;
 }
 
 function syncBoard() {
@@ -75,6 +89,9 @@ function maybeAiTurn() {
   scene.setInputEnabled(false);
   renderStatus();
   const gen = ++aiGeneration;
+  const search = levelToSearchOptions(aiStrength.getLevel());
+  document.body.dataset.lastAiDepth = String(search.maxDepth);
+  document.body.dataset.lastAiMaxNodes = String(search.maxNodes);
   aiWorker = new Worker(new URL('./game/ai.worker.ts', import.meta.url), { type: 'module' });
   aiWorker.onmessage = (event: MessageEvent<{ id: number; move: { type: 'place'; coord: { x: number; y: number } } | null }>) => {
     if (event.data.id !== gen || gen !== aiGeneration) return;
@@ -89,7 +106,7 @@ function maybeAiTurn() {
       renderStatus();
     }
   };
-  aiWorker.postMessage({ id: gen, game, options: { maxDepth: 4 } });
+  aiWorker.postMessage({ id: gen, game, options: search });
 }
 
 async function playMove(col: number, row: number, isHuman: boolean) {

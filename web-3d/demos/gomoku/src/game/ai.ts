@@ -12,6 +12,7 @@ import {
 export interface AiOptions {
   maxDepth?: number;
   maxNodes?: number;
+  maxTimeMs?: number;
 }
 
 const EVAL_MAX = 1_000_000;
@@ -100,16 +101,25 @@ function evaluate(state: GameState, root: Player): number {
   return root === 'black' ? score : -score;
 }
 
-function negamax(state: GameState, depth: number, alpha: number, beta: number, root: Player, nodes: { n: number }, maxNodes: number): number {
+function negamax(
+  state: GameState,
+  depth: number,
+  alpha: number,
+  beta: number,
+  root: Player,
+  nodes: { n: number },
+  maxNodes: number,
+  deadline: number,
+): number {
   nodes.n++;
-  if (depth === 0 || state.winner || nodes.n >= maxNodes) return evaluate(state, root);
+  if (depth === 0 || state.winner || nodes.n >= maxNodes || performance.now() >= deadline) return evaluate(state, root);
   let best = -Infinity;
   for (const move of orderedMoves(state)) {
     const child = applyMove(state, move);
-    const score = -negamax(child, depth - 1, -beta, -alpha, root, nodes, maxNodes);
+    const score = -negamax(child, depth - 1, -beta, -alpha, root, nodes, maxNodes, deadline);
     best = Math.max(best, score);
     alpha = Math.max(alpha, score);
-    if (alpha >= beta || nodes.n >= maxNodes) break;
+    if (alpha >= beta || nodes.n >= maxNodes || performance.now() >= deadline) break;
   }
   return best;
 }
@@ -117,6 +127,7 @@ function negamax(state: GameState, depth: number, alpha: number, beta: number, r
 export function chooseMove(state: GameState, options: AiOptions = {}): Move | null {
   const maxDepth = Math.max(1, Math.min(12, options.maxDepth ?? 4));
   const maxNodes = Math.max(500, Math.min(80_000, options.maxNodes ?? 12_000));
+  const deadline = performance.now() + Math.max(100, options.maxTimeMs ?? 60_000);
   const moves = orderedMoves(state);
   if (!moves.length) return null;
   if (moves.length === 1) return moves[0]!;
@@ -130,12 +141,12 @@ export function chooseMove(state: GameState, options: AiOptions = {}): Move | nu
   const nodes = { n: 0 };
   for (const move of moves) {
     const child = applyMove(state, move);
-    const score = -negamax(child, maxDepth - 1, -Infinity, Infinity, root, nodes, maxNodes);
+    const score = -negamax(child, maxDepth - 1, -Infinity, Infinity, root, nodes, maxNodes, deadline);
     if (score > bestScore) {
       bestScore = score;
       bestMove = move;
     }
-    if (nodes.n >= maxNodes) break;
+    if (nodes.n >= maxNodes || performance.now() >= deadline) break;
   }
   return bestMove;
 }
