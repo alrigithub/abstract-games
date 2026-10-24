@@ -333,6 +333,7 @@ if (location.search.includes('human=ivory')) {
       pilePoint(): { x: number; y: number };
       centerPoint(): { x: number; y: number };
       openingReservePoint(): { x: number; y: number };
+      stoneReservePoint(color?: Color): { x: number; y: number };
       capReservePoint(color?: Color): { x: number; y: number };
       seedCapStackDemo(): void;
       seedGlbDemo(): void;
@@ -354,13 +355,16 @@ if (location.search.includes('human=ivory')) {
       return scene.cellScreen(mid);
     },
     openingReservePoint() {
+      return this.stoneReservePoint('charcoal');
+    },
+    stoneReservePoint(color: Color = 'ivory') {
       const playable = boardSize * boardSize;
       let index = playable;
       let height = 0;
       state.cells.forEach((stack, i) => {
         if (i < playable || !stack.length) return;
         const top = stack.at(-1);
-        if (top?.color !== 'charcoal' || top.kind !== 'stone') return;
+        if (top?.color !== color || top.kind !== 'stone') return;
         if (stack.length >= height) {
           height = stack.length;
           index = i;
