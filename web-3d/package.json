@@ -13,9 +13,12 @@
   "scripts": {
     "test": "npm run test -w @abstract/three-engine && npm run test -w @abstract/yinsh && npm run test -w @abstract/boop && npm run test -w @abstract/tzaar",
     "test:e2e": "playwright test",
-    "build": "npm run build -w @abstract/three-engine && npm run build -w @abstract/tak && npm run build -w @abstract/gomoku && npm run build -w @abstract/boop && npm run build -w @abstract/yinsh && npm run build -w @abstract/tzaar"
+    "build": "npm run build -w @abstract/three-engine && npm run build -w @abstract/tak && npm run build -w @abstract/gomoku && npm run build -w @abstract/boop && npm run build -w @abstract/yinsh && npm run build -w @abstract/tzaar",
+    "compress-glb": "node scripts/compress-glb.mjs"
   },
   "devDependencies": {
+    "@gltf-transform/cli": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
     "@playwright/test": "^1.55.1",
     "typescript": "^5.9.3"
   }

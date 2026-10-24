@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import {
   TZAAR_GLB_STACK_STEP,
   TZAAR_GLB_WORLD_SCALE,
@@ -8,6 +7,7 @@ import {
   type EnginePiece,
   type PieceGeometrySet,
   clonePieceVisualTemplate,
+  loadGltfAsync,
   pieceGlbSideForPlayer,
   type TzaarKind,
   type ThemeId,
@@ -95,8 +95,7 @@ function prepareTemplate(scene: THREE.Object3D): THREE.Object3D {
 }
 
 async function loadScene(url: string): Promise<THREE.Object3D> {
-  const loader = new GLTFLoader();
-  const gltf = await loader.loadAsync(url);
+  const gltf = await loadGltfAsync(url);
   return gltf.scene;
 }
 

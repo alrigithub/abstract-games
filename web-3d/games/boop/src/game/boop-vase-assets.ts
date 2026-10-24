@@ -13,12 +13,12 @@ export const BOOP_VASE_GLB: Record<BoopVasePlayerId, Record<BoopVaseVariant, str
   },
 };
 
-/** Expected byte sizes (Alex attachments); guards against swapped copies in public/assets/vases. */
+/** Expected byte sizes (meshopt + WebP); guards against swapped copies in public/assets/vases. */
 export const BOOP_VASE_GLB_BYTE_SIZE: Record<string, number> = {
-  'vase-small-white.glb': 2_154_856,
-  'vase-large-white.glb': 2_264_936,
-  'vase-small-black.glb': 3_331_300,
-  'vase-large-black.glb': 3_781_380,
+  'vase-small-white.glb': 285_280,
+  'vase-large-white.glb': 314_448,
+  'vase-small-black.glb': 422_436,
+  'vase-large-black.glb': 432_724,
 };
 
 export function boopVaseGlbFor(player: BoopVasePlayerId, variant: BoopVaseVariant): string {
