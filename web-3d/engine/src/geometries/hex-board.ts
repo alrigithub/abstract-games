@@ -14,14 +14,14 @@ export const TZAAR_TEMPLATE: readonly number[] = [
 export const TZAAR_GRID = 9;
 export const TZAAR_CENTER = { x: 4, y: 4 } as const;
 export const TZAAR_PITCH = 1;
-/** Square playing surface, matching the GIPF / HUCH / Rio Grande board. Vertex-to-edge margin is 0.7 pitch. */
-export const TZAAR_BOARD_SIDE = 9.4;
+/** Square playing surface. Vertex-to-edge margin ~1.4 pitch so the GIPF cream corners read in 45° view. */
+export const TZAAR_BOARD_SIDE = 10.8;
 /** Thin painted rim, ~1% of the physical board. */
-export const TZAAR_RIM_W = 0.1;
+export const TZAAR_RIM_W = 0.09;
 /** Printed line weight: Wikimedia blank board is ~2/450 of the square; keep it hairline but readable in ortho. */
-export const TZAAR_LINE_W = 0.022;
-/** Inner hex vertices sit just inside the first ring so the empty centre reads as a printed motif. */
-export const TZAAR_CENTER_HEX = 0.86;
+export const TZAAR_LINE_W = 0.02;
+/** Small printed hex in the hole; radius stays inside the first-ring discs (r=0.38 at distance 1). */
+export const TZAAR_CENTER_HEX = 0.52;
 
 export type TzaarKind = 'tott' | 'tzarra' | 'tzaar';
 export type TzaarPlayer = 'A' | 'B';
@@ -194,7 +194,7 @@ export function tzaarCenterRingVertices(radius = TZAAR_CENTER_HEX): THREE.Vector
 }
 
 export function createTzaarCenterFillGeometry(): THREE.BufferGeometry {
-  const geo = new THREE.CylinderGeometry(0.72, 0.72, 0.004, 6);
+  const geo = new THREE.CylinderGeometry(0.42, 0.42, 0.004, 6);
   geo.rotateY(Math.PI / 6);
   geo.translate(0, 0.003, 0);
   geo.computeBoundingBox();
@@ -210,12 +210,19 @@ export function createTzaarCenterRingGeometry(lineW = TZAAR_LINE_W): THREE.Buffe
   return merged;
 }
 
+function luminance(hex: string): number {
+  const n = Number.parseInt(hex.replace('#', ''), 16);
+  if (!Number.isFinite(n)) return 1;
+  return ((n >> 16 & 255) + (n >> 8 & 255) + (n & 255)) / 765;
+}
+
 export function tzaarPrintColors(tokens: ThemeTokens): { field: string; rim: string; lines: string; centre: string } {
+  const dark = luminance(tokens.board) < 0.45;
   return {
     field: tokens.board,
-    rim: tokens.shadow,
+    rim: dark ? '#07080a' : '#1b1916',
     lines: tokens.lines,
-    centre: tokens.table,
+    centre: dark ? '#2c3038' : '#c9c2b6',
   };
 }
 
