@@ -7,7 +7,9 @@ import {
   tzaarPieceGeometrySet,
   type EnginePiece,
   type PieceGeometrySet,
+  pieceGlbSideForPlayer,
   type TzaarKind,
+  type ThemeId,
 } from '@abstract/three-engine';
 
 /** One GLB per type × colour. Player A is ivory, B is black. */
@@ -141,8 +143,10 @@ async function buildTemplates(): Promise<TzaarTemplates> {
   };
 }
 
+let tzaarPieceTheme: ThemeId = 'light';
+
 function templateFor(templates: TzaarTemplates, piece: EnginePiece): THREE.Object3D {
-  const side: TzaarStoneSide = piece.player === 'B' ? 'B' : 'A';
+  const side: TzaarStoneSide = pieceGlbSideForPlayer(tzaarPieceTheme, piece.player);
   return templates[tzaarKindOf(piece)][side];
 }
 
@@ -172,17 +176,16 @@ export async function loadTzaarPieceGeometrySet(): Promise<PieceGeometrySet> {
       materialFor: () => null,
       createVisual(piece) {
         const root = new THREE.Group();
-        const side: TzaarStoneSide = piece.player === 'B' ? 'B' : 'A';
         const model = templateFor(templates, piece).clone(true);
-        configureTzaarStoneMaterials(model, side);
         mountModel(root, model);
         return root;
       },
       replaceVisual(root, piece) {
-        const side: TzaarStoneSide = piece.player === 'B' ? 'B' : 'A';
         const model = templateFor(templates, piece).clone(true);
-        configureTzaarStoneMaterials(model, side);
         mountModel(root as THREE.Group, model);
+      },
+      onThemeChange(id) {
+        tzaarPieceTheme = id;
       },
     };
   } catch (error) {

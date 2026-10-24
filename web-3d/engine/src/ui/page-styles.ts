@@ -8,12 +8,8 @@ const STYLE_ID = 'abstract-page-styles';
 export const BASE_PAGE_CSS = `
 :root {
   font-family: system-ui, -apple-system, sans-serif;
-  color: #1a1a1a;
-  background: #f3f1ec;
-}
-:root[data-theme='dark'] {
-  color: #e8e8e8;
-  background: #16171a;
+  color: var(--ui-page-text, #1a1a1a);
+  background: var(--ui-page-bg, #f3f1ec);
 }
 * { box-sizing: border-box; }
 html, body, #app {

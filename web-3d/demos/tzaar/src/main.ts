@@ -7,6 +7,7 @@ import {
   createTzaarHexTopology,
   DEFAULT_LOBBY_HREF,
   levelToSearchOptions,
+  applyDocumentTheme,
   readInitialTheme,
   recordAiThinkMetrics,
   TZAAR_AI_STRENGTH_STORAGE_KEY,
@@ -19,7 +20,7 @@ import { GameState, serializeForAiWorker, type Coord, type Move, type Player } f
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 let theme: ThemeId = readInitialTheme();
-document.documentElement.dataset.theme = theme;
+applyDocumentTheme(theme);
 
 let humanPlayer: Player = 'A';
 let aiPlayer: Player = 'B';
@@ -42,7 +43,7 @@ const stage = board.querySelector('canvas') ?? board;
 
 function applyTheme(next: ThemeId) {
   theme = next;
-  document.documentElement.dataset.theme = theme;
+  applyDocumentTheme(theme);
   scene.setTheme(theme);
 }
 

@@ -1,8 +1,10 @@
 import {
   BOARD,
   CAMERA,
+  pieceGlbSideForPlayer,
   type EnginePiece,
   type PieceGeometrySet,
+  type ThemeId,
 } from '@abstract/three-engine';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -181,11 +183,13 @@ async function loadTemplates(): Promise<Record<PlayerId, Record<StoneCatVariant,
 
 type PlayerId = 'A' | 'B';
 
+let boopPieceTheme: ThemeId = 'light';
+
 function resolveTemplate(
   templates: Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>,
   piece: EnginePiece,
 ): StoneTemplate {
-  const player: PlayerId = piece.player === 'B' ? 'B' : 'A';
+  const player: PlayerId = pieceGlbSideForPlayer(boopPieceTheme, piece.player);
   const variant: StoneCatVariant = piece.shape === 'kitten' ? 'kitten' : 'cat';
   return templates[player][variant];
 }
@@ -196,23 +200,10 @@ function mountModel(root: THREE.Group, model: THREE.Object3D) {
   root.rotation.y = BOOP_STONE_CAT_YAW;
 }
 
-function playerStoneMaterial(player: PlayerId): THREE.MeshStandardMaterial {
-  const isWhite = player === 'A';
-  return new THREE.MeshStandardMaterial({
-    color: isWhite ? 0xf4efe4 : 0x2b2b30,
-    roughness: 0.58,
-    metalness: 0.04,
-  });
-}
-
 function createStonePieceSet(templates: Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>): PieceGeometrySet {
   const geometryFor = (piece: EnginePiece) => resolveTemplate(templates, piece).shadowGeometry;
   const heightFor = (piece: EnginePiece) => resolveTemplate(templates, piece).height;
   const templateFor = (piece: EnginePiece) => resolveTemplate(templates, piece);
-  const materials: Record<PlayerId, THREE.MeshStandardMaterial> = {
-    A: playerStoneMaterial('A'),
-    B: playerStoneMaterial('B'),
-  };
 
   return {
     geometry: geometryFor,
@@ -221,11 +212,7 @@ function createStonePieceSet(templates: Record<PlayerId, Record<StoneCatVariant,
     yaw: () => BOOP_STONE_CAT_YAW,
     edgeThreshold: BOARD.EDGE_THRESHOLD_BOOP,
     useOutline: () => false,
-    /** One ivory / one dark tone per player so kittens and cats match. */
-    materialFor(piece: EnginePiece) {
-      const player: PlayerId = piece.player === 'B' ? 'B' : 'A';
-      return materials[player];
-    },
+    materialFor: () => null,
     createVisual(piece: EnginePiece) {
       const root = new THREE.Group();
       mountModel(root, templateFor(piece).visual.clone(true));
@@ -233,6 +220,9 @@ function createStonePieceSet(templates: Record<PlayerId, Record<StoneCatVariant,
     },
     replaceVisual(root: THREE.Object3D, piece: EnginePiece) {
       mountModel(root as THREE.Group, templateFor(piece).visual.clone(true));
+    },
+    onThemeChange(id) {
+      boopPieceTheme = id;
     },
   };
 }

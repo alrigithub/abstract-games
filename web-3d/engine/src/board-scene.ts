@@ -102,6 +102,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const boardSlab = options.boardSlab ?? BOARD.SLAB;
   const playfieldY = options.playfieldSurfaceY ?? BOARD.PLAYFIELD_SURFACE_Y;
   let themeId: ThemeId = options.initialTheme ?? 'light';
+  options.pieces.onThemeChange?.(themeId);
   let tokens = themeTokens(themeId);
 
   const scene = new THREE.Scene();
@@ -298,6 +299,26 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       const pick = mesh.userData.reserve as ReservePick | undefined;
       if (!pick) continue;
       applyPieceMaterial(mesh, { id: 'reserve', player: pick.player, shape: pick.shape });
+    }
+  }
+
+  function refreshPieceVisuals() {
+    if (!options.pieces.replaceVisual) return;
+    for (const item of objects.values()) {
+      const player = item.mesh.userData.player as string;
+      const shape = item.mesh.userData.shape as string;
+      if (!shape) continue;
+      const piece = { id: item.pieceId, player, shape } as EnginePiece;
+      options.pieces.replaceVisual!(item.mesh, piece);
+      applyPieceMaterial(item.mesh, piece);
+    }
+    for (const mesh of pilesGroup.children) {
+      if (!(mesh instanceof THREE.Object3D)) continue;
+      const pick = mesh.userData.reserve as ReservePick | undefined;
+      if (!pick) continue;
+      const piece = { id: 'reserve', player: pick.player, shape: pick.shape } as EnginePiece;
+      options.pieces.replaceVisual!(mesh, piece);
+      applyPieceMaterial(mesh, piece);
     }
   }
 
@@ -1067,6 +1088,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     setTheme(id) {
       themeId = id;
       rebuildMaterials();
+      options.pieces.onThemeChange?.(id);
+      refreshPieceVisuals();
       refreshPieceMaterials();
       flipHaloMaterial.color.set(tokens.win);
       assistLayer.applyTheme(tokens);

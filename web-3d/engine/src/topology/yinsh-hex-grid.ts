@@ -40,6 +40,7 @@ function tokensFromBoardContext(ctx: BoardBuildContext): ThemeTokens {
     board: `#${ctx.boardMaterial.color.getHexString()}`,
     lines: `#${ctx.gridMaterial.color.getHexString()}`,
     win: '#3b82f6',
+    runCelebration: '#ffb347',
     ghostOpacity: 0.24,
     shadow: `#${ctx.gridMaterial.color.getHexString()}`,
     piece: {},

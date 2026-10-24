@@ -207,14 +207,10 @@ function injectBoopUiStyles() {
       pointer-events: none;
       transform: translate(-50%, -50%);
       border-radius: 50%;
-      border: 2px dashed rgba(59, 130, 246, 0.75);
-      background: rgba(59, 130, 246, 0.12);
+      border: 2px dashed rgba(var(--theme-win-rgb, 59, 130, 246), 0.75);
+      background: rgba(var(--theme-win-rgb, 59, 130, 246), 0.12);
       box-sizing: border-box;
       z-index: 2;
-    }
-    .boop-placement-ghost[data-theme='dark'] {
-      border-color: rgba(147, 197, 253, 0.85);
-      background: rgba(147, 197, 253, 0.14);
     }
   `;
   document.head.append(style);

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { BOARD } from './constants';
 import { getProjectedShadowTexture } from './projected-shadow-texture';
-import { WIN_ACCENT } from './theme';
+import { LIGHT_THEME_TOKENS, WIN_ACCENT } from './theme';
 import type {
   AssistFootprint,
   AssistGhostHint,
@@ -269,7 +269,8 @@ export class BoardAssistLayer {
     const accent = tokens.win;
     const hint = tokens.lines;
     this.destDotMaterial.color.set(hint);
-    this.destDotMaterial.opacity = tokens.table === '#f3f1ec' ? 0.38 : 0.45;
+    const lightTable = tokens.table === LIGHT_THEME_TOKENS.table;
+    this.destDotMaterial.opacity = lightTable ? 0.38 : 1 - 0.38;
     this.pathMaterial.color.set(accent);
     this.ringMaterial.color.set(accent);
     this.highlightRingMaterial.color.set(accent);
@@ -281,7 +282,7 @@ export class BoardAssistLayer {
     this.ringPickMaterial.color.set(accent);
     this.shadowTint = new THREE.Color(tokens.shadow).getHex();
     this.shadowMaterial.color.set(tokens.shadow);
-    this.lightTable = tokens.table === '#f3f1ec';
+    this.lightTable = lightTable;
   }
 
   private markerPreviewColor(player: string): THREE.Color {

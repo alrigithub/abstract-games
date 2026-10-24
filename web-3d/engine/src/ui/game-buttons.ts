@@ -6,7 +6,7 @@ import {
 } from './ai-strength';
 import type { CameraViewController } from '../camera-views';
 import { nextCameraPresetAfter } from '../camera-views';
-import { bindThemeToggle, readInitialTheme, type ThemeId } from '../theme';
+import { applyDocumentTheme, bindThemeToggle, readInitialTheme, type ThemeId } from '../theme';
 import { ensureBasePageStyles } from './page-styles';
 import { initPlaceSfx, isPlaceSoundEnabled, readPlaceSoundEnabled, setPlaceSoundEnabled } from '../sound/place-sfx';
 import {
@@ -146,10 +146,7 @@ const GAME_BUTTONS_CSS = `
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-}
-:root[data-theme='dark'] .game-action-button {
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--ui-action-button-shadow, 0 4px 16px rgba(0, 0, 0, 0.08));
 }
 .game-action-button.game-button-icon {
   min-width: 48px;
@@ -165,13 +162,6 @@ const GAME_BUTTONS_CSS = `
   flex: 1 1 8rem;
   min-width: 0;
 }
-:root[data-theme='dark'] .game-button-bar {
-  --game-btn-border: #3f424a;
-  --game-btn-bg: #22242a;
-  --game-btn-active: #2e3139;
-  --game-btn-muted: #a1a1aa;
-  --game-menu-focus: #60a5fa;
-}
 .game-menu-dropdown {
   position: absolute;
   top: calc(100% + 6px);
@@ -186,11 +176,6 @@ const GAME_BUTTONS_CSS = `
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.06);
   list-style: none;
 }
-:root[data-theme='dark'] .game-menu-dropdown {
-  --game-menu-bg: #22242a;
-  --game-menu-border: #3a3d45;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
-}
 .game-menu-dropdown[hidden] {
   display: none !important;
 }
@@ -199,9 +184,6 @@ const GAME_BUTTONS_CSS = `
   margin: 4px 8px;
   border: none;
   border-top: 1px solid var(--game-menu-separator, #ececec);
-}
-:root[data-theme='dark'] .game-menu-separator {
-  --game-menu-separator: #3a3d45;
 }
 .game-menu-item {
   display: flex;
@@ -224,10 +206,6 @@ const GAME_BUTTONS_CSS = `
 .game-menu-item:hover,
 .game-menu-item:focus-visible {
   background: var(--game-menu-hover, #f4f4f5);
-}
-:root[data-theme='dark'] .game-menu-item:hover,
-:root[data-theme='dark'] .game-menu-item:focus-visible {
-  --game-menu-hover: #2e3139;
 }
 .game-menu-icon {
   flex-shrink: 0;
@@ -445,7 +423,10 @@ function createMenuItem(options: {
 }
 
 export function createGameButtons(options: CreateGameButtonsOptions): GameButtonsBar {
-  if (options.basePageStyles !== false) ensureBasePageStyles();
+  if (options.basePageStyles !== false) {
+    ensureBasePageStyles();
+    applyDocumentTheme(readInitialTheme());
+  }
   ensureGameButtonStyles();
   initPlaceSfx();
   const mount = options.mount ?? document.body;

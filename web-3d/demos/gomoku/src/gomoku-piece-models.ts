@@ -5,7 +5,9 @@ import {
   GOMOKU_GLB_WORLD_SCALE,
   createGomokuStoneGeometry,
   gomokuGlbStoneHeight,
+  pieceGlbSideForPlayer,
   tagPieceForShadows,
+  themeTokens,
   type ThemeId,
 } from '@abstract/three-engine';
 type StonePlayer = 'A' | 'B';
@@ -22,6 +24,8 @@ export interface GomokuStoneAssets {
   yawForId(id: string): number;
   createVisual(player: StonePlayer): THREE.Object3D;
   createGhostVisual(player: StonePlayer, themeId: ThemeId): THREE.Object3D;
+  replaceVisual(root: THREE.Object3D, player: StonePlayer): void;
+  onThemeChange(themeId: ThemeId): void;
   dispose(): void;
 }
 
@@ -65,8 +69,11 @@ async function buildTemplates(): Promise<StoneTemplates> {
   return { A: prepareTemplate(white), B: prepareTemplate(black) };
 }
 
+let gomokuStoneTheme: ThemeId = 'light';
+
 function templateFor(templates: StoneTemplates, player: StonePlayer): THREE.Object3D {
-  return player === 'A' ? templates.A : templates.B;
+  const side = pieceGlbSideForPlayer(gomokuStoneTheme, player);
+  return side === 'A' ? templates.A : templates.B;
 }
 
 function mountModel(root: THREE.Group, model: THREE.Object3D) {
@@ -81,7 +88,7 @@ export function gomokuStoneYawForId(id: string): number {
 }
 
 function ghostOpacity(themeId: ThemeId): number {
-  return themeId === 'dark' ? 0.38 : 0.32;
+  return themeTokens(themeId).ghostOpacity;
 }
 
 function applyGhostOpacity(root: THREE.Object3D, opacity: number) {
@@ -139,6 +146,13 @@ export async function loadGomokuStoneAssets(
         applyGhostOpacity(ghost, ghostOpacity(themeId));
         return ghost;
       },
+      replaceVisual(root, player) {
+        mountModel(root as THREE.Group, templateFor(templates, player).clone(true));
+        tagPieceForShadows(root, false);
+      },
+      onThemeChange(id) {
+        gomokuStoneTheme = id;
+      },
       dispose() {
         shadowGeometry.dispose();
       },
@@ -160,6 +174,12 @@ export async function loadGomokuStoneAssets(
         mat.opacity = ghostOpacity(themeId);
         mesh.material = mat;
         return mesh;
+      },
+      replaceVisual() {
+        /* procedural stones update materials in the scene */
+      },
+      onThemeChange() {
+        /* procedural path uses theme materials from the scene */
       },
       dispose() {
         shadowGeometry.dispose();

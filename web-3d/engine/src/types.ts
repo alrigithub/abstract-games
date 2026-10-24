@@ -75,6 +75,8 @@ export interface PieceGeometrySet {
   useOutline?(piece: EnginePiece): boolean;
   /** Override fill material(s); return null to use theme player color. */
   materialFor?(piece: EnginePiece, tokens: ThemeTokens, selected?: boolean): THREE.Material | THREE.Material[] | null;
+  /** GLB-backed sets: swap white/black models when the document theme changes. */
+  onThemeChange?(themeId: ThemeId): void;
 }
 
 export interface PieceBuildContext {

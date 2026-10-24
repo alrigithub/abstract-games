@@ -7,7 +7,9 @@ import {
   heightFromBoundingBox,
   takPieceGeometrySet,
   type EnginePiece,
+  pieceGlbSideForPlayer,
   type PieceGeometrySet,
+  type ThemeId,
 } from '@abstract/three-engine';
 
 /** Prior procedural flat width in world units (one cell ≈ 1). */
@@ -96,9 +98,11 @@ async function buildTemplates(): Promise<TakTemplates> {
   };
 }
 
+let takPieceTheme: ThemeId = 'light';
+
 function templateFor(templates: TakTemplates, piece: EnginePiece): THREE.Object3D {
   const shape = (piece.shape === 'standing' ? 'standing' : piece.shape === 'capstone' ? 'capstone' : 'flat') as ShapeKey;
-  const side = piece.player === 'B' ? 'B' : 'A';
+  const side = pieceGlbSideForPlayer(takPieceTheme, piece.player);
   return templates[shape][side];
 }
 
@@ -139,6 +143,9 @@ export async function loadTakPieceGeometrySet(): Promise<PieceGeometrySet> {
       replaceVisual(root, piece) {
         const model = templateFor(templates, piece).clone(true);
         mountModel(root as THREE.Group, model);
+      },
+      onThemeChange(id) {
+        takPieceTheme = id;
       },
     };
   } catch (error) {
