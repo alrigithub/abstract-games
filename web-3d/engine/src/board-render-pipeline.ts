@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { N8AOPass } from 'n8ao';
 import { CLAY } from './constants';
 
@@ -15,6 +16,8 @@ export interface BoardRenderPipeline {
 export type BoardRenderPipelineOptions = {
   /** Override URL / default AO enable (used in tests). */
   aoEnabled?: boolean;
+  /** Pre-rendered scenery still needs SMAA and a single display conversion. */
+  postprocessWithoutAo?: boolean;
 };
 
 function readClayAoDisabled(): boolean {
@@ -38,7 +41,7 @@ export function createBoardRenderPipeline(
 ): BoardRenderPipeline {
   const aoEnabled = options.aoEnabled ?? (CLAY.AO_ENABLED && !readClayAoDisabled());
 
-  if (!aoEnabled) {
+  if (!aoEnabled && !options.postprocessWithoutAo) {
     return {
       render() {
         renderer.render(scene, camera);
@@ -52,14 +55,18 @@ export function createBoardRenderPipeline(
 
   const size = renderer.getSize(new THREE.Vector2());
   const composer = new EffectComposer(renderer);
-  const aoPass = new N8AOPass(scene, camera, Math.max(1, size.x), Math.max(1, size.y));
-  aoPass.setQualityMode(CLAY.AO_QUALITY);
-  aoPass.configuration.halfRes = CLAY.AO_HALF_RES;
-  aoPass.configuration.intensity = CLAY.AO_INTENSITY;
-  aoPass.configuration.aoRadius = CLAY.AO_RADIUS;
-  aoPass.configuration.distanceFalloff = CLAY.AO_DISTANCE_FALLOFF;
-  aoPass.configuration.gammaCorrection = false;
-  composer.addPass(aoPass);
+  const beautyPass = aoEnabled
+    ? new N8AOPass(scene, camera, Math.max(1, size.x), Math.max(1, size.y))
+    : new RenderPass(scene, camera);
+  if (beautyPass instanceof N8AOPass) {
+    beautyPass.setQualityMode(CLAY.AO_QUALITY);
+    beautyPass.configuration.halfRes = CLAY.AO_HALF_RES;
+    beautyPass.configuration.intensity = CLAY.AO_INTENSITY;
+    beautyPass.configuration.aoRadius = CLAY.AO_RADIUS;
+    beautyPass.configuration.distanceFalloff = CLAY.AO_DISTANCE_FALLOFF;
+    beautyPass.configuration.gammaCorrection = false;
+  }
+  composer.addPass(beautyPass);
   // Canvas MSAA cannot smooth N8AO's offscreen beauty target. SMAA operates
   // in linear space in r180; OutputPass then applies AgX and sRGB exactly once.
   const antialiasPass = new SMAAPass();
@@ -76,7 +83,7 @@ export function createBoardRenderPipeline(
       composer.setSize(width, height);
     },
     dispose() {
-      aoPass.dispose();
+      beautyPass.dispose();
       antialiasPass.dispose();
       outputPass.dispose();
       composer.dispose();

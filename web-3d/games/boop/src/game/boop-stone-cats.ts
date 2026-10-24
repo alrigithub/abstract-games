@@ -158,7 +158,7 @@ function simplifyForShadowStandIn(geometry: THREE.BufferGeometry): THREE.BufferG
   return simplified;
 }
 
-function attachShadowStandIn(visual: THREE.Object3D, shadowGeometry: THREE.BufferGeometry): void {
+export function attachShadowStandIn(visual: THREE.Object3D, shadowGeometry: THREE.BufferGeometry): void {
   visual.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;
     if (node.name === BOOP_SHADOW_CASTER_NAME) return;
@@ -170,6 +170,11 @@ function attachShadowStandIn(visual: THREE.Object3D, shadowGeometry: THREE.Buffe
   shadowMesh.name = BOOP_SHADOW_CASTER_NAME;
   shadowMesh.castShadow = true;
   shadowMesh.receiveShadow = false;
+  // Geometry is already in normalized world units. Cancel the visual's scale
+  // and anchoring so it is not transformed a second time under this parent.
+  visual.updateMatrixWorld(true);
+  shadowMesh.applyMatrix4(visual.matrixWorld.clone().invert());
+  shadowMesh.userData.excludeFromPicking = true;
   visual.add(shadowMesh);
 }
 
@@ -180,7 +185,7 @@ function xzExtent(root: THREE.Object3D): number {
   return Math.max(size.x, size.z);
 }
 
-function prepareVisualTemplate(scene: THREE.Group, worldScale: number): StoneTemplate {
+function prepareVisualTemplate(scene: THREE.Group, worldScale: number, offlineShadow?: THREE.BufferGeometry): StoneTemplate {
   const visual = clonePieceVisualTemplate(scene);
   visual.scale.setScalar(worldScale);
   visual.updateMatrixWorld(true);
@@ -188,8 +193,9 @@ function prepareVisualTemplate(scene: THREE.Group, worldScale: number): StoneTem
   anchorObjectBaseToFloor(visual);
   const height = measureHeight(visual);
 
-  const merged = mergeWorldPieceGeometry(visual.clone(true));
-  const shadowGeometry = simplifyForShadowStandIn(merged);
+  const shadowGeometry = offlineShadow
+    ? offlineShadow.clone().scale(worldScale, worldScale, worldScale)
+    : simplifyForShadowStandIn(mergeWorldPieceGeometry(visual.clone(true)));
   attachShadowStandIn(visual, shadowGeometry);
 
   visual.userData[PIECE_OPAQUE_MATERIALS_READY_USER_DATA] = true;
@@ -203,9 +209,13 @@ const BOOP_VASE_FILES = [
   'boop-vase-small-black.glb',
 ] as const;
 
+export async function loadBoopShadowGeometry(url: string): Promise<THREE.BufferGeometry> {
+  return mergeWorldPieceGeometry(await loadGltfScene(url));
+}
+
 type BoopVaseFile = (typeof BOOP_VASE_FILES)[number];
 
-async function loadTemplates(): Promise<Record<BoopVasePlayerId, Record<StoneCatVariant, StoneTemplate>>> {
+async function loadTemplates(offlineShadows?: Record<StoneCatVariant, THREE.BufferGeometry>): Promise<Record<BoopVasePlayerId, Record<StoneCatVariant, StoneTemplate>>> {
   const scenes = await Promise.all(
     BOOP_VASE_FILES.map(file => loadGltfScene(vaseAssetUrl(file))),
   );
@@ -219,7 +229,8 @@ async function loadTemplates(): Promise<Record<BoopVasePlayerId, Record<StoneCat
   for (const file of BOOP_VASE_FILES) {
     const scene = sceneByFile[file];
     prepareAuthoredPieceGlb(scene);
-    templateByFile.set(file, prepareVisualTemplate(scene, scale));
+    const variant = file.includes('large') ? 'cat' : 'kitten';
+    templateByFile.set(file, prepareVisualTemplate(scene, scale, offlineShadows?.[variant]));
   }
 
   const players = ['A', 'B'] as const;
@@ -283,9 +294,10 @@ function createStonePieceSet(
 export async function createBoopPieceGeometrySet(
   fallbackCat: THREE.BufferGeometry,
   fallbackKitten: THREE.BufferGeometry,
+  offlineShadows?: Record<StoneCatVariant, THREE.BufferGeometry>,
 ): Promise<PieceGeometrySet> {
   try {
-    const templates = await loadTemplates();
+    const templates = await loadTemplates(offlineShadows);
     return createStonePieceSet(templates);
   } catch (err) {
     console.warn('[boop] stone vase GLB load failed, using procedural pieces', err);

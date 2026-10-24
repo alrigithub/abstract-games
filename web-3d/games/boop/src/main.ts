@@ -25,14 +25,17 @@ import {
   loadBoopArenaTemplate,
 } from './game/boop-arena';
 import { BOOP_GRID as size, BOOP_OUTSIDE as OUTSIDE_ROWS } from './game/boop-grid';
+import { createBoopPrerenderTopology, loadBoopPrerender } from './game/boop-prerender';
 
 applyBoopAnimationPacing(ANIMATION);
 
 const fallbackCat = createBoopCatGeometry();
 const fallbackKitten = createBoopKittenGeometry();
-const pieces = await createBoopPieceGeometrySet(fallbackCat, fallbackKitten);
-const arenaTemplate = await loadBoopArenaTemplate();
-const topology = createBoopTopology({ size, outsideRows: OUTSIDE_ROWS }, arenaTemplate);
+const prerender = new URLSearchParams(location.search).get('arena') === '3d' ? null : await loadBoopPrerender();
+const pieces = await createBoopPieceGeometrySet(fallbackCat, fallbackKitten, prerender?.shadows);
+const topology = prerender
+  ? createBoopPrerenderTopology({ size, outsideRows: OUTSIDE_ROWS }, prerender.columns)
+  : createBoopTopology({ size, outsideRows: OUTSIDE_ROWS }, await loadBoopArenaTemplate());
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 injectBoopUiStyles();
@@ -44,6 +47,7 @@ const placementGhost = new DomPlacementGhost(board, {
 });
 
 const scene = await createBoardScene(board, {
+  prerenderedArena: prerender?.plate,
   gridSize: size,
   outsideRows: OUTSIDE_ROWS,
   topology,
@@ -51,6 +55,7 @@ const scene = await createBoardScene(board, {
   initialTheme: theme,
   playfieldSurfaceY: boardPlayfieldTopY(),
   playfieldGround: {
+    matchBackdrop: !!prerender,
     size: boopPlayfieldGroundSize(size, OUTSIDE_ROWS),
     surfaceColor: '#ffffff',
   },
@@ -89,7 +94,7 @@ controller = new BoopController({
 
 gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
-  cameraViews,
+  cameraViews: prerender ? undefined : cameraViews,
   applyTheme,
   aiStrengthStorageKey: BOOP_AI_STRENGTH_STORAGE_KEY,
   gameActions: [
@@ -153,7 +158,7 @@ window.__boopSmokePickAndPlace = async () => {
 
 window.__boopAssertGrounding = () => {
   const boardTop = scene.getBoardTopY();
-  const bases = scene.getStackBottomBaseYs();
+  const bases = scene.getStackBottomBaseYs(!!prerender);
   const maxGap = bases.length ? Math.max(...bases.map(b => Math.abs(b - boardTop))) : 0;
   return { ok: maxGap <= 0.001, maxGap, boardTop, bases };
 };
