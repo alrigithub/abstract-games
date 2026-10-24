@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { applyClayEnvMaterials } from './clay-materials';
 import type { ThemeId } from './theme';
+import { CLAY } from './constants';
+
+export const ARENA_SHADOW_USER_DATA = 'arenaShadowSurface';
 
 const ARENA_ROUGHNESS = 0.82;
 
@@ -43,11 +46,16 @@ function matteArenaStandardMaterial(source: THREE.Material, color?: THREE.Color)
   return source.clone();
 }
 
-/** Arena GLB: receive piece shadows; env geometry does not cast (avoids acne / dark bands on tiles). */
+/** Ruins cast shadows; thin paving only receives them to avoid surface acne. */
 export function tagArenaGlbForShadows(root: THREE.Object3D): void {
+  root.updateWorldMatrix(true, true);
+  const size = new THREE.Vector3();
+  const box = new THREE.Box3();
   root.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;
-    node.castShadow = false;
+    box.setFromObject(node).getSize(size);
+    node.userData[ARENA_SHADOW_USER_DATA] = true;
+    node.castShadow = size.y > 0.18;
     node.receiveShadow = true;
   });
 }
@@ -55,15 +63,27 @@ export function tagArenaGlbForShadows(root: THREE.Object3D): void {
 export interface ApplyArenaGlbThemeMaterialsOptions {
   /** When true, keep authored GLB materials (colours, textures) instead of shared clay ENV. */
   keepGlbMaterials?: boolean;
+  /** Apply the menu palette while retaining authored normal/bump detail. */
+  tintToTheme?: boolean;
 }
 
 /** Shared clay ENV material for authored arena / environment GLBs. */
 export function applyArenaGlbThemeMaterials(
   root: THREE.Object3D,
-  _themeId: ThemeId,
+  themeId: ThemeId,
   options: ApplyArenaGlbThemeMaterialsOptions = {},
 ): void {
-  void _themeId;
+  if (options.tintToTheme) {
+    const color = new THREE.Color(themeId === 'light' ? CLAY.ENV : CLAY.ENV_DARK);
+    root.traverse(node => {
+      if (!(node instanceof THREE.Mesh)) return;
+      const tinted = Array.isArray(node.material)
+        ? node.material.map(mat => matteArenaStandardMaterial(mat, color))
+        : matteArenaStandardMaterial(node.material, color);
+      assignMeshMaterial(node, tinted);
+    });
+    return;
+  }
   if (options.keepGlbMaterials) return;
   applyClayEnvMaterials(root);
 }

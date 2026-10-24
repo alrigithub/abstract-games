@@ -3,6 +3,7 @@ import { BOARD, CLAY } from './constants';
 import { expandBoxByPlayfieldContent, tagExcludeFromBounds } from './playfield-bounds';
 import { PLAYFIELD_GROUND_USER_DATA } from './playfield-ground';
 import { themeTokens, type ThemeId } from './theme';
+import { ARENA_SHADOW_USER_DATA } from './board-arena-glb';
 
 export interface BoardLightingOptions {
   /** Extra Y extent for stacked pieces in the shadow frustum. */
@@ -44,7 +45,7 @@ function applyShadowMapSettings(light: THREE.DirectionalLight, size: number) {
   light.shadow.mapSize.set(size, size);
   light.shadow.bias = CLAY.SHADOW_BIAS;
   light.shadow.normalBias = CLAY.SHADOW_NORMAL_BIAS;
-  light.shadow.radius = 2;
+  light.shadow.radius = CLAY.SHADOW_RADIUS;
   light.shadow.blurSamples = CLAY.SHADOW_BLUR_SAMPLES;
 }
 
@@ -293,9 +294,12 @@ export function syncSceneShadowCatcher(scene: THREE.Scene, worldBounds: THREE.Bo
 
 /** Playfield receives directional shadows; thin grid lines and decals do not. */
 export function tagPlayfieldForShadows(boardRoot: THREE.Object3D) {
-  setMeshShadowFlags(boardRoot, { cast: false, receive: false });
+  // Arena meshes have deliberate per-mesh flags; a board rebuild must not
+  // erase their receivers or the shadows cast by columns and broken walls.
+  setMeshShadowFlags(boardRoot, { cast: false, receive: false }, mesh => !mesh.userData[ARENA_SHADOW_USER_DATA]);
   boardRoot.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;
+    if (node.userData[ARENA_SHADOW_USER_DATA]) return;
     if (node.userData.boardGridLine || node.userData.isShadowCatcher) return;
     if (node.userData[PLAYFIELD_GROUND_USER_DATA]) {
       node.receiveShadow = true;

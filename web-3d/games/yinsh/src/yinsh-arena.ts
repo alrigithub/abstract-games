@@ -1,5 +1,6 @@
 import {
   BOARD,
+  CLAY,
   YINSH,
   applyArenaGlbThemeMaterials,
   createYinshTopology,
@@ -21,11 +22,11 @@ export const YINSH_ARENA_GLB_SHA256 =
   'acbd4dfafa8eea1860efbe2c013a146832e17b18cff0b9a40530169e620837da';
 export const YINSH_ARENA_GLB_FILE = 'yinsh-white-epic.glb';
 
-const INFINITE_GROUND_RAW = 'Infinite white ground';
+const INFINITE_GROUND_RAW = 'White infinity floor';
 const INFINITE_GROUND_SANITIZED = PropertyBinding.sanitizeNodeName(INFINITE_GROUND_RAW);
 
-/** Yinsh arena keeps Blender-authored PBR; pieces use shared clay. */
-const YINSH_ARENA_KEEP_GLB_MATERIALS = { keepGlbMaterials: true as const };
+/** Menu-matched avocado stone with the Blender normal-map detail retained. */
+const YINSH_ARENA_MATERIALS = { tintToTheme: true as const };
 
 const _box = new THREE.Box3();
 const _raycaster = new THREE.Raycaster();
@@ -75,7 +76,7 @@ function prepareArenaScene(scene: THREE.Group, themeId: ThemeId): THREE.Group {
   });
   for (const obj of remove) obj.parent?.remove(obj);
 
-  applyArenaGlbThemeMaterials(scene, themeId, YINSH_ARENA_KEEP_GLB_MATERIALS);
+  applyArenaGlbThemeMaterials(scene, themeId, YINSH_ARENA_MATERIALS);
   tagArenaGlbForShadows(scene);
   scene.name = 'yinsh-white-epic-arena';
   return scene;
@@ -120,7 +121,7 @@ export async function loadYinshArenaTemplate(initialTheme: ThemeId = 'light'): P
       return _box.clone();
     },
     setTheme(themeId: ThemeId) {
-      applyArenaGlbThemeMaterials(root, themeId, YINSH_ARENA_KEEP_GLB_MATERIALS);
+      applyArenaGlbThemeMaterials(root, themeId, YINSH_ARENA_MATERIALS);
     },
   };
 }
@@ -156,9 +157,13 @@ export function yinshPlayfieldGroundSize(): number {
 
 export const YINSH_PLAYFIELD_GROUND = {
   get size() {
-    return yinshPlayfieldGroundSize();
+    return BOARD.PLAYFIELD_GROUND_SIZE;
   },
-  surfaceColor: '#ffffff',
+  // Keep the backdrop below the undulating paving instead of slicing through it.
+  surfaceY: -0.16,
+  matchBackdrop: true,
+  surfaceColor: CLAY.BACKDROP,
+  darkSurfaceColor: CLAY.ENV_DARK,
 } as const;
 
 export function createYinshArenaTopology(arenaTemplate: THREE.Group): Topology {
