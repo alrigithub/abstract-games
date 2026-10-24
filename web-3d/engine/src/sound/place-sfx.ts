@@ -13,6 +13,29 @@ export const WIN_SFX_URLS: readonly string[] = Array.from({ length: WIN_CLIP_COU
 
 export const BOOP_SFX_URL = new URL('../../assets/sfx/boop.mp3', import.meta.url).href;
 
+export interface PlaceSfxPools {
+  place: readonly string[];
+  boop: readonly string[];
+}
+
+let configuredPools: PlaceSfxPools | null = null;
+
+/** Override default engine clip URLs (call before {@link initPlaceSfx}). */
+export function configurePlaceSfxPools(pools: PlaceSfxPools): void {
+  if (initDone) {
+    throw new Error('configurePlaceSfxPools must run before initPlaceSfx');
+  }
+  configuredPools = pools;
+}
+
+function resolvedPlaceUrls(): readonly string[] {
+  return configuredPools?.place ?? PLACE_SFX_URLS;
+}
+
+function resolvedBoopUrls(): readonly string[] {
+  return configuredPools?.boop ?? [BOOP_SFX_URL];
+}
+
 /** Delay after a placement landing before win SFX (avoids clashing with place clips). */
 export const WIN_SOUND_AFTER_PLACE_DELAY_MS = 220;
 
@@ -60,10 +83,10 @@ let lastWinClipIndex: number | null = null;
 let audioContext: AudioContext | null = null;
 let buffers: AudioBuffer[] | null = null;
 let winBuffers: AudioBuffer[] | null = null;
-let boopBuffer: AudioBuffer | null = null;
+let boopBuffers: AudioBuffer[] | null = null;
 let loadPromise: Promise<void> | null = null;
 let boopPushBatchDepth = 0;
-let boopPushBatchPlayed = false;
+let lastBoopClipIndex: number | null = null;
 
 function ensureContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -83,21 +106,21 @@ async function decodeClip(ctx: AudioContext, url: string): Promise<AudioBuffer> 
 }
 
 async function loadBuffers(): Promise<void> {
-  if (buffers && winBuffers && boopBuffer) return;
+  if (buffers && winBuffers && boopBuffers) return;
   const ctx = ensureContext();
   if (!ctx) return;
+  const placeUrls = resolvedPlaceUrls();
+  const boopUrls = resolvedBoopUrls();
   const [place, win, boop] = await Promise.all([
-    buffers
-      ? Promise.resolve(buffers)
-      : Promise.all(PLACE_SFX_URLS.map(url => decodeClip(ctx, url))),
+    buffers ? Promise.resolve(buffers) : Promise.all(placeUrls.map(url => decodeClip(ctx, url))),
     winBuffers
       ? Promise.resolve(winBuffers)
       : Promise.all(WIN_SFX_URLS.map(url => decodeClip(ctx, url))),
-    boopBuffer ? Promise.resolve(boopBuffer) : decodeClip(ctx, BOOP_SFX_URL),
+    boopBuffers ? Promise.resolve(boopBuffers) : Promise.all(boopUrls.map(url => decodeClip(ctx, url))),
   ]);
   buffers = place;
   winBuffers = win;
-  boopBuffer = boop;
+  boopBuffers = boop;
 }
 
 function unlockAudioContext(): void {
@@ -114,7 +137,7 @@ export function initPlaceSfx(): void {
   loadPromise = loadBuffers().catch(() => {
     buffers = null;
     winBuffers = null;
-    boopBuffer = null;
+    boopBuffers = null;
   });
   const unlock = () => {
     unlockAudioContext();
@@ -169,7 +192,6 @@ export function beginBoopPushLandSounds(): void {
 
 export function endBoopPushLandSounds(): void {
   if (boopPushBatchDepth > 0) boopPushBatchDepth--;
-  if (boopPushBatchDepth === 0) boopPushBatchPlayed = false;
 }
 
 /**
@@ -178,8 +200,6 @@ export function endBoopPushLandSounds(): void {
  */
 export function consumeBoopPushLandingSound(): boolean {
   if (boopPushBatchDepth <= 0) return true;
-  if (boopPushBatchPlayed) return false;
-  boopPushBatchPlayed = true;
   playBoopSound();
   return false;
 }
@@ -190,12 +210,15 @@ export function playBoopSound(): void {
   const run = async () => {
     await loadPromise;
     const ctx = ensureContext();
-    if (!ctx || !boopBuffer) return;
+    if (!ctx || !boopBuffers?.length) return;
     unlockAudioContext();
     if (ctx.state !== 'running') return;
 
+    const index = pickPlaceClipIndex(lastBoopClipIndex, Math.random, boopBuffers.length);
+    lastBoopClipIndex = index;
+    const buffer = boopBuffers[index]!;
     const source = ctx.createBufferSource();
-    source.buffer = boopBuffer;
+    source.buffer = buffer;
     const gain = ctx.createGain();
     gain.gain.value = 0.95 + Math.random() * 0.1;
     source.playbackRate.value = 0.98 + Math.random() * 0.06;

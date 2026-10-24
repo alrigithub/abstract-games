@@ -22,7 +22,14 @@ import { BoardAssistLayer } from './board-assist';
 import { WIN_ACCENT } from './theme';
 
 const FLIP_HALO_NAME = 'flip-preview-halo';
-import { consumeBoopPushLandingSound, initPlaceSfx, playPiecePlaceSound, type PlaceSoundKind } from './sound/place-sfx';
+import {
+  configurePlaceSfxPools,
+  consumeBoopPushLandingSound,
+  initPlaceSfx,
+  playPiecePlaceSound,
+  type PlaceSoundKind,
+  type PlaceSfxPools,
+} from './sound/place-sfx';
 import { themeTokens, type ThemeId } from './theme';
 import type {
   BoardAssistState,
@@ -78,9 +85,12 @@ export interface BoardSceneOptions {
   playfieldSurfaceY?: number;
   /** Lower pieces in a stack receive shadows (Tak / Tzaar). */
   stackedPiecesReceiveShadow?: boolean;
+  /** Optional placement / boop push clip URLs (must be set before audio init). */
+  placeSfx?: PlaceSfxPools;
 }
 
 export async function createBoardScene(container: HTMLElement, options: BoardSceneOptions): Promise<SceneApi> {
+  if (options.placeSfx) configurePlaceSfxPools(options.placeSfx);
   initPlaceSfx();
   const players = options.players ?? ['A', 'B'];
   const boardSlab = options.boardSlab ?? BOARD.SLAB;
