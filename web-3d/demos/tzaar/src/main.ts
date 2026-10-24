@@ -4,14 +4,11 @@ import {
   ANIMATION,
   CAMERA,
   TZAAR_DISC_HEIGHT,
-  TZAAR_DISC_RADIUS,
   createTzaarBoardGroup,
-  createTzaarHeightBadge,
   createTzaarHexTopology,
   createTzaarPieceMesh,
   readStoredTheme,
   storeTheme,
-  tzaarBoardExtent,
   tzaarFixedStart,
   tzaarPlayableCells,
   themeTokens,
@@ -63,6 +60,13 @@ const snapshot = {
   cells: cells.map(() => []),
 };
 
+interface StackLabel {
+  el: HTMLSpanElement;
+  world: THREE.Vector3;
+}
+
+const labels: StackLabel[] = [];
+
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = false;
 controls.enablePan = true;
@@ -83,10 +87,19 @@ let framed = false;
 function requestRender() {
   if (!document.hidden && !frame) frame = requestAnimationFrame(render);
 }
+function projectLabels() {
+  const bounds = boardEl.getBoundingClientRect();
+  for (const label of labels) {
+    const p = label.world.clone().project(camera);
+    label.el.style.left = `${(p.x * 0.5 + 0.5) * bounds.width}px`;
+    label.el.style.top = `${(-p.y * 0.5 + 0.5) * bounds.height}px`;
+  }
+}
 function render() {
   frame = 0;
   if (document.hidden) return;
   renderer.render(scene, camera);
+  projectLabels();
 }
 
 controls.addEventListener('change', requestRender);
@@ -108,7 +121,7 @@ function fit(reframe = false) {
   }
   framed = true;
   camera.updateMatrixWorld();
-  const half = tzaarBoardExtent() / 2;
+  const half = 4.4;
   const points = [
     new THREE.Vector3(-half, 0, -half),
     new THREE.Vector3(half, 0, -half),
@@ -128,7 +141,7 @@ function fit(reframe = false) {
   }
   const centerX = (minX + maxX) / 2;
   const centerY = (minY + maxY) / 2;
-  const halfHeight = Math.max((maxY - minY) / 2, (maxX - minX) / (2 * aspect)) * CAMERA.framePadding;
+  const halfHeight = Math.max((maxY - minY) / 2, (maxX - minX) / (2 * aspect)) * 1.04;
   camera.left = centerX - halfHeight * aspect;
   camera.right = centerX + halfHeight * aspect;
   camera.top = centerY + halfHeight;
@@ -145,6 +158,8 @@ function applyTheme(id: ThemeId) {
   boardRoot.clear();
   boardRoot.add(createTzaarBoardGroup(tokens));
   piecesRoot.clear();
+  for (const label of labels) label.el.remove();
+  labels.length = 0;
   const edgeCache = new Map<THREE.BufferGeometry, THREE.EdgesGeometry>();
   for (const piece of start) {
     const height = STACKS[`${piece.x},${piece.y}`] ?? 1;
@@ -165,13 +180,12 @@ function applyTheme(id: ThemeId) {
       y += TZAAR_DISC_HEIGHT;
     }
     if (height >= 2) {
-      const badge = createTzaarHeightBadge(height, tokens, piece.player);
-      const outward = new THREE.Vector3(pos.x, 0, pos.z);
-      if (outward.lengthSq() < 0.01) outward.set(1, 0, 0);
-      outward.normalize().multiplyScalar(TZAAR_DISC_RADIUS + 0.28);
-      badge.position.set(pos.x + outward.x, y * 0.5 + 0.08, pos.z + outward.z);
-      badge.lookAt(camera.position);
-      piecesRoot.add(badge);
+      const el = document.createElement('span');
+      el.className = 'stack-height';
+      el.textContent = String(height);
+      el.dataset.testid = `stack-height-${piece.x}-${piece.y}`;
+      boardEl.appendChild(el);
+      labels.push({ el, world: new THREE.Vector3(pos.x, y + 0.02, pos.z) });
     }
   }
   requestRender();

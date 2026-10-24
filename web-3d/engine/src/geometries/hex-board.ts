@@ -116,14 +116,14 @@ export function tzaarGridLineSegments(): { from: THREE.Vector3; to: THREE.Vector
 }
 
 export function createTzaarBoardLineGeometry(lineW = BOARD.LINE_W): THREE.BufferGeometry {
+  const width = Math.max(lineW, 0.036);
   const geos = tzaarGridLineSegments().map(seg => {
     const dx = seg.to.x - seg.from.x;
     const dz = seg.to.z - seg.from.z;
     const len = Math.hypot(dx, dz);
-    const geo = new THREE.PlaneGeometry(len + lineW, lineW);
-    geo.rotateX(-Math.PI / 2);
+    const geo = new THREE.BoxGeometry(len + width, 0.01, width);
     geo.rotateY(-Math.atan2(dz, dx));
-    geo.translate((seg.from.x + seg.to.x) / 2, 0.002, (seg.from.z + seg.to.z) / 2);
+    geo.translate((seg.from.x + seg.to.x) / 2, 0.008, (seg.from.z + seg.to.z) / 2);
     return geo;
   });
   const merged = mergeGeometries(geos, false) ?? new THREE.BufferGeometry();

@@ -12,8 +12,8 @@ const EMBLEM_H = 0.007;
 const RING_INNER = TZAAR_DISC_RADIUS * 0.46;
 const RING_OUTER = TZAAR_DISC_RADIUS * 0.58;
 const DOT_R = TZAAR_DISC_RADIUS * 0.12;
-const SEPARATOR_INNER = TZAAR_DISC_RADIUS * 0.9;
-const SEPARATOR_OUTER = TZAAR_DISC_RADIUS * 1.02;
+const SEPARATOR_INNER = TZAAR_DISC_RADIUS * 0.82;
+const SEPARATOR_OUTER = TZAAR_DISC_RADIUS * 1.04;
 
 export type TzaarEmblem = 'ring' | 'dot';
 
@@ -119,41 +119,21 @@ export function createTzaarPieceMesh(options: {
   return group;
 }
 
-const SEGMENT: Record<string, [number, number, number, number, number]> = {
-  a: [0, 0.09, 0.1, 0.018, 0],
-  b: [0.05, 0.045, 0.018, 0.08, 0],
-  c: [0.05, -0.045, 0.018, 0.08, 0],
-  d: [0, -0.09, 0.1, 0.018, 0],
-  e: [-0.05, -0.045, 0.018, 0.08, 0],
-  f: [-0.05, 0.045, 0.018, 0.08, 0],
-  g: [0, 0, 0.1, 0.018, 0],
-};
-
-const DIGITS: Record<number, string[]> = {
-  1: ['b', 'c'],
-  2: ['a', 'b', 'g', 'e', 'd'],
-  3: ['a', 'b', 'g', 'c', 'd'],
-  4: ['f', 'g', 'b', 'c'],
-  5: ['a', 'f', 'g', 'c', 'd'],
-  6: ['a', 'f', 'g', 'e', 'c', 'd'],
-  7: ['a', 'b', 'c'],
-  8: ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
-  9: ['a', 'b', 'c', 'd', 'f', 'g'],
-};
-
-/** Small 7-segment stack-height badge, readable from the ~45° ortho view. */
+/** Vertical pip column — one pip per disc — so stack height reads from ~45°. */
 export function createTzaarHeightBadge(height: number, tokens: ThemeTokens, player: string): THREE.Group {
   const group = new THREE.Group();
   const palette = tokens.piece[player] ?? tokens.piece.A!;
-  const fill = basic(palette.edge);
-  const plate = basic(palette.fill);
-  const backing = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.24, 0.02), plate);
-  group.add(backing);
-  for (const key of DIGITS[height] ?? DIGITS[8]!) {
-    const [x, y, w, h] = SEGMENT[key]!;
-    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.03), fill);
-    bar.position.set(x, y, 0.02);
-    group.add(bar);
+  const fill = basic(palette.fill);
+  const edge = new THREE.LineBasicMaterial({ color: palette.edge });
+  const pipH = 0.04;
+  const gap = 0.012;
+  const radius = 0.055;
+  for (let i = 0; i < height; i++) {
+    const geo = new THREE.CylinderGeometry(radius, radius, pipH, 20);
+    const mesh = new THREE.Mesh(geo, fill);
+    mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), edge));
+    mesh.position.y = i * (pipH + gap) + pipH / 2;
+    group.add(mesh);
   }
   return group;
 }
