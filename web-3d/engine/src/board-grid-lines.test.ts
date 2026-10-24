@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { boardGridLineScreenScale, boardGridLineWorldWidth } from './board-grid-lines';
+import {
+  applyBoardGridLineScreenScale,
+  boardGridLineScreenScale,
+  boardGridLineWorldWidth,
+  tagBoardGridLine,
+} from './board-grid-lines';
 import { BOARD } from './constants';
 
 describe('board grid line screen scale', () => {
@@ -20,5 +25,17 @@ describe('board grid line screen scale', () => {
     camera.zoom = 2;
     const s = boardGridLineScreenScale(camera, 720);
     expect(s * BOARD.LINE_W).toBeCloseTo(boardGridLineWorldWidth(camera, 720), 6);
+  });
+
+  it('scales thickness axis only so line length stays fixed', () => {
+    const group = new THREE.Group();
+    const h = new THREE.Mesh(new THREE.PlaneGeometry(BOARD.LINE_W, 10));
+    h.rotation.x = -Math.PI / 2;
+    tagBoardGridLine(h, { thicknessAxis: 'z' });
+    group.add(h);
+    applyBoardGridLineScreenScale(group, 2);
+    expect(h.scale.x).toBe(1);
+    expect(h.scale.y).toBe(2);
+    expect(h.scale.z).toBe(1);
   });
 });

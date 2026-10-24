@@ -610,7 +610,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
         const line = new THREE.Mesh(geo, gridMaterial);
         line.rotation.x = -Math.PI / 2;
         line.position.set(axis === 'x' ? offset : 0, BOARD.LINE_Y, axis === 'z' ? offset : 0);
-        tagBoardGridLine(line);
+        tagBoardGridLine(line, { thicknessAxis: axis === 'x' ? 'x' : 'z' });
         board.add(line);
       }
     }
