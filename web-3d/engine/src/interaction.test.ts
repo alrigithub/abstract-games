@@ -64,6 +64,10 @@ describe('drag-only interaction', () => {
     vi.unstubAllGlobals();
   });
 
+  it('uses a 370 ms hold interval', () => {
+    expect(INTERACTION.HOLD_INTERVAL).toBe(370);
+  });
+
   it('requires drag before drop and grows stack every HOLD_INTERVAL', () => {
     pointer(stage, 'pointerdown', 20);
     expect(current.selection?.count).toBe(1);

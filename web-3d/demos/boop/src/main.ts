@@ -3,11 +3,12 @@ import {
   createBoardScene,
   createBoopCatGeometry,
   createBoopKittenGeometry,
+  createGameButtons,
   createSquareTopology,
-  bindThemeToggle,
-  readStoredTheme,
+  readInitialTheme,
+  type BoardSnapshot,
+  type ThemeId,
 } from '@abstract/three-engine';
-import type { BoardSnapshot } from '@abstract/three-engine';
 
 const size = 6;
 const cat = createBoopCatGeometry();
@@ -22,6 +23,21 @@ cells[3 * size + 2] = [{ id: 'cat2', player: 'B', shape: 'cat' }];
 
 const snapshot: BoardSnapshot = { playableCells: size * size, cellCount: size * size, cells };
 const board = document.querySelector<HTMLDivElement>('#board')!;
-const scene = await createBoardScene(board, { gridSize: size, topology, pieces, initialTheme: readStoredTheme() });
+let theme: ThemeId = readInitialTheme();
+
+const scene = await createBoardScene(board, { gridSize: size, topology, pieces, initialTheme: theme });
 scene.setSnapshot(snapshot);
-bindThemeToggle(document.querySelector('#theme-toggle')!, t => scene.setTheme(t));
+
+function applyTheme(id: ThemeId) {
+  theme = id;
+  scene.setTheme(id);
+}
+
+const cameraViews = scene.createCameraViews();
+
+createGameButtons({
+  mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  cameraViews,
+  applyTheme,
+  onNewGameReset: () => scene.setSnapshot(snapshot),
+});

@@ -4,10 +4,15 @@ import {
   type AiStrengthLevel,
   DEFAULT_AI_STRENGTH_LEVELS,
 } from './ai-strength';
+import type { CameraViewController } from '../camera-views';
 import { bindThemeToggle, type ThemeId } from '../theme';
+import { ensureBasePageStyles } from './page-styles';
 
-/** Hub lobby when serving the monorepo `web/` tree from the site root. */
-export const DEFAULT_LOBBY_HREF = '/web/index.html';
+/** Site root lobby (Firebase hosting). */
+export const DEFAULT_LOBBY_HREF = '/';
+
+/** Shared top-bar CSS; exported so tooling/tests can read the single source. */
+export { GAME_BUTTONS_CSS };
 
 const STYLE_ID = 'abstract-game-buttons-styles';
 
@@ -144,7 +149,18 @@ export interface FirstPlayerChoice {
   testId: string;
 }
 
+export interface ExtraGameButton {
+  label: string;
+  testId: string;
+  onClick: () => void;
+  title?: string;
+}
+
 export interface CreateGameButtonsOptions {
+  /** Game-specific buttons appended to the shared row (e.g. Yinsh "Flip run"). */
+  extraButtons?: ExtraGameButton[];
+  /** Inject the shared page shell CSS (default true). */
+  basePageStyles?: boolean;
   mount?: HTMLElement;
   lobbyHref?: string;
   /** When set, shows the shared AI strength stepper in the bar. */
@@ -166,6 +182,8 @@ export interface CreateGameButtonsOptions {
   applyTheme?: (theme: ThemeId) => void;
   /** Alias for {@link applyTheme}. */
   onThemeChange?: (theme: ThemeId) => void;
+  /** Shared top / ¾ camera presets; adds the Camera button when set. */
+  cameraViews?: CameraViewController;
   fullscreenElement?: HTMLElement;
 }
 
@@ -178,6 +196,7 @@ export interface GameButtonsBar {
 }
 
 export function createGameButtons(options: CreateGameButtonsOptions): GameButtonsBar {
+  if (options.basePageStyles !== false) ensureBasePageStyles();
   ensureGameButtonStyles();
   const mount = options.mount ?? document.body;
   const fullscreenEl = options.fullscreenElement ?? document.documentElement;
@@ -210,6 +229,20 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
     unbindTheme = bindThemeToggle(themeBtn, themeApply);
   }
 
+  const cameraBtn = document.createElement('button');
+  cameraBtn.type = 'button';
+  cameraBtn.className = 'game-button-icon';
+  cameraBtn.dataset.testid = 'camera-toggle';
+  cameraBtn.setAttribute('aria-label', 'Toggle camera view');
+  cameraBtn.title = 'Camera: top view and ¾ view';
+  cameraBtn.textContent = '⌖';
+  let unbindCamera: (() => void) | undefined;
+  if (options.cameraViews) {
+    const onCamera = () => options.cameraViews!.toggle();
+    cameraBtn.addEventListener('click', onCamera);
+    unbindCamera = () => cameraBtn.removeEventListener('click', onCamera);
+  }
+
   const newGameBtn = document.createElement('button');
   newGameBtn.type = 'button';
   newGameBtn.dataset.testid = 'new-game';
@@ -225,7 +258,25 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   lobby.dataset.testid = 'back-to-lobby';
   lobby.textContent = 'Back to Lobby';
 
-  row.append(fullscreenBtn, ...(themeApply ? [themeBtn] : []), newGameBtn, aiSlot, lobby);
+  const extras = (options.extraButtons ?? []).map(extra => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.testid = extra.testId;
+    btn.textContent = extra.label;
+    if (extra.title) btn.title = extra.title;
+    btn.addEventListener('click', () => extra.onClick());
+    return btn;
+  });
+
+  row.append(
+    fullscreenBtn,
+    ...(options.cameraViews ? [cameraBtn] : []),
+    ...(themeApply ? [themeBtn] : []),
+    newGameBtn,
+    aiSlot,
+    lobby,
+    ...extras,
+  );
 
   const status = document.createElement('p');
   status.className = 'game-button-status';
@@ -325,6 +376,8 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
       document.removeEventListener('fullscreenchange', syncFullscreenLabel);
       document.removeEventListener('click', onDocClick);
       unbindTheme?.();
+      unbindCamera?.();
+      options.cameraViews?.dispose();
       aiStrength?.destroy();
       root.remove();
     },
