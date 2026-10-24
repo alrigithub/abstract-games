@@ -19,11 +19,7 @@ export function createGroundedBoopPieces(
   const base = boopPieceGeometrySet(cat, kitten);
   return {
     ...base,
-    verticalOffset(piece: EnginePiece, _index: number, _stack: EnginePiece[]) {
-      void _index;
-      void _stack;
-      return -base.height(piece) / 2;
-    },
+    geometryOrigin: 'base' as const,
   };
 }
 

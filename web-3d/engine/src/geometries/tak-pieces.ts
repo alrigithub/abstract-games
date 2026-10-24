@@ -58,6 +58,7 @@ export function takPieceGeometrySet(geos: ReturnType<typeof createTakPieceGeomet
       const geo = map[piece.shape] ?? geos.flat;
       return geometryBoundingBoxHeight(geo);
     },
+    geometryOrigin: 'base',
     edgeThreshold: BOARD.EDGE_THRESHOLD_TAK,
     yaw(id: string) {
       let hash = 2166136261;

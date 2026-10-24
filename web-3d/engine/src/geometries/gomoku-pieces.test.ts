@@ -12,8 +12,8 @@ describe('createGomokuStoneGeometry', () => {
     expect(box.max.x).toBeCloseTo(GOMOKU_DIMS.STONE_R, 2);
   });
 
-  it('rest center is lowered by 25% of height', () => {
-    expect(gomokuStoneRestCenterY()).toBeCloseTo(GOMOKU_DIMS.STONE_H / 2 - 0.25 * GOMOKU_DIMS.STONE_H, 6);
+  it('rest Y places the stone base on the playfield', () => {
+    expect(gomokuStoneRestCenterY()).toBeCloseTo(0, 6);
   });
 
   it('has outward-facing normals (no majority inverted on equator)', () => {

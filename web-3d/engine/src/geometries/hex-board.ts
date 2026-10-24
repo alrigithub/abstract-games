@@ -5,8 +5,8 @@ import {
   GIPF_BOARD,
   createGipfHexBoard,
   createGipfLineGeometry,
-  createGipfRegularHexSlabGeometry,
   gipfLayoutExtent,
+  gipfRegularHexSlab,
   gipfLayoutFrameCorners,
   gipfPrintColors,
   gipfWorldPoint,
@@ -147,9 +147,18 @@ export function createTzaarBoardLineGeometry(lineW = TZAAR_LINE_W): THREE.Buffer
   return createGipfLineGeometry(tzaarLayout(), lineW);
 }
 
-/** Regular hex slab centred on the point centroid; top face at the playfield surface. */
-export function createTzaarBoardSlabGeometry(slab = BOARD.SLAB): THREE.BufferGeometry {
-  return createGipfRegularHexSlabGeometry(tzaarLayout(), slab);
+/** Flat regular-hex playfield outline (y=0). */
+export function createTzaarBoardSlabGeometry(_slab = BOARD.SLAB): THREE.BufferGeometry {
+  const hex = gipfRegularHexSlab(tzaarLayout());
+  const shape = new THREE.Shape();
+  const verts = hex.vertices;
+  shape.moveTo(verts[0]!.x, verts[0]!.z);
+  for (let i = 1; i < verts.length; i++) shape.lineTo(verts[i]!.x, verts[i]!.z);
+  shape.closePath();
+  const geo = new THREE.ShapeGeometry(shape);
+  geo.rotateX(-Math.PI / 2);
+  geo.computeBoundingBox();
+  return geo;
 }
 
 export const tzaarPrintColors = gipfPrintColors;

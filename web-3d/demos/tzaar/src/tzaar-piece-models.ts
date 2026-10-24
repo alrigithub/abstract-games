@@ -56,7 +56,6 @@ function prepareTemplate(scene: THREE.Object3D): THREE.Object3D {
   root.scale.setScalar(TZAAR_GLB_WORLD_SCALE);
   root.updateMatrixWorld(true);
   anchorObjectBaseToY0(root);
-  root.position.y -= TZAAR_GLB_STACK_STEP / 2;
   root.updateMatrixWorld(true);
   return root;
 }
@@ -102,9 +101,13 @@ export async function loadTzaarPieceGeometrySet(): Promise<PieceGeometrySet> {
   const shadowGeo = createTzaarDiscGeometry();
   try {
     const templates = await buildTemplates();
+    const measureTemplate = templateFor(templates, { id: 'm', player: 'A', shape: 'tott' });
+    _box.setFromObject(measureTemplate);
+    const visualHeight = _box.max.y - _box.min.y;
     return {
       geometry: () => shadowGeo,
-      height: () => TZAAR_GLB_STACK_STEP,
+      height: () => visualHeight,
+      geometryOrigin: 'base',
       yaw: fallback.yaw,
       useOutline: () => false,
       materialFor: () => null,

@@ -26,12 +26,14 @@ export const INTERACTION = {
 } as const;
 
 export const BOARD = {
-  /** Default visual slab for demos (grid lines sit on y≈0). */
-  SLAB: 0.06,
-  /** Tak board slab thickness (top face at y=0). */
-  TAK_SLAB: 0.018,
+  /** Board thickness (0 = flat playfield plane at {@link PLAYFIELD_SURFACE_Y}). */
+  SLAB: 0,
+  /** Tak board thickness (same flat plane as other games). */
+  TAK_SLAB: 0,
   /** Top of board / table where piece bases rest (world Y). */
   PLAYFIELD_SURFACE_Y: 0,
+  /** Grid / intersection lines sit slightly above the board plane. */
+  LINE_Y: 0.002,
   /** Contact shadow sits this far above the piece base (world Y). */
   SHADOW_CONTACT_EPSILON: 0.001,
   LINE_W: 0.018,

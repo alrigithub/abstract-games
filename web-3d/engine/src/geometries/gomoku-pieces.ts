@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BOARD } from '../constants';
 import { themeTokens } from '../theme';
+import { anchorGeometryBaseToY0 } from './anchor';
 import { createContactShadowBlob } from './contact-shadow';
 import type { PieceGeometrySet, ThemeId } from '../types';
 
@@ -9,14 +10,12 @@ export { createContactShadowBlob };
 /** Canonical sizes — see `web-3d/demos/gomoku/IMPLEMENTED.md`. */
 export const GOMOKU_DIMS = {
   GRID: 15,
-  SLAB: 0.25,
+  SLAB: 0,
   MARGIN: 0.55,
   LINE_W: BOARD.LINE_W,
   STAR_R: 0.055,
   STONE_R: 0.47,
   STONE_H: 0.21,
-  /** Lower resting center by this fraction of stone height (visual seat on board). */
-  REST_Y_DROP: 0.25,
 } as const;
 
 const HOSHI_15: readonly (readonly [number, number])[] = [
@@ -44,14 +43,12 @@ export function createGomokuStoneGeometry(
   }
   const geo = new THREE.LatheGeometry(profile, BOARD.RADIAL_SEGMENTS);
   geo.computeVertexNormals();
-  geo.computeBoundingBox();
-  geo.computeBoundingSphere();
-  return geo;
+  return anchorGeometryBaseToY0(geo);
 }
 
-/** World Y of stone mesh center at rest: `STONE_H/2 − REST_Y_DROP×STONE_H`. */
-export function gomokuStoneRestCenterY(height = GOMOKU_DIMS.STONE_H): number {
-  return height / 2 - GOMOKU_DIMS.REST_Y_DROP * height;
+/** World Y of stone mesh origin at rest (geometry base anchored at local y=0). */
+export function gomokuStoneRestCenterY(_height = GOMOKU_DIMS.STONE_H): number {
+  return BOARD.PLAYFIELD_SURFACE_Y;
 }
 
 /** @deprecated Use {@link gomokuStoneRestCenterY}. */

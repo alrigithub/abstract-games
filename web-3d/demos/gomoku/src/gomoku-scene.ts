@@ -103,13 +103,13 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
     while (boardGroup.children.length > 1) boardGroup.remove(boardGroup.children[1]!);
     const span = size - 1;
     const boardSpan = span + GOMOKU_DIMS.MARGIN * 2;
-    const slab = new THREE.BoxGeometry(boardSpan, GOMOKU_DIMS.SLAB, boardSpan);
-    disposables.push(slab);
-    const slabMesh = new THREE.Mesh(slab, materials.board);
-    slabMesh.position.y = -GOMOKU_DIMS.SLAB / 2;
-    boardGroup.add(slabMesh);
+    const planeGeo = new THREE.PlaneGeometry(boardSpan, boardSpan);
+    disposables.push(planeGeo);
+    const boardPlane = new THREE.Mesh(planeGeo, materials.board);
+    boardPlane.rotation.x = -Math.PI / 2;
+    boardGroup.add(boardPlane);
     boardGroup.add(createContactShadowBlob(boardSpan * BOARD.CONTACT_BLOB_SOFT_SCALE, GOMOKU_DIMS.SLAB));
-    const yLine = 0.003;
+    const yLine = BOARD.LINE_Y + 0.001;
     for (let i = 0; i < size; i++) {
       const offset = i - span / 2;
       const h = lineMesh(GOMOKU_DIMS.LINE_W, span);
@@ -127,11 +127,6 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
       star.position.set(p.x, yLine + 0.001, p.z);
       boardGroup.add(star);
     }
-    const edgeGeo = new THREE.EdgesGeometry(slab, 12);
-    disposables.push(edgeGeo);
-    const edges = new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({ color: materials.line.color }));
-    edges.position.copy(slabMesh.position);
-    boardGroup.add(edges);
   }
 
   rebuildBoardMesh();
