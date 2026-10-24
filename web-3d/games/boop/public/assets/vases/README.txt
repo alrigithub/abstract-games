@@ -8,5 +8,3 @@ Piece wiring (see boop-vase-assets.ts):
   vase-large-black.glb — player B cat     (01M5PV27HQW7GM3JSFPPKSVEB0)
 
 One uniform scale; large vase X/Z ≈ 0.96 of a bed cell. Kittens keep authored smaller footprint.
-
-Legacy stone cat GLBs under public/assets/cats/ are not loaded.
