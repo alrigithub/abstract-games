@@ -2,13 +2,17 @@ import '../style.css';
 import {
   BOARD,
   createBoardScene,
+  createGameButtons,
   createInteraction,
   createSquareTopology,
   createTakPieceGeometries,
+  DEFAULT_LOBBY_HREF,
   INTERACTION,
+  levelToSearchOptions,
   readStoredTheme,
-  storeTheme,
+  TAK_AI_STRENGTH_STORAGE_KEY,
   takPieceGeometrySet,
+  THEME_STORAGE_KEY,
   type InteractionView,
   type ThemeId,
 } from '@abstract/three-engine';
@@ -45,6 +49,41 @@ const scene = await createBoardScene(board, {
 });
 const stage = board.querySelector('canvas') ?? board;
 
+function applyTheme(id: ThemeId) {
+  theme = id;
+  document.documentElement.dataset.theme = id;
+  scene.setTheme(id);
+}
+
+const gameButtons = createGameButtons({
+  mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  lobbyHref: DEFAULT_LOBBY_HREF,
+  aiStrengthStorageKey: TAK_AI_STRENGTH_STORAGE_KEY,
+  applyTheme,
+  firstPlayer: {
+    title: 'Who goes first?',
+    description: 'You vs AI — pick your color.',
+    choices: [
+      { label: 'You · White', id: 'ivory', testId: 'first-ivory' },
+      { label: 'You · Black', id: 'charcoal', testId: 'first-charcoal' },
+    ],
+    onSelect: id => startAiGame(id as Color),
+  },
+  onAiStrengthChange: () => gameUi.refresh(),
+});
+
+try {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    try {
+      if (localStorage.getItem(THEME_STORAGE_KEY) === null) applyTheme(readStoredTheme());
+    } catch {
+      /* ignore */
+    }
+  });
+} catch {
+  /* ignore */
+}
+
 function refresh() {
   scene.setSnapshot(toEngineSnapshot(state));
 }
@@ -63,6 +102,9 @@ const gameUi = createGameUi({
     state = game.board;
     refresh();
   },
+  setStatus: text => gameButtons.setStatus(text),
+  getAiSearchOptions: () => levelToSearchOptions(gameButtons.aiStrength.getLevel()),
+  aiStrengthLabel: () => gameButtons.aiStrength.getLevel().label,
 });
 
 function canUseBoardInteraction() {
@@ -130,34 +172,44 @@ function cancel() {
   controller.cancel();
 }
 
-document.querySelector('#theme-toggle')!.addEventListener('click', () => {
-  theme = theme === 'light' ? 'dark' : 'light';
-  storeTheme(theme);
-  scene.setTheme(theme);
-  document.documentElement.dataset.theme = theme;
-});
+function forcedHumanColor(): Color | null {
+  const forced = new URLSearchParams(location.search).get('human');
+  return forced === 'ivory' || forced === 'charcoal' ? forced : null;
+}
 
-document.querySelector('#menu-toggle')!.addEventListener('click', () => menu.showModal());
-menu.querySelector('[data-testid="mode-sandbox"]')!.addEventListener('click', () => {
+function startAiGame(human: Color) {
+  cancel();
+  history.length = 0;
+  gameUi.startAi(human, boardSize);
+  menu.close();
+}
+
+function startSandbox() {
   gameUi.stop();
   cancel();
   history.length = 0;
   state = createSandboxState(boardSize);
+  gameButtons.setStatus('Sandbox');
   menu.close();
   refresh();
-});
+}
+
+document.querySelector('#menu-toggle')!.addEventListener('click', () => menu.showModal());
+menu.querySelector('[data-testid="mode-sandbox"]')!.addEventListener('click', () => startSandbox());
 menu.querySelector('[data-testid="mode-ai"]')!.addEventListener('click', () => {
-  cancel();
-  history.length = 0;
-  gameUi.start('ai', boardSize);
-  menu.close();
+  const human = forcedHumanColor() ?? 'ivory';
+  startAiGame(human);
 });
 sizeSelect.addEventListener('change', () => {
   boardSize = Number(sizeSelect.value);
   topology = createSquareTopology({ size: boardSize, outsideRows: 6 });
   cancel();
   history.length = 0;
+  if (gameUi.isActive()) {
+    gameUi.stop();
+  }
   state = createSandboxState(boardSize);
+  gameButtons.setStatus('Sandbox');
   refresh();
 });
 
@@ -211,8 +263,9 @@ document.querySelector('#camera-mode')!.addEventListener('click', () => {
   (document.querySelector('#camera-mode') as HTMLButtonElement).textContent = cameraMode === 'pan' ? 'Pan' : 'Orbit';
 });
 
-document.documentElement.dataset.theme = theme;
+applyTheme(theme);
 refresh();
+gameButtons.setStatus('Sandbox');
 menu.showModal();
 
 if (location.search.includes('human=ivory')) {

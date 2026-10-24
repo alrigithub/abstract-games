@@ -1,13 +1,16 @@
 import { applyMove, createGame, placementColor, winnerScore } from './game/engine';
 import { spreadToMove } from './game/spread';
 import type { GameState, Move } from './game/engine';
+import type { AiStrengthSearchOptions, SceneApi } from '@abstract/three-engine';
 import type { Color, Selection } from './types';
-import type { SceneApi } from '@abstract/three-engine';
 
 interface GameUiOptions {
   scene: SceneApi;
   onActive(active: boolean): void;
   onBoard(game: GameState): void;
+  setStatus(text: string): void;
+  getAiSearchOptions(): AiStrengthSearchOptions;
+  aiStrengthLabel(): string;
 }
 
 export function createGameUi(options: GameUiOptions) {
@@ -15,9 +18,8 @@ export function createGameUi(options: GameUiOptions) {
   panel.className = 'game-controls';
   panel.hidden = true;
   panel.setAttribute('aria-label', 'Game controls');
-  panel.innerHTML = `<p class="game-status" role="status" aria-live="polite" data-testid="game-status"></p><div class="game-pieces"><button data-piece="flat" data-testid="piece-flat" aria-pressed="true">Flat</button><button data-piece="standing" data-testid="piece-wall" aria-pressed="false">Wall</button><button data-piece="capstone" data-testid="piece-cap" aria-pressed="false">Capstone</button></div><button class="game-next" hidden>Next round</button>`;
+  panel.innerHTML = `<div class="game-pieces"><button data-piece="flat" data-testid="piece-flat" aria-pressed="true">Flat</button><button data-piece="standing" data-testid="piece-wall" aria-pressed="false">Wall</button><button data-piece="capstone" data-testid="piece-cap" aria-pressed="false">Capstone</button></div><button class="game-next" hidden>Next round</button>`;
   document.querySelector('#app')!.append(panel);
-  const status = panel.querySelector<HTMLParagraphElement>('.game-status')!;
   const end = document.querySelector<HTMLButtonElement>('#end-turn')!;
   const undo = document.querySelector<HTMLButtonElement>('#undo')!;
   let active = false;
@@ -50,7 +52,8 @@ export function createGameUi(options: GameUiOptions) {
             ? `${colorName(result.winner)} wins by ${result.reason}`
             : 'Draw'
           : `${colorName(game.toMove)} to move${game.ply < 2 ? ` · Place a ${colorName(placementColor(game))} flat` : ''}${aiPending ? ' · AI thinking…' : ''}`);
-    status.textContent = `${seats} · ${detail}`;
+    const strength = mode === 'ai' ? ` · AI ${options.aiStrengthLabel()}` : '';
+    options.setStatus(`${seats} · ${detail}${strength}`);
     end.disabled = !draft || !humanTurn();
     undo.disabled = !draft;
     panel.querySelectorAll<HTMLButtonElement>('[data-piece]').forEach(button => {
@@ -98,6 +101,7 @@ export function createGameUi(options: GameUiOptions) {
     aiPending = true;
     render();
     const id = ++generation;
+    const search = options.getAiSearchOptions();
     aiWorker = new Worker(new URL('./game/ai.worker.ts', import.meta.url), { type: 'module' });
     aiWorker.onmessage = (event: MessageEvent<{ id: number; move: Move | null }>) => {
       if (event.data.id !== generation || id !== generation || !active) return;
@@ -112,7 +116,7 @@ export function createGameUi(options: GameUiOptions) {
         });
       } else render('AI could not move.');
     };
-    aiWorker.postMessage({ id, game, options: { maxDepth: 2, maxNodes: 500 } });
+    aiWorker.postMessage({ id, game, options: search });
   }
 
   function countResult() {
@@ -153,26 +157,34 @@ export function createGameUi(options: GameUiOptions) {
       if (move) stage(move);
       else render('Choose an empty square.');
     },
-    start(nextMode: 'local' | 'ai', size: number) {
+    startAi(human: Color, size: number) {
       stopAi();
       active = true;
-      mode = nextMode;
+      mode = 'ai';
       draft = null;
       round = 1;
       scores[0] = scores[1] = 0;
-      const forced = new URLSearchParams(location.search).get('human');
-      firstColor =
-        forced === 'ivory' || forced === 'charcoal'
-          ? forced
-          : crypto.getRandomValues(new Uint8Array(1))[0]! % 2
-            ? 'ivory'
-            : 'charcoal';
+      firstColor = human;
       piece = 'flat';
       game = createGame(size === 7 ? 5 : size);
       panel.hidden = false;
       options.onActive(true);
       render();
       maybeAi();
+    },
+    startLocal(size: number) {
+      stopAi();
+      active = true;
+      mode = 'local';
+      draft = null;
+      round = 1;
+      scores[0] = scores[1] = 0;
+      firstColor = 'ivory';
+      piece = 'flat';
+      game = createGame(size === 7 ? 5 : size);
+      panel.hidden = false;
+      options.onActive(true);
+      render();
     },
     stop() {
       stopAi();
