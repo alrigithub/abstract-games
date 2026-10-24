@@ -31,6 +31,9 @@ export const GOMOKU_ARENA_AUTHORED_FIELD_HALF_M = 7.35;
 const INFINITE_GROUND_RAW = 'Infinite white ground';
 const INFINITE_GROUND_SANITIZED = PropertyBinding.sanitizeNodeName(INFINITE_GROUND_RAW);
 
+/** Gomoku arena keeps Blender-authored PBR; pieces and other games use shared clay. */
+const GOMOKU_ARENA_KEEP_GLB_MATERIALS = { keepGlbMaterials: true as const };
+
 const _box = new THREE.Box3();
 
 export interface GomokuArenaLayout {
@@ -97,7 +100,7 @@ function prepareArenaScene(scene: THREE.Group, themeId: ThemeId): THREE.Group {
   });
   for (const obj of remove) obj.parent?.remove(obj);
 
-  applyArenaGlbThemeMaterials(scene, themeId);
+  applyArenaGlbThemeMaterials(scene, themeId, GOMOKU_ARENA_KEEP_GLB_MATERIALS);
   tagArenaGlbForShadows(scene);
   return scene;
 }
@@ -143,7 +146,7 @@ export async function loadGomokuArenaLayout(initialTheme: ThemeId = 'light'): Pr
       return _box.clone();
     },
     setTheme(themeId: ThemeId) {
-      applyArenaGlbThemeMaterials(root, themeId);
+      applyArenaGlbThemeMaterials(root, themeId, GOMOKU_ARENA_KEEP_GLB_MATERIALS);
     },
   };
 }

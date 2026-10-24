@@ -11,8 +11,18 @@ export function tagArenaGlbForShadows(root: THREE.Object3D): void {
   });
 }
 
+export interface ApplyArenaGlbThemeMaterialsOptions {
+  /** When true, keep authored GLB materials (colours, textures) instead of shared clay ENV. */
+  keepGlbMaterials?: boolean;
+}
+
 /** Shared clay ENV material for authored arena / environment GLBs. */
-export function applyArenaGlbThemeMaterials(root: THREE.Object3D, _themeId: ThemeId): void {
+export function applyArenaGlbThemeMaterials(
+  root: THREE.Object3D,
+  _themeId: ThemeId,
+  options: ApplyArenaGlbThemeMaterialsOptions = {},
+): void {
   void _themeId;
+  if (options.keepGlbMaterials) return;
   applyClayEnvMaterials(root);
 }
