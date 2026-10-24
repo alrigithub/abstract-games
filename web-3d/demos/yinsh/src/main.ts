@@ -24,10 +24,16 @@ import { gameStateToSnapshot } from './game/snapshot';
 import { movesInclude, possibleMoves } from './game/moves';
 import { statusLine } from './game/phase';
 import { markerIdsOnRingMove, moveNeedsFlip } from './game/visual';
-import { buildYinshAssist, type AiMoveHighlight } from './game/move-hints';
-import { ringPathCoords } from './game/ring-destinations';
+import {
+  applyRingLandingToPathWorld,
+  buildAiMovePathCells,
+  buildAiMovePathWorld,
+  ringPieceId,
+  type AiMoveHighlight,
+} from './game/ai-move-highlight';
+import { buildYinshAssist } from './game/move-hints';
 import { coordToIndex, indexToCoord } from './game/cells';
-import { coordEq, type Coord } from './game/coord';
+import { coordEq, coordKey, type Coord } from './game/coord';
 import { chooseAiMove } from './game/ai';
 import type { Move } from './game/state';
 import type { Player } from './game/player';
@@ -181,18 +187,28 @@ async function performMove(move: Move, fromAi = false): Promise<void> {
     if (flipIds.length) await scene.flipPieces(flipIds, 80);
   }
 
-  if (fromAi && move.tag === 'MoveRing') {
-    lastAiMoveHighlight = {
-      fromCell: coordToIndex(move.start),
-      toCell: coordToIndex(move.end),
-      pathCells: ringPathCoords(move.start, move.end).map(coordToIndex),
-      flipPieceIds: markerIdsOnRingMove(game.board, move.start, move.end),
-    };
-  }
+  const aiRingMove = fromAi && move.tag === 'MoveRing' ? move : null;
+  const aiFlipIds =
+    aiRingMove ? markerIdsOnRingMove(game.board, aiRingMove.start, aiRingMove.end) : [];
 
   game.performMove(move);
   ringMoveFrom = null;
   syncSnapshot();
+
+  if (aiRingMove) {
+    const pathCells = buildAiMovePathCells(aiRingMove.start, aiRingMove.end);
+    const pathWorld = buildAiMovePathWorld(aiRingMove.start, aiRingMove.end);
+    const ringPos = scene.getPieceWorldPosition(ringPieceId(aiPlayer, aiRingMove.end));
+    lastAiMoveHighlight = {
+      fromCell: coordToIndex(aiRingMove.start),
+      toCell: coordToIndex(aiRingMove.end),
+      pathCells,
+      pathWorld: applyRingLandingToPathWorld(pathWorld, ringPos ? { x: ringPos.x, z: ringPos.z } : null),
+      flipPieceIds: aiFlipIds,
+    };
+    refreshMoveHints();
+  }
+
   await drainAutoWaits();
 }
 
@@ -398,20 +414,27 @@ function loadAssistAiMoveShot() {
   stopAi();
   humanPlayer = 'A';
   aiPlayer = 'B';
+  const start = { x: -1, y: 1 };
+  const end = { x: -1, y: -2 };
   game = GameState.initial();
-  game.board.addRing('A', { x: 1, y: 0 });
-  game.board.addMarker('A', { x: 1, y: 0 });
-  game.board.addMarker('B', { x: 1, y: -1 });
+  game.board.addMarker('A', start);
+  game.board.addMarker('B', { x: -1, y: 0 });
+  game.board.addRing('B', end);
   game.activePlayer = 'A';
   game.turnMode = { tag: 'MarkerPlacement' };
-  lastAiMoveHighlight = {
-    fromCell: coordToIndex({ x: -1, y: 1 }),
-    toCell: coordToIndex({ x: -1, y: -2 }),
-    pathCells: ringPathCoords({ x: -1, y: 1 }, { x: -1, y: -2 }).map(coordToIndex),
-    flipPieceIds: [],
-  };
   syncSnapshot();
-  const focus = yinshWorldPoint({ x: -1, y: 0 });
+  const pathCells = buildAiMovePathCells(start, end);
+  const pathWorld = buildAiMovePathWorld(start, end);
+  const ringPos = scene.getPieceWorldPosition(ringPieceId('B', end));
+  lastAiMoveHighlight = {
+    fromCell: coordToIndex(start),
+    toCell: coordToIndex(end),
+    pathCells,
+    pathWorld: applyRingLandingToPathWorld(pathWorld, ringPos ? { x: ringPos.x, z: ringPos.z } : null),
+    flipPieceIds: [`marker-B-${coordKey({ x: -1, y: 0 })}`],
+  };
+  refreshMoveHints();
+  const focus = yinshWorldPoint({ x: -1, y: -0.5 });
   scene.setCameraView({ elevationDeg: 36, azimuthDeg: 35, target: focus });
   scene.reframe();
   gameButtons.setStatus('Move assist · AI last move');

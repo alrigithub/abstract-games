@@ -1,4 +1,5 @@
 import type { BoardAssistState } from '@abstract/three-engine';
+import type { AiMoveHighlight } from './ai-move-highlight';
 import type { Board } from './board';
 import { coordEq, type Coord } from './coord';
 import { markerIdsOnRingMove } from './visual';
@@ -6,13 +7,9 @@ import type { GameState } from './state';
 import type { Player } from './player';
 import { ringDestinationCoords, ringPathCoords } from './ring-destinations';
 import { coordToIndex, indexToCoord } from './cells';
+import { YINSH_ASSIST_DOT_RADIUS } from '../yinsh-piece-models';
 
-export type AiMoveHighlight = {
-  fromCell: number;
-  toCell: number;
-  pathCells: number[];
-  flipPieceIds: string[];
-};
+export type { AiMoveHighlight };
 
 function indices(coords: Coord[]): number[] {
   return coords.map(coordToIndex);
@@ -36,10 +33,12 @@ export function buildYinshAssist(
   if (!options.humanTurn) {
     if (options.lastAiMove) {
       return {
+        destinationDotRadius: YINSH_ASSIST_DOT_RADIUS,
         lastMove: {
           fromCell: options.lastAiMove.fromCell,
           toCell: options.lastAiMove.toCell,
           pathCells: options.lastAiMove.pathCells,
+          pathWorld: options.lastAiMove.pathWorld,
         },
       };
     }
@@ -48,13 +47,14 @@ export function buildYinshAssist(
 
   const mode = state.turnMode;
   const board = state.board;
-  const assist: BoardAssistState = {};
+  const assist: BoardAssistState = { destinationDotRadius: YINSH_ASSIST_DOT_RADIUS };
 
   if (options.lastAiMove) {
     assist.lastMove = {
       fromCell: options.lastAiMove.fromCell,
       toCell: options.lastAiMove.toCell,
       pathCells: options.lastAiMove.pathCells,
+      pathWorld: options.lastAiMove.pathWorld,
     };
   }
 
