@@ -14,8 +14,8 @@ export const GIPF_CHIP = {
   RADIUS: 0.36,
   HEIGHT: 0.13,
   CHAMFER: 0.022,
-  RIM_INNER: 0.27,
-  RIM_OUTER: 0.335,
+  RIM_INNER: 0.322,
+  RIM_OUTER: 0.352,
   SEGMENTS: 24,
 } as const;
 
