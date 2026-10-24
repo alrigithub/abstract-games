@@ -16,8 +16,8 @@ export function themeTokens(id: ThemeId): ThemeTokens {
       ghostOpacity: 0.28,
       shadow: '#000000',
       piece: {
-        A: { fill: '#f5f5f5', rim: '#2a2a2a', edge: '#2a2a2a' },
-        B: { fill: '#111111', rim: '#d0d0d0', edge: '#d0d0d0' },
+        A: { fill: '#ffffff', rim: '#000000', edge: '#000000' },
+        B: { fill: '#000000', rim: '#ffffff', edge: '#ffffff' },
       },
     };
   }
