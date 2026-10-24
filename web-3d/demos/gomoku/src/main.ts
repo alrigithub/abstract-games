@@ -2,13 +2,13 @@ import {
   AiWorkerSession,
   createGameButtons,
   GOMOKU_AI_STRENGTH_STORAGE_KEY,
-  levelToSearchOptions,
   playWinSoundAfterPlace,
   readInitialTheme,
   recordAiThinkMetrics,
   type GameButtonsBar,
   type ThemeId,
 } from '@abstract/three-engine';
+import { GOMOKU_AI_STRENGTH_LEVELS, gomokuLevelToSearchOptions } from './game/ai';
 import { createGomokuScene, type ScenePlayer, type StoneRecord } from './gomoku-scene';
 import {
   applyMove,
@@ -96,7 +96,7 @@ async function maybeAiTurn() {
   scene.setInputEnabled(false);
   renderStatus();
   const gen = ++aiGeneration;
-  const search = levelToSearchOptions(gameButtons.aiStrength.getLevel());
+  const search = gomokuLevelToSearchOptions(gameButtons.aiStrength.getLevel());
   document.body.dataset.lastAiDepth = String(search.maxDepth);
   document.body.dataset.lastAiMaxNodes = String(search.maxNodes);
   const t0 = performance.now();
@@ -160,6 +160,7 @@ gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
   cameraViews,
   aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
+  aiStrengthLevels: [...GOMOKU_AI_STRENGTH_LEVELS],
   onAiStrengthChange: level => renderStatus(undefined, level.label),
   applyTheme,
   onFirstPlayerSelected: color => startGame(color),
