@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createGroundedBoopPieces } from './boop-grounding';
+import { boopVaseGlbFor, type BoopVasePlayerId, type BoopVaseVariant } from './boop-vase-assets';
 
 /** Large vase max X/Z on a 1-unit bed cell (~80% of tile × 1.2 boost ≈ 0.96). */
 const LARGE_VASE_TILE_FOOTPRINT = 0.8 * 1.2;
@@ -23,22 +24,7 @@ function vaseAssetUrl(file: string): string {
   return new URL(`assets/vases/${file}`, document.baseURI).toString();
 }
 
-function catFileCandidates(player: PlayerId): string[] {
-  return [player === 'A' ? 'vase-large-white.glb' : 'vase-large-black.glb'];
-}
-
-function kittenFileCandidates(player: PlayerId): string[] {
-  const primary = player === 'A' ? 'vase-small-white.glb' : 'vase-small-black.glb';
-  const stone = player === 'A' ? 'granite' : 'slate';
-  return [
-    primary,
-    `vase-junior-${stone}.glb`,
-    `vase-${stone}.glb`,
-    `junior-${stone}-vase.glb`,
-  ];
-}
-
-export type StoneCatVariant = 'cat' | 'kitten';
+export type StoneCatVariant = BoopVaseVariant;
 
 /** Full GLB hierarchy for display (PBR materials intact); baked geo for contact shadows only. */
 interface StoneTemplate {
@@ -54,18 +40,6 @@ function loadGltfScene(url: string): Promise<THREE.Group> {
   return new Promise((resolve, reject) => {
     loader.load(url, gltf => resolve(gltf.scene), undefined, reject);
   });
-}
-
-async function loadFirstGltf(names: readonly string[]): Promise<THREE.Group> {
-  let lastError: unknown;
-  for (const name of names) {
-    try {
-      return await loadGltfScene(vaseAssetUrl(name));
-    } catch (err) {
-      lastError = err;
-    }
-  }
-  throw lastError ?? new Error(`No vase GLB found for ${names.join(', ')}`);
 }
 
 function collectMeshes(root: THREE.Object3D): THREE.Mesh[] {
@@ -157,21 +131,21 @@ function prepareVisualTemplate(scene: THREE.Group, worldScale: number): StoneTem
 }
 
 async function loadVariantTemplate(
-  player: PlayerId,
+  player: BoopVasePlayerId,
   variant: StoneCatVariant,
   scale: number,
 ): Promise<StoneTemplate> {
-  const names = variant === 'kitten' ? kittenFileCandidates(player) : catFileCandidates(player);
-  const scene = await loadFirstGltf(names);
+  const file = boopVaseGlbFor(player, variant);
+  const scene = await loadGltfScene(vaseAssetUrl(file));
   return prepareVisualTemplate(scene, scale);
 }
 
-async function loadTemplates(): Promise<Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>> {
+async function loadTemplates(): Promise<Record<BoopVasePlayerId, Record<StoneCatVariant, StoneTemplate>>> {
   const largeScene = await loadGltfScene(vaseAssetUrl('vase-large-white.glb'));
   const scale = LARGE_VASE_TILE_FOOTPRINT / xzExtent(largeScene);
 
   const players = ['A', 'B'] as const;
-  const out = {} as Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>;
+  const out = {} as Record<BoopVasePlayerId, Record<StoneCatVariant, StoneTemplate>>;
 
   for (const player of players) {
     out[player] = {
@@ -182,15 +156,13 @@ async function loadTemplates(): Promise<Record<PlayerId, Record<StoneCatVariant,
   return out;
 }
 
-type PlayerId = 'A' | 'B';
-
 let boopPieceTheme: ThemeId = 'light';
 
 function resolveTemplate(
-  templates: Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>,
+  templates: Record<BoopVasePlayerId, Record<StoneCatVariant, StoneTemplate>>,
   piece: EnginePiece,
 ): StoneTemplate {
-  const player: PlayerId = pieceGlbSideForPlayer(boopPieceTheme, piece.player);
+  const player: BoopVasePlayerId = pieceGlbSideForPlayer(boopPieceTheme, piece.player);
   const variant: StoneCatVariant = piece.shape === 'kitten' ? 'kitten' : 'cat';
   return templates[player][variant];
 }
@@ -201,7 +173,9 @@ function mountModel(root: THREE.Group, model: THREE.Object3D) {
   root.rotation.y = BOOP_STONE_CAT_YAW;
 }
 
-function createStonePieceSet(templates: Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>): PieceGeometrySet {
+function createStonePieceSet(
+  templates: Record<BoopVasePlayerId, Record<StoneCatVariant, StoneTemplate>>,
+): PieceGeometrySet {
   const geometryFor = (piece: EnginePiece) => resolveTemplate(templates, piece).shadowGeometry;
   const heightFor = (piece: EnginePiece) => resolveTemplate(templates, piece).height;
   const templateFor = (piece: EnginePiece) => resolveTemplate(templates, piece);
