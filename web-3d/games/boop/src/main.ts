@@ -208,10 +208,6 @@ function injectBoopUiStyles() {
   const style = document.createElement('style');
   style.id = 'boop-demo-ui';
   style.textContent = `
-    [data-testid="board"][data-win-line] {
-      transition: filter 0.45s ease-in-out;
-      filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.45));
-    }
     [data-testid='boop-size-kitten'][data-selected='true'],
     [data-testid='boop-size-cat'][data-selected='true'] {
       outline: 2px solid #3b82f6;

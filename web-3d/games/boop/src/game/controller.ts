@@ -11,7 +11,8 @@ import {
   type SceneApi,
   type Selection,
 } from '@abstract/three-engine';
-import { playBoopUpgradeSound } from './boop-extra-sfx';
+import { playBoopUpgradeSound, playBoopWinSound, stopBoopWinSound } from './boop-extra-sfx';
+import { winMarkerCells } from './boop-win-glow';
 import { BoopGame } from './engine';
 import './ai';
 import { exportHumanGraduationSetup } from './boop-graduation-fixture';
@@ -71,6 +72,7 @@ export class BoopController {
   private readonly onReady?: () => void;
   private aiPlaceTap?: (fromIndex: number, toIndex: number) => Promise<void>;
   private stickyKind: PieceKind = 'kitten';
+  private winCelebrationPlayed = false;
 
   constructor(options: BoopControllerOptions) {
     this.scene = options.scene;
@@ -161,6 +163,8 @@ export class BoopController {
 
   newGame() {
     this.scene.setBoardAssist?.(null);
+    stopBoopWinSound();
+    this.winCelebrationPlayed = false;
     this.aiGeneration++;
     this.aiSession.cancel();
     this.game = new BoopGame();
@@ -340,16 +344,18 @@ export class BoopController {
   }
 
   private highlightWin() {
-    const h = this.view.effects.line_highlight;
-    const board = document.querySelector<HTMLElement>('[data-testid="board"]');
-    if (!board) return;
-    if (h?.kind === 'win') {
-      board.dataset.winLine = h.line.map(([x, y]) => `${x},${y}`).join(';');
-    } else {
-      delete board.dataset.winLine;
+    this.syncWinCelebration();
+  }
+
+  private syncWinCelebration() {
+    if (!this.view.winner) return;
+    const markerCells = winMarkerCells(this.view);
+    if (!markerCells.length) return;
+    this.scene.setBoardAssist?.(buildLineClearAssist(markerCells));
+    if (!this.winCelebrationPlayed) {
+      this.winCelebrationPlayed = true;
+      playBoopWinSound();
     }
-    if (h?.kind === 'eight_cats_on_bed') board.dataset.winKind = 'eight-cats';
-    else delete board.dataset.winKind;
   }
 
   async handleCellClick(cellIndexHit: number) {
@@ -466,6 +472,10 @@ export class BoopController {
     const stagedPools = () => poolsDuringMoveAnimation(before, after, move, actor);
     const markerCells = bedCellIndices(line);
     this.scene.setBoardAssist?.(buildLineClearAssist(markerCells));
+    if (after.winner && !this.winCelebrationPlayed) {
+      this.winCelebrationPlayed = true;
+      playBoopWinSound();
+    }
     this.view = { ...viewHoldingLineOnBed(baselineBoard, after, line), pools: stagedPools() };
     this.publishSnapshot();
     await sleep(BOOP_LINE_CLEAR.GLOW_HOLD_MS);
@@ -507,9 +517,12 @@ export class BoopController {
     }
 
     await sleep(lineClearRemovalMs());
-    this.scene.setBoardAssist?.(null);
+    if (!after.winner) {
+      this.scene.setBoardAssist?.(null);
+    }
     this.view = after;
     this.publishSnapshot();
+    if (after.winner) this.syncWinCelebration();
   }
 
   private async runAiTurn() {
