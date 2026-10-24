@@ -70,8 +70,9 @@ function fitShadowCameraToBox(light: THREE.DirectionalLight, box: THREE.Box3, pa
   cam.right = max.x + pad;
   cam.bottom = min.y - pad;
   cam.top = max.y + pad;
-  cam.near = Math.max(0.1, min.z - pad);
-  cam.far = max.z + pad;
+  // View space looks down -Z: depth along the light is -z, so near/far come from -max.z / -min.z.
+  cam.near = Math.max(0.1, -max.z - pad);
+  cam.far = Math.max(cam.near + 0.5, -min.z + pad);
   cam.updateProjectionMatrix();
   light.shadow.needsUpdate = true;
 }
