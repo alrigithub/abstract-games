@@ -13,7 +13,7 @@ import { PropertyBinding } from 'three';
 
 /** Verified SHA-256 of the arena GLB in `public/models/`. */
 export const GOMOKU_ARENA_GLB_SHA256 =
-  '2ab55d328aad294079aae72baa8149a97c3c146ee43cb3eaee4f58a42d2bf101';
+  '2cab380e864043ac9dfa56e6637e6697a0fe3e9cfb427d6a9d7ff963bf2de65c';
 export const GOMOKU_ARENA_GLB_FILE = 'arena-15x15-white-150mm.glb';
 
 /** Real-world tile pitch (150 mm) mapped to one world unit per intersection. */
