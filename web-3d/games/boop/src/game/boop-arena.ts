@@ -2,6 +2,7 @@ import {
   BOARD,
   createSquareTopology,
   loadGltfAsync,
+  tagArenaGlbForShadows,
   tagBoardGridLine,
   tagExcludeFromBounds,
   type BoardBuildContext,
@@ -118,10 +119,9 @@ function prepareArenaScene(scene: THREE.Group): THREE.Group {
       return;
     }
     whitenMeshMaterials(mesh);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
   });
   for (const obj of removeMeshes) obj.parent?.remove(obj);
+  tagArenaGlbForShadows(scene);
 
   return scene;
 }
