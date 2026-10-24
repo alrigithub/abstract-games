@@ -70,7 +70,7 @@ interface StackLabel {
 const labelCenter = new THREE.Vector3();
 const labelRim = new THREE.Vector3();
 /** Extra pixels beyond the projected chip radius, up-right of the top centre. */
-const LABEL_CLEAR_PX = 10;
+const LABEL_CLEAR_PX = 16;
 
 const labels: StackLabel[] = [];
 let cameraReady = false;
@@ -111,9 +111,10 @@ function projectLabels() {
     const cy = (-labelCenter.y * 0.5 + 0.5) * h;
     labelRim.set(label.world.x + radius, label.world.y, label.world.z).project(camera);
     const radiusPx = Math.hypot((labelRim.x * 0.5 + 0.5) * w - cx, (-labelRim.y * 0.5 + 0.5) * h - cy);
-    const clear = radiusPx + LABEL_CLEAR_PX;
-    label.el.style.left = `${cx + clear * 0.72}px`;
-    label.el.style.top = `${cy - clear * 0.72}px`;
+    const dist = radiusPx + LABEL_CLEAR_PX;
+    const along = dist * Math.SQRT1_2;
+    label.el.style.left = `${cx + along}px`;
+    label.el.style.top = `${cy - along}px`;
   }
 }
 function render() {
