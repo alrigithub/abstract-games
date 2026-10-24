@@ -29,7 +29,8 @@ let aiWorker: Worker | null = null;
 function applyTheme(id: ThemeId) {
   theme = id;
   scene.setTheme(id);
-  syncBoard();
+  // bindThemeToggle runs during createGameButtons — gameButtons is not initialized yet.
+  if (typeof gameButtons !== 'undefined') syncBoard();
 }
 
 
@@ -140,7 +141,8 @@ const scene = createGomokuScene(board, {
 
 const cameraViews = scene.createCameraViews();
 
-const gameButtons = createGameButtons({
+let gameButtons: ReturnType<typeof createGameButtons>;
+gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
   cameraViews,
   aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,

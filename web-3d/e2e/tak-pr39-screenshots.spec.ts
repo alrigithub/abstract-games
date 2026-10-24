@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
+import { openGameMenu } from './game-menu';
 
 const screenshotDir = path.join(process.cwd(), 'e2e', 'screenshots');
 
@@ -61,6 +62,7 @@ test.describe('Tak PR39 screenshots', () => {
       fullPage: true,
     });
 
+    await openGameMenu(page);
     await page.click('[data-testid="new-game"]');
     await page.click('[data-testid="first-ivory"]');
     await expect(page.locator('[data-testid="game-status"]')).toBeVisible();
