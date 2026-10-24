@@ -1,4 +1,4 @@
-import type { ThemeId, ThemeTokens } from './types';
+import type { BoardBuildContext, ThemeId, ThemeTokens } from './types';
 
 export type { ThemeId, ThemeTokens };
 
@@ -26,6 +26,22 @@ export const LIGHT_THEME_TOKENS: ThemeTokens = {
     B: { ...PIECE_LIGHT.B },
   },
 };
+
+/** GIPF-style printed boards built from live board materials (Tzaar topology, Yinsh hex grid). */
+export function themeTokensFromBoardContext(ctx: BoardBuildContext): ThemeTokens {
+  const board = `#${ctx.boardMaterial.color.getHexString()}`;
+  const lines = `#${ctx.gridMaterial.color.getHexString()}`;
+  return {
+    table: board,
+    board,
+    lines,
+    win: LIGHT_THEME_TOKENS.win,
+    runCelebration: LIGHT_THEME_TOKENS.runCelebration,
+    ghostOpacity: LIGHT_THEME_TOKENS.ghostOpacity,
+    shadow: lines,
+    piece: {},
+  };
+}
 
 /** Shared UI chrome colours (page shell + game menu); dark values are inverted in {@link applyDocumentTheme}. */
 export const LIGHT_UI_TOKENS = {

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BOARD } from '../constants';
+import { themeTokensFromBoardContext } from '../theme';
 import type { BoardBuildContext, BoardSnapshot, ThemeTokens, Topology } from '../types';
 import {
   GIPF_BOARD,
@@ -193,16 +194,7 @@ export function createTzaarHexTopology(): Topology {
     },
     projectCell: (index, _snapshot) => pos(index),
     buildBoard(ctx: BoardBuildContext) {
-      const built = createGipfHexBoard(tzaarLayout(), {
-        table: `#${ctx.boardMaterial.color.getHexString()}`,
-        board: `#${ctx.boardMaterial.color.getHexString()}`,
-        lines: `#${ctx.gridMaterial.color.getHexString()}`,
-        win: '#3b82f6',
-        runCelebration: '#ffb347',
-        ghostOpacity: 0.24,
-        shadow: `#${ctx.gridMaterial.color.getHexString()}`,
-        piece: {},
-      });
+      const built = createGipfHexBoard(tzaarLayout(), themeTokensFromBoardContext(ctx));
       while (built.children.length) ctx.board.add(built.children[0]!);
       return true;
     },

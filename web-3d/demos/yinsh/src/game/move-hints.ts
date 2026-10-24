@@ -199,13 +199,13 @@ export function buildYinshAssist(
     ...runGlowState,
   };
 
-  if (options.lastAiMove) {
-    const ai = aiLastMoveAssist(options.lastAiMove, options.aiPlayer);
-    assist.ghosts!.push(...(ai.ghosts ?? []));
-  }
-
   const shadows: AssistShadowHint[] = assist.shadows ? [...assist.shadows] : [];
   const ghosts: AssistGhostHint[] = assist.ghosts ? [...assist.ghosts] : [];
+
+  if (options.lastAiMove) {
+    const ai = aiLastMoveAssist(options.lastAiMove, options.aiPlayer);
+    ghosts.push(...(ai.ghosts ?? []));
+  }
 
   switch (mode.tag) {
     case 'RingPlacement': {

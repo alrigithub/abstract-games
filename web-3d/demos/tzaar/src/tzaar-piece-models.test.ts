@@ -11,7 +11,6 @@ import {
 } from '@abstract/three-engine';
 import {
   TZAAR_MODEL,
-  TZAAR_STONE_LOOK,
   configureTzaarStoneMaterials,
   tzaarKindOf,
   tzaarModelRelPath,
@@ -108,35 +107,32 @@ describe('tzaar GLB mapping', () => {
 });
 
 describe('tzaar stone colour look', () => {
-  it('applies the same black PBR response to every type', () => {
-    const pieces = ['tzaar', 'tzarra', 'tott'].map(name => {
-      const mat = new THREE.MeshPhysicalMaterial({
-        color: 0xffffff,
-        roughness: 0.6,
-        metalness: 0,
-        envMapIntensity: 1,
-        specularIntensity: 0.5,
-      });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
-      mesh.name = name;
-      return { name, mesh, mat };
+  it('does not recolour PBR blacks — only fixes map color space and IBL gain', () => {
+    const mat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      roughness: 0.6,
+      metalness: 0,
+      envMapIntensity: 0.24,
+      specularIntensity: 0.5,
     });
-    const root = new THREE.Group();
-    for (const piece of pieces) root.add(piece.mesh);
-    configureTzaarStoneMaterials(root, 'B');
-    for (const piece of pieces) {
-      expect(piece.mat.color.getHex()).toBe(TZAAR_STONE_LOOK.blackColor);
-      expect(piece.mat.envMapIntensity).toBe(TZAAR_STONE_LOOK.blackEnvMapIntensity);
-      expect(piece.mat.roughness).toBe(TZAAR_STONE_LOOK.blackRoughness);
-      expect(piece.mat.specularIntensity).toBe(TZAAR_STONE_LOOK.blackSpecularIntensity);
-      expect(piece.mat.metalness).toBe(0);
-    }
+    const map = new THREE.Texture();
+    mat.map = map;
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+    configureTzaarStoneMaterials(mesh, 'B');
+    expect(mat.color.getHex()).toBe(0xffffff);
+    expect(mat.roughness).toBeCloseTo(0.6, 5);
+    expect(mat.specularIntensity).toBeCloseTo(0.5, 5);
+    expect(mat.envMapIntensity).toBe(1);
+    expect(map.colorSpace).toBe(THREE.SRGBColorSpace);
   });
 
-  it('applies the same ivory tint to unlit whites', () => {
+  it('does not recolour unlit whites', () => {
     const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const map = new THREE.Texture();
+    mat.map = map;
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
     configureTzaarStoneMaterials(mesh, 'A');
-    expect(mat.color.getHex()).toBe(TZAAR_STONE_LOOK.whiteColor);
+    expect(mat.color.getHex()).toBe(0xffffff);
+    expect(map.colorSpace).toBe(THREE.SRGBColorSpace);
   });
 });

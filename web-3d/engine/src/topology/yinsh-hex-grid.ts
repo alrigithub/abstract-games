@@ -8,7 +8,8 @@ import {
   type GipfHexLayout,
 } from '../geometries/gipf-set';
 import { YINSH } from '../geometries/yinsh-pieces';
-import type { BoardBuildContext, BoardSnapshot, ThemeTokens, Topology, YinshCoord } from '../types';
+import { themeTokensFromBoardContext } from '../theme';
+import type { BoardBuildContext, BoardSnapshot, Topology, YinshCoord } from '../types';
 
 const YINSH_HEX_LAYOUT: GipfHexLayout = yinshLayout(YINSH.SPACING);
 
@@ -32,19 +33,6 @@ export function yinshWorldPoint(coord: YinshCoord, spacing: number = YINSH.SPACI
 
 export function isYinshPlayfieldCoord(coord: YinshCoord): boolean {
   return isYinshPlayfieldAxial(coord.x, coord.y);
-}
-
-function tokensFromBoardContext(ctx: BoardBuildContext): ThemeTokens {
-  return {
-    table: `#${ctx.boardMaterial.color.getHexString()}`,
-    board: `#${ctx.boardMaterial.color.getHexString()}`,
-    lines: `#${ctx.gridMaterial.color.getHexString()}`,
-    win: '#3b82f6',
-    runCelebration: '#ffb347',
-    ghostOpacity: 0.24,
-    shadow: `#${ctx.gridMaterial.color.getHexString()}`,
-    piece: {},
-  };
 }
 
 function nearestIndex(x: number, z: number, spacing: number): { index: number; distSq: number } {
@@ -87,7 +75,7 @@ export function createYinshTopology(options: YinshTopologyOptions = {}): Topolog
       return coord ? gipfWorldPoint(coord.x, coord.y, spacing) : new THREE.Vector3();
     },
     buildBoard(ctx) {
-      const built = createGipfHexBoard(layout, tokensFromBoardContext(ctx));
+      const built = createGipfHexBoard(layout, themeTokensFromBoardContext(ctx));
       while (built.children.length) ctx.board.add(built.children[0]!);
       return true;
     },

@@ -22,21 +22,6 @@ export const TZAAR_MODEL = {
   tottBlack: 'models/tzaar-tott-black.glb',
 } as const;
 
-/**
- * Per-colour look so Tzaar / Tzarra / Tott stay one black family and one ivory
- * family. Black GLBs are PBR (roughness 0.6 + specular 0.5); shared IBL lifts
- * their large flat tops to mid-grey while the holed Tzaar type still reads
- * dark. Whites are authored `KHR_materials_unlit` and ignore IBL.
- */
-export const TZAAR_STONE_LOOK = {
-  blackColor: 0x5c5c5c,
-  whiteColor: 0xfff3e6,
-  blackEnvMapIntensity: 0.24,
-  whiteEnvMapIntensity: 0.42,
-  blackRoughness: 0.88,
-  blackSpecularIntensity: 0.1,
-} as const;
-
 export type TzaarStoneSide = 'A' | 'B';
 
 type KindKey = TzaarKind;
@@ -66,9 +51,8 @@ function modelUrl(path: string): string {
   return new URL(`${prefix}${path}`, origin).href;
 }
 
-/** Tint / IBL response by colour only — types stay distinguishable by shape. */
-export function configureTzaarStoneMaterials(object: THREE.Object3D, side: TzaarStoneSide): void {
-  const black = side === 'B';
+/** sRGB/linear map setup only — stone-mixed-final albedo and PBR stay as authored. */
+export function configureTzaarStoneMaterials(object: THREE.Object3D, _side?: TzaarStoneSide): void {
   object.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;
     const mats = Array.isArray(node.material) ? node.material : [node.material];
@@ -76,24 +60,12 @@ export function configureTzaarStoneMaterials(object: THREE.Object3D, side: Tzaar
       if (mat instanceof THREE.MeshPhysicalMaterial || mat instanceof THREE.MeshStandardMaterial) {
         if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
         if (mat.normalMap) mat.normalMap.colorSpace = THREE.LinearSRGBColorSpace;
-        if (black) {
-          mat.color.setHex(TZAAR_STONE_LOOK.blackColor);
-          mat.envMapIntensity = TZAAR_STONE_LOOK.blackEnvMapIntensity;
-          mat.roughness = Math.max(mat.roughness, TZAAR_STONE_LOOK.blackRoughness);
-          mat.metalness = 0;
-          if (mat instanceof THREE.MeshPhysicalMaterial) {
-            mat.specularIntensity = TZAAR_STONE_LOOK.blackSpecularIntensity;
-          }
-        } else {
-          mat.color.setHex(TZAAR_STONE_LOOK.whiteColor);
-          mat.envMapIntensity = TZAAR_STONE_LOOK.whiteEnvMapIntensity;
-        }
+        mat.envMapIntensity = 1;
         mat.needsUpdate = true;
         continue;
       }
       if (mat instanceof THREE.MeshBasicMaterial) {
         if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
-        mat.color.setHex(black ? TZAAR_STONE_LOOK.blackColor : TZAAR_STONE_LOOK.whiteColor);
         mat.needsUpdate = true;
       }
     }
@@ -111,12 +83,12 @@ function anchorObjectBaseToY0(object: THREE.Object3D): void {
  * Scale the authored GLB (origin at base centre) and shift so the visual root
  * origin is at the piece centre — matching engine stack-layout centers.
  */
-function prepareTemplate(scene: THREE.Object3D, side: TzaarStoneSide): THREE.Object3D {
+function prepareTemplate(scene: THREE.Object3D): THREE.Object3D {
   const root = scene.clone(true);
   root.scale.setScalar(TZAAR_GLB_WORLD_SCALE);
   root.updateMatrixWorld(true);
   anchorObjectBaseToY0(root);
-  configureTzaarStoneMaterials(root, side);
+  configureTzaarStoneMaterials(root);
   root.updateMatrixWorld(true);
   return root;
 }
@@ -137,9 +109,9 @@ async function buildTemplates(): Promise<TzaarTemplates> {
     loadScene(modelUrl(TZAAR_MODEL.tottBlack)),
   ]);
   return {
-    tzaar: { A: prepareTemplate(tzaarWhite, 'A'), B: prepareTemplate(tzaarBlack, 'B') },
-    tzarra: { A: prepareTemplate(tzarraWhite, 'A'), B: prepareTemplate(tzarraBlack, 'B') },
-    tott: { A: prepareTemplate(tottWhite, 'A'), B: prepareTemplate(tottBlack, 'B') },
+    tzaar: { A: prepareTemplate(tzaarWhite), B: prepareTemplate(tzaarBlack) },
+    tzarra: { A: prepareTemplate(tzarraWhite), B: prepareTemplate(tzarraBlack) },
+    tott: { A: prepareTemplate(tottWhite), B: prepareTemplate(tottBlack) },
   };
 }
 
@@ -177,11 +149,13 @@ export async function loadTzaarPieceGeometrySet(): Promise<PieceGeometrySet> {
       createVisual(piece) {
         const root = new THREE.Group();
         const model = templateFor(templates, piece).clone(true);
+        configureTzaarStoneMaterials(model);
         mountModel(root, model);
         return root;
       },
       replaceVisual(root, piece) {
         const model = templateFor(templates, piece).clone(true);
+        configureTzaarStoneMaterials(model);
         mountModel(root as THREE.Group, model);
       },
       onThemeChange(id) {
