@@ -19,7 +19,7 @@ const RING_INNER = TZAAR_DISC_RADIUS * 0.46;
 const RING_OUTER = TZAAR_DISC_RADIUS * 0.58;
 const DOT_R = TZAAR_DISC_RADIUS * 0.12;
 const SEPARATOR_INNER = TZAAR_DISC_RADIUS * 0.86;
-const SEPARATOR_OUTER = TZAAR_DISC_RADIUS * 1.01;
+const SEPARATOR_OUTER = TZAAR_DISC_RADIUS * 0.98;
 
 export type TzaarEmblem = 'ring' | 'dot';
 
@@ -105,14 +105,7 @@ export function createTzaarPieceMesh(options: {
   const disc = decoratePieceMesh(new THREE.Mesh(discGeo, fill), edge, outline, options.edgeCache);
   const rim = decoratePieceMesh(new THREE.Mesh(chipRimGeo, rimFill), edge, outline, options.edgeCache);
   const edgeFill = basic(palette.edge);
-  const topRing = decoratePieceMesh(new THREE.Mesh(topEdgeRingGeo, edgeFill), edge, outline, options.edgeCache);
-  const bottomRing = decoratePieceMesh(
-    new THREE.Mesh(bottomEdgeRingGeo, edgeFill),
-    edge,
-    outline,
-    options.edgeCache,
-  );
-  group.add(disc, rim, topRing, bottomRing);
+  group.add(disc, rim, new THREE.Mesh(topEdgeRingGeo, edgeFill), new THREE.Mesh(bottomEdgeRingGeo, edgeFill));
 
   if (options.showSeparator) {
     const sep = decoratePieceMesh(

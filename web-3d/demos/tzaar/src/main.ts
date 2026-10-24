@@ -67,11 +67,13 @@ interface StackLabel {
   world: THREE.Vector3;
 }
 
-const labelScratch = new THREE.Vector3();
-const LABEL_RIM_SAMPLES = 16;
-const LABEL_GAP_PX = 22;
+const labelCenter = new THREE.Vector3();
+const labelRim = new THREE.Vector3();
+/** Extra pixels beyond the projected chip radius, up-right of the top centre. */
+const LABEL_CLEAR_PX = 10;
 
 const labels: StackLabel[] = [];
+let cameraReady = false;
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0, 0);
@@ -96,22 +98,22 @@ function requestRender() {
   if (!document.hidden && !frame) frame = requestAnimationFrame(render);
 }
 function projectLabels() {
+  if (!cameraReady) return;
+  camera.updateMatrixWorld();
   const bounds = boardEl.getBoundingClientRect();
   const w = bounds.width;
   const h = bounds.height;
+  if (w < 2 || h < 2) return;
   const radius = GIPF_CHIP.RADIUS;
   for (const label of labels) {
-    const p = label.world.clone().project(camera);
-    const cx = (p.x * 0.5 + 0.5) * w;
-    let topY = (-p.y * 0.5 + 0.5) * h;
-    for (let i = 0; i < LABEL_RIM_SAMPLES; i++) {
-      const a = (i / LABEL_RIM_SAMPLES) * Math.PI * 2;
-      labelScratch.set(label.world.x + Math.cos(a) * radius, label.world.y, label.world.z + Math.sin(a) * radius);
-      labelScratch.project(camera);
-      topY = Math.min(topY, (-labelScratch.y * 0.5 + 0.5) * h);
-    }
-    label.el.style.left = `${cx}px`;
-    label.el.style.top = `${topY - LABEL_GAP_PX}px`;
+    labelCenter.copy(label.world).project(camera);
+    const cx = (labelCenter.x * 0.5 + 0.5) * w;
+    const cy = (-labelCenter.y * 0.5 + 0.5) * h;
+    labelRim.set(label.world.x + radius, label.world.y, label.world.z).project(camera);
+    const radiusPx = Math.hypot((labelRim.x * 0.5 + 0.5) * w - cx, (-labelRim.y * 0.5 + 0.5) * h - cy);
+    const clear = radiusPx + LABEL_CLEAR_PX;
+    label.el.style.left = `${cx + clear * 0.72}px`;
+    label.el.style.top = `${cy - clear * 0.72}px`;
   }
 }
 function render() {
@@ -141,6 +143,8 @@ function fit() {
   viewportH = Math.max(1, Math.round(bounds.height));
   renderer.setSize(viewportW, viewportH, true);
   cameraViews.refit();
+  cameraReady = true;
+  projectLabels();
   requestRender();
 }
 
@@ -181,7 +185,7 @@ function applyTheme(id: ThemeId) {
       y += GIPF_CHIP.HEIGHT;
     }
     const shadow = new THREE.Mesh(discGeo, shadowMat);
-    shadow.scale.set(BOARD.CONTACT_BLOB_SOFT_SCALE, 0.001, BOARD.CONTACT_BLOB_SOFT_SCALE);
+    shadow.scale.set(1, 0.001, 1);
     shadow.position.set(pos.x, surface + BOARD.SHADOW_CONTACT_EPSILON, pos.z);
     shadow.renderOrder = 1;
     shadowsRoot.add(shadow);
@@ -191,10 +195,11 @@ function applyTheme(id: ThemeId) {
       el.textContent = String(height);
       el.dataset.testid = `stack-height-${piece.x}-${piece.y}`;
       boardEl.appendChild(el);
-      labels.push({ el, world: new THREE.Vector3(pos.x, y + GIPF_CHIP.HEIGHT * 0.35, pos.z) });
+      labels.push({ el, world: new THREE.Vector3(pos.x, y, pos.z) });
     }
   }
   requestRender();
+  if (cameraReady) projectLabels();
 }
 
 const initial: ThemeId = readInitialTheme();

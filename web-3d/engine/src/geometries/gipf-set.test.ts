@@ -3,6 +3,7 @@ import {
   GIPF_BOARD,
   GIPF_CHIP,
   GIPF_SPACING,
+  createGipfChipEdgeRingGeometry,
   createGipfChipGeometry,
   gipfHexDistanceToNearestEdge,
   gipfNeighborPairs,
@@ -90,6 +91,14 @@ describe('gipf chip', () => {
     const box = geo.boundingBox!;
     expect(box.max.y - box.min.y).toBeCloseTo(GIPF_CHIP.HEIGHT, 4);
     expect(box.max.x).toBeCloseTo(GIPF_CHIP.RADIUS, 3);
+    expect(box.max.z).toBeCloseTo(GIPF_CHIP.RADIUS, 3);
     geo.dispose();
+
+    const ring = createGipfChipEdgeRingGeometry(0);
+    ring.computeBoundingBox();
+    const ringBox = ring.boundingBox!;
+    const ringR = Math.max(Math.abs(ringBox.max.x), Math.abs(ringBox.min.x), Math.abs(ringBox.max.z), Math.abs(ringBox.min.z));
+    expect(ringR).toBeLessThanOrEqual(GIPF_CHIP.RADIUS + 1e-4);
+    ring.dispose();
   });
 });

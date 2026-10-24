@@ -17,7 +17,8 @@ export const GIPF_CHIP = {
   CHAMFER: 0.022,
   RIM_INNER: 0.336,
   RIM_OUTER: 0.368,
-  EDGE_TUBE: 0.016,
+  /** Tube sits inside RADIUS so the rendered disc diameter stays 0.75 × spacing. */
+  EDGE_TUBE: 0.012,
   SEGMENTS: 24,
 } as const;
 
@@ -297,7 +298,7 @@ export function createGipfChipRimGeometry(): THREE.BufferGeometry {
 /** Contrasting torus at a chip lip so stacked layers read as separate discs. */
 export function createGipfChipEdgeRingGeometry(y: number): THREE.BufferGeometry {
   const geo = new THREE.TorusGeometry(
-    GIPF_CHIP.RADIUS - GIPF_CHIP.EDGE_TUBE * 0.15,
+    GIPF_CHIP.RADIUS - GIPF_CHIP.EDGE_TUBE,
     GIPF_CHIP.EDGE_TUBE,
     10,
     GIPF_CHIP.SEGMENTS,
