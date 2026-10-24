@@ -55,6 +55,8 @@ export interface BoardSceneOptions {
   boardSlab?: number;
   /** Y of the playfield/table top where piece bases rest (default 0). */
   playfieldSurfaceY?: number;
+  /** Hemisphere + directional lights for GLTF / MeshStandard pieces (Boop stone cats). */
+  pbrLighting?: boolean;
 }
 
 export async function createBoardScene(container: HTMLElement, options: BoardSceneOptions): Promise<SceneApi> {
@@ -66,6 +68,15 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(tokens.table);
+  if (options.pbrLighting) {
+    scene.add(new THREE.HemisphereLight(0xf4f4f8, 0x3a3a48, 1.1));
+    const key = new THREE.DirectionalLight(0xffffff, 1.25);
+    key.position.set(5, 12, 7);
+    scene.add(key);
+    const fill = new THREE.DirectionalLight(0xc8d0e8, 0.4);
+    fill.position.set(-7, 5, -5);
+    scene.add(fill);
+  }
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
   renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;

@@ -1,6 +1,5 @@
 import {
   ANIMATION,
-  boopPieceGeometrySet,
   createBoardScene,
   createBoopCatGeometry,
   createBoopKittenGeometry,
@@ -15,7 +14,8 @@ import {
 } from '@abstract/three-engine';
 import { applyBoopAnimationPacing, BOOP_ANIM } from './game/animation';
 import { cellAt, poolCellIndex, wireBoopInteraction, type BoopInteractionHandle } from './game/boop-interaction';
-import { boardPlayfieldTopY, createGroundedBoopPieces } from './game/boop-grounding';
+import { boardPlayfieldTopY } from './game/boop-grounding';
+import { createBoopPieceGeometrySet } from './game/boop-stone-cats';
 import { BoopController } from './game/controller';
 
 applyBoopAnimationPacing(ANIMATION);
@@ -23,9 +23,9 @@ applyBoopAnimationPacing(ANIMATION);
 const size = 6;
 const OUTSIDE_ROWS = 2;
 
-const cat = createBoopCatGeometry();
-const kitten = createBoopKittenGeometry();
-const pieces = createGroundedBoopPieces(cat, kitten);
+const fallbackCat = createBoopCatGeometry();
+const fallbackKitten = createBoopKittenGeometry();
+const pieces = await createBoopPieceGeometrySet(fallbackCat, fallbackKitten);
 const topology = createSquareTopology({ size, outsideRows: OUTSIDE_ROWS });
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
@@ -38,6 +38,7 @@ const scene = await createBoardScene(board, {
   pieces,
   initialTheme: theme,
   playfieldSurfaceY: boardPlayfieldTopY(),
+  pbrLighting: true,
 });
 
 const stage = board.querySelector('canvas') ?? board;

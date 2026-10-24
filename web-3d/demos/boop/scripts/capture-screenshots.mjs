@@ -57,7 +57,7 @@ async function main() {
       await page.evaluate(async () => {
         await window.__boopController.ensureRestingOffBoardPiece();
       });
-      await page.waitForTimeout(2800);
+      await page.waitForTimeout(3500);
       await page.evaluate(() => window.dispatchEvent(new Event('resize')));
       await page.waitForTimeout(400);
       const out = path.join(artifactsDir, `boop-${theme}.png`);
