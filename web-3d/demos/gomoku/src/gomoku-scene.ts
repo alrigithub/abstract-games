@@ -13,7 +13,8 @@ import {
   applyBoardLighting,
   createBoardWebGLRenderer,
   createCameraViewController,
-  createContactShadowBlob,
+  applyPlayfieldBackdrop,
+  createPlayfieldGroundMesh,
   measureBoardFrameMs,
   tagPlayfieldForShadows,
   gomokuCellWorld,
@@ -76,7 +77,7 @@ export async function createGomokuScene(
   const restY = gomokuStoneRestCenterY();
   const dropLift = stoneAssets.stoneHeight * 2;
   const scene = new THREE.Scene();
-  scene.background = materials.table.clone();
+  applyPlayfieldBackdrop(scene, materials.table);
 
   const renderer = createBoardWebGLRenderer();
   const disposeEnvironment = applyBoardEnvironment(scene, renderer);
@@ -99,7 +100,10 @@ export async function createGomokuScene(
   const disposables: THREE.BufferGeometry[] = [];
   const stoneMeshes = new Map<string, THREE.Object3D>();
   let ghostMesh: THREE.Object3D | null = null;
-  let pickPlane = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ visible: false }));
+  let pickPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(BOARD.PLAYFIELD_GROUND_SIZE, BOARD.PLAYFIELD_GROUND_SIZE),
+    new THREE.MeshBasicMaterial({ visible: false }),
+  );
   pickPlane.rotation.x = -Math.PI / 2;
   boardGroup.add(pickPlane);
 
@@ -125,13 +129,9 @@ export async function createGomokuScene(
   function rebuildBoardMesh() {
     while (boardGroup.children.length > 1) boardGroup.remove(boardGroup.children[1]!);
     const span = size - 1;
-    const boardSpan = span + GOMOKU_DIMS.MARGIN * 2;
-    const planeGeo = new THREE.PlaneGeometry(boardSpan, boardSpan);
-    disposables.push(planeGeo);
-    const boardPlane = new THREE.Mesh(planeGeo, materials.board);
-    boardPlane.rotation.x = -Math.PI / 2;
-    boardGroup.add(boardPlane);
-    boardGroup.add(createContactShadowBlob(boardSpan * BOARD.CONTACT_BLOB_SOFT_SCALE, GOMOKU_DIMS.SLAB));
+    const ground = createPlayfieldGroundMesh(materials.board);
+    disposables.push(ground.geometry as THREE.BufferGeometry);
+    boardGroup.add(ground);
     const yLine = BOARD.LINE_Y + 0.001;
     for (let i = 0; i < size; i++) {
       const offset = i - span / 2;
@@ -369,7 +369,7 @@ export async function createGomokuScene(
       materials.stoneA.dispose();
       materials.stoneB.dispose();
       materials = gomokuThemeMaterials(themeId);
-      scene.background = materials.table.clone();
+      applyPlayfieldBackdrop(scene, materials.table);
       stoneAssets.onThemeChange(themeId);
       if (stoneAssets.usesGlb) {
         for (const mesh of stoneMeshes.values()) {

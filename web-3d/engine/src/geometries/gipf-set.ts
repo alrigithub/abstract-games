@@ -3,7 +3,6 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BOARD } from '../constants';
 import type { ThemeTokens } from '../types';
 import { tagBoardGridLine } from '../board-grid-lines';
-import { createContactShadowBlob } from './contact-shadow';
 import { anchorGeometryBaseToY0 } from './anchor';
 
 /**
@@ -436,27 +435,6 @@ function hexRingVerts(radius: number): THREE.Vector3[] {
   return verts;
 }
 
-function createCenterFillGeometry(): THREE.BufferGeometry {
-  const geo = new THREE.CylinderGeometry(GIPF_BOARD.CENTER_HEX * 0.88, GIPF_BOARD.CENTER_HEX * 0.88, 0.004, 6);
-  geo.translate(0, BOARD.LINE_Y, 0);
-  geo.computeBoundingBox();
-  return geo;
-}
-
-function flatBoardFromOutline(outline: { x: number; z: number }[], color: string): THREE.Mesh {
-  const shape = new THREE.Shape();
-  const first = outline[0]!;
-  shape.moveTo(first.x, first.z);
-  for (let i = 1; i < outline.length; i++) shape.lineTo(outline[i]!.x, outline[i]!.z);
-  shape.closePath();
-  const geo = new THREE.ShapeGeometry(shape);
-  geo.rotateX(-Math.PI / 2);
-  geo.computeBoundingBox();
-  const mesh = new THREE.Mesh(geo, basic(color));
-  mesh.renderOrder = 0;
-  return mesh;
-}
-
 function createCenterRingGeometry(radius: number, lineW: number): THREE.BufferGeometry {
   const verts = hexRingVerts(radius);
   const geos = verts.map((from, i) => linePlane(from, verts[(i + 1) % verts.length]!, lineW));
@@ -473,50 +451,26 @@ export function createGipfLineGeometry(layout: GipfHexLayout, lineW = GIPF_BOARD
   return merged;
 }
 
-/** Flat GIPF-style board: single playfield colour at y=0 plus printed intersection lines. */
-export function createGipfHexBoard(layout: GipfHexLayout, tokens: ThemeTokens): THREE.Group {
+/** Hex grid lines (and Tzaar centre hole rings) on the shared infinite playfield ground. */
+export function createGipfHexBoard(layout: GipfHexLayout, lineMaterial: THREE.Material): THREE.Group {
   const group = new THREE.Group();
-  const print = gipfPrintColors(tokens);
-  const extent = gipfLayoutExtent(layout);
-  const boardColor = print.field;
-
-  let field: THREE.Mesh;
-  if (layout.slab === 'regular-hex') {
-    const hex = gipfRegularHexSlab(layout);
-    field = flatBoardFromOutline(hex.vertices, boardColor);
-  } else if (layout.slab === 'square') {
-    const geo = new THREE.PlaneGeometry(extent, extent);
-    field = new THREE.Mesh(geo, basic(boardColor));
-    field.rotation.x = -Math.PI / 2;
-    field.renderOrder = 0;
-  } else {
-    const hull = expandFromOrigin(
-      convexHullXZ(layout.points.map(p => ({ x: p.world.x, z: p.world.z }))),
-      layout.margin,
-    );
-    field = flatBoardFromOutline(hull, boardColor);
-  }
-
-  const lines = new THREE.Mesh(createGipfLineGeometry(layout, GIPF_BOARD.LINE_W), basic(print.lines));
+  const lines = new THREE.Mesh(createGipfLineGeometry(layout, GIPF_BOARD.LINE_W), lineMaterial);
   lines.renderOrder = 2;
   tagBoardGridLine(lines, { screenScale: false });
-  group.add(field, lines);
+  group.add(lines);
 
   if (layout.centreMotif) {
-    const fill = new THREE.Mesh(createCenterFillGeometry(), basic(print.centre));
-    const ring = new THREE.Mesh(createCenterRingGeometry(GIPF_BOARD.CENTER_HEX, GIPF_BOARD.LINE_W), basic(print.lines));
+    const ring = new THREE.Mesh(createCenterRingGeometry(GIPF_BOARD.CENTER_HEX, GIPF_BOARD.LINE_W), lineMaterial);
     const inner = new THREE.Mesh(
       createCenterRingGeometry(GIPF_BOARD.CENTER_HEX_INNER, GIPF_BOARD.LINE_W * 0.85),
-      basic(print.lines),
+      lineMaterial,
     );
     tagBoardGridLine(ring, { screenScale: false });
     tagBoardGridLine(inner, { screenScale: false });
-    fill.renderOrder = 1;
     ring.renderOrder = 2;
     inner.renderOrder = 2;
-    group.add(fill, ring, inner);
+    group.add(ring, inner);
   }
 
-  group.add(createContactShadowBlob(extent, GIPF_BOARD.SLAB));
   return group;
 }

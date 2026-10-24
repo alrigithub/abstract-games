@@ -8,7 +8,7 @@ import {
 } from './board-grid-lines';
 import { createCameraViewController, fitOrthographicToWorldPoints, type CameraViewController } from './camera-views';
 import { ANIMATION, BOARD, CAMERA } from './constants';
-import { createContactShadowBlob } from './geometries/contact-shadow';
+import { applyPlayfieldBackdrop, createPlayfieldGroundMesh } from './playfield-ground';
 import {
   decoratePieceMesh,
   makePieceShadow,
@@ -99,14 +99,13 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   if (options.placeSfx) configurePlaceSfxPools(options.placeSfx);
   initPlaceSfx();
   const players = options.players ?? ['A', 'B'];
-  const boardSlab = options.boardSlab ?? BOARD.SLAB;
   const playfieldY = options.playfieldSurfaceY ?? BOARD.PLAYFIELD_SURFACE_Y;
   let themeId: ThemeId = options.initialTheme ?? 'light';
   options.pieces.onThemeChange?.(themeId);
   let tokens = themeTokens(themeId);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(tokens.table);
+  applyPlayfieldBackdrop(scene, tokens.table);
   const renderer = createBoardWebGLRenderer();
   const disposeEnvironment = applyBoardEnvironment(scene, renderer);
   const boardLighting = applyBoardLighting(scene, renderer);
@@ -150,7 +149,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   let gridMaterial = new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.DoubleSide });
   function rebuildMaterials() {
     tokens = themeTokens(themeId);
-    scene.background = new THREE.Color(tokens.table);
+    applyPlayfieldBackdrop(scene, tokens.table);
     boardMaterial.color.set(tokens.board);
     gridMaterial.color.set(tokens.lines);
     outlineMaterial.dispose();
@@ -664,6 +663,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     for (const geo of boardGeometries) geo.dispose();
     boardGeometries.length = 0;
     const size = options.gridSize;
+    const ground = createPlayfieldGroundMesh(boardMaterial);
+    boardGeometries.push(ground.geometry as THREE.BufferGeometry);
+    board.add(ground);
     if (
       options.topology.buildBoard?.({
         board,
@@ -680,12 +682,6 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       requestRender();
       return;
     }
-    const planeGeo = new THREE.PlaneGeometry(size, size);
-    boardGeometries.push(planeGeo);
-    const boardPlane = new THREE.Mesh(planeGeo, boardMaterial);
-    boardPlane.rotation.x = -Math.PI / 2;
-    board.add(boardPlane);
-    board.add(createContactShadowBlob(size, boardSlab));
     const half = size / 2;
     const lineWidth = BOARD.LINE_W;
     for (let i = 0; i <= size; i++) {

@@ -4,6 +4,7 @@ export * from './board-lighting';
 export * from './board-grid-lines'; // zoom-stable grid line helpers
 export * from './board-assist';
 export * from './board-scene';
+export * from './playfield-ground';
 export * from './camera-views';
 export * from './constants';
 export * from './interaction';
