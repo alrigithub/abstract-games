@@ -1,29 +1,132 @@
 import * as THREE from 'three';
 import { BOARD } from '../constants';
-import type { PieceGeometrySet } from '../types';
+import { createContactShadowBlob } from './contact-shadow';
+import type { PieceGeometrySet, ThemeId } from '../types';
 
-export function createGomokuStoneGeometry(): THREE.BufferGeometry {
-  const profile = [
-    new THREE.Vector2(0.0, 0.0),
-    new THREE.Vector2(0.12, 0.0),
-    new THREE.Vector2(0.38, 0.1),
-    new THREE.Vector2(0.12, 0.2),
-    new THREE.Vector2(0.0, 0.2),
-  ];
-  const geo = new THREE.LatheGeometry(profile, BOARD.RADIAL_SEGMENTS, 0, Math.PI * 2);
+export { createContactShadowBlob };
+
+/** Canonical sizes — see `web-3d/demos/gomoku/IMPLEMENTED.md`. */
+export const GOMOKU_DIMS = {
+  GRID: 15,
+  SLAB: 0.25,
+  MARGIN: 0.55,
+  LINE_W: BOARD.LINE_W,
+  STAR_R: 0.055,
+  STONE_R: 0.47,
+  STONE_H: 0.21,
+  FLOOR: 0.018,
+  BOWL_X: 9.2,
+  RESERVE_VISUAL: 12,
+} as const;
+
+const HOSHI_15: readonly (readonly [number, number])[] = [
+  [3, 3],
+  [3, 11],
+  [7, 7],
+  [11, 3],
+  [11, 11],
+];
+
+/** Biconvex Go stone: two spherical caps, smooth meridian (no pinched waist). */
+export function createGomokuStoneGeometry(
+  radius = GOMOKU_DIMS.STONE_R,
+  height = GOMOKU_DIMS.STONE_H,
+): THREE.BufferGeometry {
+  const half = height / 2;
+  const capRadius = (radius * radius + half * half) / (2 * half);
+  const meridianSteps = BOARD.RADIAL_SEGMENTS * 2;
+  const profile: THREE.Vector2[] = [];
+  for (let i = 0; i <= meridianSteps; i++) {
+    const y = (i / meridianSteps) * height;
+    const pole = y <= half ? y : height - y;
+    const x = Math.sqrt(Math.max(0, capRadius * capRadius - (capRadius - pole) ** 2));
+    profile.push(new THREE.Vector2(x, y));
+  }
+  const geo = new THREE.LatheGeometry(profile, BOARD.RADIAL_SEGMENTS);
+  geo.computeVertexNormals();
   geo.computeBoundingBox();
   geo.computeBoundingSphere();
   return geo;
 }
 
+/** Wooden go bowl beside the board (lathe). */
+export function createGoBowlGeometry(): THREE.BufferGeometry {
+  const profile = [
+    new THREE.Vector2(1.55, 0.0),
+    new THREE.Vector2(1.85, 0.06),
+    new THREE.Vector2(1.72, 0.28),
+    new THREE.Vector2(1.35, 0.52),
+    new THREE.Vector2(0.92, 0.62),
+    new THREE.Vector2(0.92, 0.68),
+  ];
+  const geo = new THREE.LatheGeometry(profile, 48);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+export interface GomokuThemeMaterials {
+  table: THREE.Color;
+  board: THREE.MeshStandardMaterial;
+  line: THREE.MeshBasicMaterial;
+  star: THREE.MeshBasicMaterial;
+  bowl: THREE.MeshStandardMaterial;
+  stoneA: THREE.MeshStandardMaterial;
+  stoneB: THREE.MeshStandardMaterial;
+  contactShadow: THREE.MeshBasicMaterial;
+}
+
+export function gomokuThemeMaterials(theme: ThemeId): GomokuThemeMaterials {
+  const dark = theme === 'dark';
+  return {
+    table: new THREE.Color(dark ? '#16171a' : '#ffffff'),
+    board: new THREE.MeshStandardMaterial({
+      color: dark ? '#22242a' : '#e8e4dc',
+      roughness: dark ? 0.92 : 0.88,
+      metalness: 0,
+    }),
+    line: new THREE.MeshBasicMaterial({ color: dark ? '#8a8f98' : '#1a1a1a', side: THREE.DoubleSide }),
+    star: new THREE.MeshBasicMaterial({ color: dark ? '#8a8f98' : '#1a1a1a', side: THREE.DoubleSide }),
+    bowl: new THREE.MeshStandardMaterial({
+      color: dark ? '#3a3228' : '#b8943a',
+      roughness: 0.72,
+      metalness: 0.02,
+    }),
+    stoneA: new THREE.MeshStandardMaterial({
+      color: dark ? '#f5f5f2' : '#fafaf8',
+      roughness: 0.32,
+      metalness: 0.04,
+    }),
+    stoneB: new THREE.MeshStandardMaterial({
+      color: dark ? '#141414' : '#242424',
+      roughness: 0.88,
+      metalness: 0,
+    }),
+    contactShadow: new THREE.MeshBasicMaterial({
+      color: dark ? '#000000' : '#19232e',
+      transparent: true,
+      opacity: dark ? 0.45 : 0.12,
+      depthWrite: false,
+    }),
+  };
+}
+
 export function gomokuPieceGeometrySet(geo: THREE.BufferGeometry): PieceGeometrySet {
   return {
     geometry: () => geo,
-    height: () => 0.2,
+    height: () => GOMOKU_DIMS.STONE_H,
     yaw: id => {
       let hash = 0;
       for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
       return ((hash >>> 0) % 1000) / 1000 * (Math.PI / 8);
     },
   };
+}
+
+export function gomokuHoshiPoints(size = GOMOKU_DIMS.GRID): readonly (readonly [number, number])[] {
+  return size === 15 ? HOSHI_15 : HOSHI_15;
+}
+
+export function gomokuCellWorld(size: number, row: number, col: number): THREE.Vector3 {
+  const origin = (size - 1) / 2;
+  return new THREE.Vector3(col - origin, 0, row - origin);
 }
