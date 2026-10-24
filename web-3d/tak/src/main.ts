@@ -60,7 +60,7 @@ let controller!: InteractionApi;
 
 function syncFlipBarButton() {
   const btn = document.querySelector<HTMLButtonElement>('[data-testid="flip-stone"]');
-  if (!btn) return;
+  if (!btn || !controller) return;
   const selection = controller.getSelection();
   const takSel = selection ? toTakSelection(selection) : null;
   const canFlipGame =
