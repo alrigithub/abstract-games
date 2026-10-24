@@ -14,7 +14,16 @@ import init, { BoopGame } from '../../wasm/boop_wasm.js';
 import { exportHumanGraduationSetup } from './boop-graduation-fixture';
 import { BOOP_ANIM } from './animation';
 import { BOOP_GRID as GRID, BOOP_OUTSIDE as OUTSIDE } from './boop-grid';
-import { poolKindAtCell, primaryPoolCellIndex } from './boop-pool-layout';
+import {
+  buildLineClearAssist,
+  bedCellIndices,
+  lineCellsFromHighlight,
+  lineClearNeedsSequence,
+  lineClearRemovalMs,
+  BOOP_LINE_CLEAR,
+  viewHoldingLineOnBed,
+} from './boop-line-clear';
+import { poolKindAtCell, primaryPoolCellIndex, type PoolCounts } from './boop-pool-layout';
 import { applyParallelBoopPushEffects } from './boop-push-schedule';
 import { exportDualAdjacentBoopSetup } from './boop-push-fixture';
 import { PieceTracker } from './piece-tracker';
@@ -107,7 +116,7 @@ export class BoopController {
   trySelectPoolAtCell(cellIndex: number) {
     if (!this.canInteract() || !this.isPlaceMode()) return false;
     const { row, col } = cellCoordinates(GRID, cellIndex, OUTSIDE);
-    const kind = poolKindAtCell(HUMAN, row, col);
+    const kind = poolKindAtCell(HUMAN, row, col, this.poolCounts(HUMAN));
     if (!kind) return false;
     if (kind === 'cat' && !this.poolHasHand(0, 'cat')) return false;
     if (kind === 'kitten' && !this.poolHasHand(0, 'kitten')) return false;
@@ -217,18 +226,22 @@ export class BoopController {
     return 0;
   }
 
+  private poolCounts(player: PlayerId): PoolCounts {
+    return this.view.pools[player === HUMAN ? 0 : 1]!;
+  }
+
   private poolHasHand(playerIndex: 0 | 1, kind: PieceKind) {
     const pool = this.view.pools[playerIndex]!;
     return kind === 'kitten' ? pool.kittens_in_hand > 0 : pool.cats_in_hand > 0;
   }
 
   private isHumanPoolCell(row: number, col: number) {
-    const kind = poolKindAtCell(HUMAN, row, col);
+    const kind = poolKindAtCell(HUMAN, row, col, this.poolCounts(HUMAN));
     return kind !== null && this.poolHasHand(0, kind);
   }
 
   private isAiPoolCell(row: number, col: number) {
-    const kind = poolKindAtCell(AI, row, col);
+    const kind = poolKindAtCell(AI, row, col, this.poolCounts(AI));
     return kind !== null && this.poolHasHand(1, kind);
   }
 
@@ -250,7 +263,7 @@ export class BoopController {
       const top = stack.at(-1);
       if (top?.player === player && top.shape === kind) return idx;
     }
-    return primaryPoolCellIndex(player, kind);
+    return primaryPoolCellIndex(player, kind, this.poolCounts(player));
   }
 
   async commitPlacement(selection: Selection, targetIndex: number) {
@@ -276,9 +289,9 @@ export class BoopController {
     const top = snap.cells[sourceIndex]?.at(-1);
     if (top?.shape === 'kitten' || top?.shape === 'cat') return top.shape;
     const { row, col } = cellCoordinates(GRID, sourceIndex, OUTSIDE);
-    const aKind = poolKindAtCell(HUMAN, row, col);
+    const aKind = poolKindAtCell(HUMAN, row, col, this.poolCounts(HUMAN));
     if (aKind) return aKind;
-    const bKind = poolKindAtCell(AI, row, col);
+    const bKind = poolKindAtCell(AI, row, col, this.poolCounts(AI));
     if (bKind) return bKind;
     return 'kitten';
   }
@@ -411,13 +424,46 @@ export class BoopController {
 
     if (pushFromPlacement) endBoopPushLandSounds();
 
-    if (effects.graduated_cells) {
+    const line = lineCellsFromHighlight(effects.line_highlight);
+    if (lineClearNeedsSequence(effects.line_highlight, effects.graduated_cells)) {
+      await this.animateLineClear(before, after, line!, effects.graduated_cells);
+    } else if (effects.graduated_cells) {
       for (const [x, y] of effects.graduated_cells) this.tracker.removeFromBoard(x, y);
       this.view = after;
       this.publishSnapshot();
       await sleep(step);
     }
 
+    this.view = after;
+    this.publishSnapshot();
+  }
+
+  private async animateLineClear(
+    before: GameView,
+    after: GameView,
+    line: [number, number][],
+    graduated: [number, number][] | null,
+  ) {
+    const markerCells = bedCellIndices(line);
+    this.scene.setBoardAssist(buildLineClearAssist(markerCells));
+    this.view = viewHoldingLineOnBed(before, after, line);
+    this.publishSnapshot();
+    await sleep(BOOP_LINE_CLEAR.GLOW_HOLD_MS);
+
+    if (graduated?.length) {
+      const removeMs = lineClearRemovalMs();
+      const perPiece = Math.max(120, Math.floor(removeMs / graduated.length));
+      for (const [x, y] of graduated) {
+        this.tracker.removeFromBoard(x, y);
+        this.view = viewHoldingLineOnBed(before, after, line.filter(c => !(c[0] === x && c[1] === y)));
+        this.publishSnapshot();
+        await sleep(perPiece);
+      }
+    } else {
+      await sleep(lineClearRemovalMs());
+    }
+
+    this.scene.setBoardAssist(null);
     this.view = after;
     this.publishSnapshot();
   }
@@ -514,16 +560,27 @@ export class BoopController {
     return this.view?.pools[0];
   }
 
-  /** Places the third kitten on a preset row-of-two to trigger graduation, then AI turn. */
-  async playToHumanFirstGraduation() {
+  stageHumanGraduationSetup() {
     this.newGame();
     this.game = BoopGame.import_state(exportHumanGraduationSetup(this.game));
     this.view = parseGameView(this.game.view_json());
     this.tracker.syncBoard(this.view);
     this.publishSnapshot();
+    this.renderStatus();
+  }
+
+  /** Places the third kitten on a preset row-of-two to trigger graduation. */
+  async placeHumanGraduationLine(options?: { scheduleAi?: boolean }) {
     const mv = this.game.move_for_interaction_json(HUMAN, 2, 0, 'kitten');
     if (!mv) return false;
-    await this.playMoveJson(mv, { scheduleAi: true });
+    await this.playMoveJson(mv, { scheduleAi: options?.scheduleAi ?? true });
+    return this.view.pools[0]!.cats_in_hand === 3;
+  }
+
+  /** Places the third kitten on a preset row-of-two to trigger graduation, then AI turn. */
+  async playToHumanFirstGraduation() {
+    this.stageHumanGraduationSetup();
+    await this.placeHumanGraduationLine({ scheduleAi: true });
     return this.view.pools[0]!.cats_in_hand === 3 && this.view.to_move === AI;
   }
 

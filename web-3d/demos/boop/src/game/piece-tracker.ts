@@ -2,7 +2,7 @@ import type { BoardSnapshot, EnginePiece } from '@abstract/three-engine';
 import { cellIndex } from '@abstract/three-engine';
 import { BOOP_GRID, BOOP_OUTSIDE } from './boop-grid';
 import { defaultRestingCell, resolveRestingCell } from './boop-resting-slot';
-import { poolOccupiedCells, poolSlots, type PoolColumn } from './boop-pool-layout';
+import { kittenHandColumn, poolOccupiedCells, poolSlots, type PoolColumn } from './boop-pool-layout';
 import type { GameView, PieceKind, PlayerId } from './types';
 
 interface RestingPiece {
@@ -233,7 +233,14 @@ export class PieceTracker {
     }
 
     for (const player of ['A', 'B'] as const) {
-      this.pushPoolPieces(cells, player, 'kitten', this.poolStacks[player].kitten, 'kitten');
+      const pool = view.pools[player === 'A' ? 0 : 1]!;
+      this.pushPoolPieces(
+        cells,
+        player,
+        kittenHandColumn(player, pool),
+        this.poolStacks[player].kitten,
+        'kitten',
+      );
       this.pushPoolPieces(cells, player, 'cat_hand', this.poolStacks[player].cat, 'cat');
       this.pushPoolPieces(cells, player, 'cat_reserve', this.reserveStacks[player], 'cat');
     }
