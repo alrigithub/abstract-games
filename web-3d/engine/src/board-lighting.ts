@@ -160,8 +160,45 @@ export function setMeshShadowFlags(
 }
 
 /** Playfield receives; thin grid lines and decals do not. */
+/** Drop-shadow strength on unlit (MeshBasic) boards. */
+export const PIECE_DROP_SHADOW_OPACITY = 0.38;
+
+/** MeshBasicMaterial ignores shadow maps; overlay a ShadowMaterial catcher so pieces drop visible shadows. */
+function addShadowCatcher(node: THREE.Mesh) {
+  if (node.userData.shadowCatcherAdded || node.userData.isShadowCatcher) return;
+  if (!(node.material instanceof THREE.MeshBasicMaterial)) return;
+  node.userData.shadowCatcherAdded = true;
+  const catcher = new THREE.Mesh(
+    node.geometry,
+    new THREE.ShadowMaterial({
+      opacity: PIECE_DROP_SHADOW_OPACITY,
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    }),
+  );
+  catcher.userData.isShadowCatcher = true;
+  catcher.receiveShadow = true;
+  catcher.castShadow = false;
+  catcher.renderOrder = 1;
+  catcher.raycast = () => {};
+  node.add(catcher);
+}
+
 export function tagPlayfieldForShadows(boardRoot: THREE.Object3D) {
   setMeshShadowFlags(boardRoot, { cast: false, receive: false });
+  const receivers: THREE.Mesh[] = [];
+  boardRoot.traverse(node => {
+    if (
+      node instanceof THREE.Mesh &&
+      !node.userData.boardGridLine &&
+      !node.userData.isShadowCatcher &&
+      (node.geometry instanceof THREE.PlaneGeometry || node.geometry instanceof THREE.ShapeGeometry)
+    ) receivers.push(node);
+  });
+  for (const r of receivers) addShadowCatcher(r);
   boardRoot.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;
     if (node.userData.boardGridLine) return;
