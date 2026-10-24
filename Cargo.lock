@@ -1666,6 +1666,7 @@ version = "0.1.0"
 dependencies = [
  "boop",
  "minimax",
+ "web-time",
 ]
 
 [[package]]
@@ -1679,6 +1680,18 @@ dependencies = [
  "boop",
  "boop_ai",
  "gloo-timers 0.3.0",
+]
+
+[[package]]
+name = "boop_wasm"
+version = "0.1.0"
+dependencies = [
+ "boop",
+ "boop_ai",
+ "getrandom 0.3.4",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -5061,7 +5074,6 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_async_task",
- "bevy_tweening",
  "tzaar",
  "tzaar_ai",
 ]

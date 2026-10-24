@@ -1,0 +1,78 @@
+/** Timings and motion copied 1:1 from Alex's Tak studio (`tak-src/src/scene.ts`, `interaction.ts`, `state.ts`). */
+export const ANIMATION = {
+  /** Default piece move duration (ms). */
+  DURATION: 180,
+  /** Lift / pickup vertical move (ms). */
+  LIFT_DURATION: 150,
+  /** Vertical lift while dragging (world units). */
+  LIFT: 0.28,
+  /** @deprecated Resting stacks use {@link PLAYFIELD_SURFACE_Y}; kept for legacy imports only. */
+  FLOOR: 0,
+  /** Delay after pickup before horizontal follow eases (ms). */
+  PICKUP_HORIZONTAL_DELAY: 85,
+  /** Horizontal nudge while selected (ms). */
+  HORIZONTAL_DURATION: 60,
+  /** Out cubic ease: `1 - (1 - t) ** 3` */
+  easeOutCubic: (t: number) => 1 - (1 - t) ** 3,
+  /** Marker / stone flip duration (ms), matched to Bevy Yinsh GUI and Tak studio. */
+  FLIP_DURATION: 500,
+} as const;
+
+export const INTERACTION = {
+  /** Ms between each additional piece picked up from a held stack. */
+  HOLD_INTERVAL: 370,
+  DRAG_THRESHOLD: 6,
+  RESERVE_STACK_SIZE: 7,
+} as const;
+
+export const BOARD = {
+  /** World units per side of the shared infinite-style playfield plane. */
+  PLAYFIELD_GROUND_SIZE: 8192,
+  /** Linear fog matches {@link applyPlayfieldBackdrop} / scene background. */
+  PLAYFIELD_FOG_NEAR: 28,
+  PLAYFIELD_FOG_FAR: 140,
+  /** Board thickness (0 = flat playfield plane at {@link PLAYFIELD_SURFACE_Y}). */
+  SLAB: 0,
+  /** Tak board thickness (same flat plane as other games). */
+  TAK_SLAB: 0,
+  /** Top of board / table where piece bases rest (world Y). */
+  PLAYFIELD_SURFACE_Y: 0,
+  /** Grid / intersection lines sit slightly above the board plane. */
+  LINE_Y: 0.002,
+  /** Contact shadow sits this far above the piece base (world Y). */
+  SHADOW_CONTACT_EPSILON: 0.001,
+  LINE_W: 0.009,
+  RADIAL_SEGMENTS: 32,
+  EDGE_THRESHOLD_TAK: 20,
+  EDGE_THRESHOLD_GOMOKU: 25,
+  EDGE_THRESHOLD_BOOP: 20,
+  OUTLINE_EXPAND: 0.004,
+  SHADOW_SCALE: 1.04,
+  /** @deprecated Use SHADOW_CONTACT_EPSILON at piece base. */
+  SHADOW_Y: 0.001,
+  CONTACT_BLOB_SOFT_SCALE: 1.12,
+  CONTACT_BLOB_OPACITY: 0.6,
+  /**
+   * Shared IBL strength for PBR GLBs ({@link applyBoardEnvironment}).
+   * MeshBasic board/piece materials ignore this.
+   */
+  ENVIRONMENT_INTENSITY: 0.72,
+  /** Decal under pieces (complements shadow maps). */
+  PIECE_CONTACT_SHADOW_OPACITY: 0.24,
+} as const;
+
+export const CAMERA = {
+  position: [9, 9, 9] as const,
+  near: 0.1,
+  far: 80,
+  rotateSpeed: 0.65,
+  zoomSpeed: 0.8,
+  minPolarAngle: 0.22,
+  maxPolarAngle: 1.18,
+  minZoom: 0.3,
+  maxZoom: 2.8,
+  framePadding: 1.18,
+  maxPixelRatio: 2,
+  minRenderScale: 1.5,
+  maxBufferPixels: 3_000_000,
+} as const;

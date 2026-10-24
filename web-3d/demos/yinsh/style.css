@@ -1,0 +1,26 @@
+:root {
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--ui-page-text, #1a1a1a);
+  background: var(--ui-page-bg, #f3f1ec);
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#app {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.viewport {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+#board {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}

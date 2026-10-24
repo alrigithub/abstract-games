@@ -9,3 +9,4 @@ repository = "https://github.com/alrigithub/abstract-games"
 [dependencies]
 boop = { path = "../boop" }
 minimax = "0.5.3"
+web-time = "1.1"
