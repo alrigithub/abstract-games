@@ -16,8 +16,26 @@ import {
   type MenuIconName,
 } from './menu-icons';
 
-/** Site root lobby (Firebase hosting). */
-export const DEFAULT_LOBBY_HREF = '/';
+/**
+ * Hub page beside each game in the static `web/` tree (`web/index.html`, games in `web/<name>/`).
+ * Relative so GitHub Pages / subdirectory hosts resolve correctly (absolute `/` is the host root, not the hub).
+ */
+export const DEFAULT_LOBBY_HREF = '../index.html';
+
+/**
+ * Default lobby URL for the current deploy. Prefer resolving against `document.location`
+ * so dev and published builds behave the same; fall back to {@link DEFAULT_LOBBY_HREF}.
+ */
+export function resolveDefaultLobbyHref(): string {
+  if (typeof document !== 'undefined' && document.location?.href) {
+    try {
+      return new URL(DEFAULT_LOBBY_HREF, document.location.href).href;
+    } catch {
+      return DEFAULT_LOBBY_HREF;
+    }
+  }
+  return DEFAULT_LOBBY_HREF;
+}
 
 /** Shared top-bar CSS; exported so tooling/tests can read the single source. */
 export { GAME_BUTTONS_CSS };
@@ -504,7 +522,7 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
     testId: 'back-to-lobby',
     icon: 'arrow-left',
     label: 'Back to Lobby',
-    href: options.lobbyHref ?? DEFAULT_LOBBY_HREF,
+    href: options.lobbyHref ?? resolveDefaultLobbyHref(),
     closeOnActivate: true,
   });
 

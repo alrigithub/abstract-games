@@ -83,7 +83,7 @@ fn gap_behind_piece_means_it_is_booped_even_if_line_continues_further() {
     let mut g = GameState::new();
     g.set_piece(Coord::new(1, 0), kitten(Player::Second));
     g.set_piece(Coord::new(3, 0), kitten(Player::Second));
-    g.set_piece(Coord::new(4, 0), kitten(Player::Second));
+    g.set_piece(Coord::new(4, 0), kitten(Player::First));
     g.set_to_move(Player::First);
 
     g.apply(Move::Place {
@@ -103,7 +103,7 @@ fn gap_behind_piece_means_it_is_booped_even_if_line_continues_further() {
     );
     assert_eq!(
         g.board().get(Coord::new(4, 0)),
-        Some(kitten(Player::Second))
+        Some(kitten(Player::First))
     );
 }
 
@@ -132,6 +132,50 @@ fn kitten_does_not_boop_cat_but_cat_boops_cat() {
 }
 
 // --- Win before graduation --------------------------------------------------
+
+#[test]
+fn second_player_diagonal_cat_line_on_own_placement_wins() {
+    let mut g = GameState::new();
+    g.set_piece(Coord::new(0, 2), cat(Player::Second));
+    g.set_piece(Coord::new(1, 1), cat(Player::Second));
+    g.set_to_move(Player::Second);
+    g.set_pool(Player::Second, pool(7, 1, 6));
+
+    g.apply(Move::Place {
+        coord: Coord::new(2, 0),
+        piece: PieceKind::Cat,
+    })
+    .unwrap();
+
+    assert_eq!(g.winner(), Some(Player::Second));
+}
+
+/// Opponent completes a diagonal cat line via boop displacement (not the piece they placed).
+#[test]
+fn opponent_diagonal_cat_line_via_boop_wins() {
+    let mut g = GameState::new();
+    g.set_piece(Coord::new(2, 0), cat(Player::First));
+    g.set_piece(Coord::new(3, 1), cat(Player::First));
+    g.set_piece(Coord::new(4, 3), cat(Player::First));
+    g.set_to_move(Player::Second);
+    g.set_pool(Player::Second, pool(7, 1, 7));
+
+    g.apply(Move::Place {
+        coord: Coord::new(4, 4),
+        piece: PieceKind::Cat,
+    })
+    .unwrap();
+
+    assert_eq!(g.winner(), Some(Player::First));
+    assert_eq!(
+        g.last_move_effects().line_highlight,
+        Some(LineHighlight::Win([
+            Coord::new(2, 0),
+            Coord::new(3, 1),
+            Coord::new(4, 2),
+        ]))
+    );
+}
 
 /// Three cats in a row is an immediate win even if the same placement also completes
 /// a mixed line that shares a cat with the winning line.

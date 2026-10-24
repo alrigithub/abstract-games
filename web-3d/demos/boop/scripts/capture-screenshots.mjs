@@ -55,10 +55,9 @@ async function main() {
       await page.waitForSelector('[data-testid="board"][data-ready="true"]', { timeout: 15_000 });
       await page.waitForFunction(() => window.__boopController != null, null, { timeout: 15_000 });
       await page.evaluate(async () => {
-        await window.__boopController.smokePlace(2, 2);
-        await window.__boopController.smokePlace(3, 3);
+        await window.__boopController.ensureRestingOffBoardPiece();
       });
-      await page.waitForTimeout(2200);
+      await page.waitForTimeout(2800);
       await page.evaluate(() => window.dispatchEvent(new Event('resize')));
       await page.waitForTimeout(400);
       const out = path.join(artifactsDir, `boop-${theme}.png`);

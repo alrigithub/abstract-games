@@ -3,6 +3,7 @@ import {
   GOMOKU_AI_STRENGTH_STORAGE_KEY,
   levelToSearchOptions,
   readInitialTheme,
+  type GameButtonsBar,
   type ThemeId,
 } from '@abstract/three-engine';
 import { createGomokuScene, type ScenePlayer, type StoneRecord } from './gomoku-scene';
@@ -59,6 +60,7 @@ function winLineCells(): { row: number; col: number }[] | null {
 }
 
 function renderStatus(extra?: string, strengthLabel?: string) {
+  if (!gameButtons) return;
   const human = humanColor === 'black' ? 'Black' : 'White';
   const strength = strengthLabel ?? gameButtons.aiStrength!.getLevel().label;
   let detail = extra;
@@ -85,12 +87,12 @@ function stopAi() {
 }
 
 function maybeAiTurn() {
-  if (game.winner || game.toMove === humanColor) return;
+  if (game.winner || game.toMove === humanColor || !gameButtons?.aiStrength) return;
   aiPending = true;
   scene.setInputEnabled(false);
   renderStatus();
   const gen = ++aiGeneration;
-  const search = levelToSearchOptions(gameButtons.aiStrength!.getLevel());
+  const search = levelToSearchOptions(gameButtons.aiStrength.getLevel());
   document.body.dataset.lastAiDepth = String(search.maxDepth);
   document.body.dataset.lastAiMaxNodes = String(search.maxNodes);
   aiWorker = new Worker(new URL('./game/ai.worker.ts', import.meta.url), { type: 'module' });
@@ -141,7 +143,8 @@ const scene = createGomokuScene(board, {
 
 const cameraViews = scene.createCameraViews();
 
-let gameButtons: ReturnType<typeof createGameButtons>;
+let gameButtons: GameButtonsBar | undefined;
+
 gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
   cameraViews,
@@ -150,6 +153,8 @@ gameButtons = createGameButtons({
   applyTheme,
   onFirstPlayerSelected: color => startGame(color),
 });
+
+renderStatus();
 
 function startGame(color: Player) {
   stopAi();
