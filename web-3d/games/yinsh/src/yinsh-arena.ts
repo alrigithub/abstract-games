@@ -161,6 +161,7 @@ export const YINSH_PLAYFIELD_GROUND = {
   },
   // Keep the backdrop below the undulating paving instead of slicing through it.
   surfaceY: -0.16,
+  matchBackdrop: true,
   surfaceColor: CLAY.BACKDROP,
   darkSurfaceColor: CLAY.ENV_DARK,
 } as const;

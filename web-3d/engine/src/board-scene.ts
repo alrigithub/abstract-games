@@ -120,6 +120,8 @@ export interface BoardSceneOptions {
 }
 
 export interface PlayfieldGroundOptions {
+  /** Unlit base matches the backdrop exactly; a separate layer receives shadows. */
+  matchBackdrop?: boolean;
   /** Cosmetic ground height, independent of piece placement on the arena. */
   surfaceY?: number;
   /** World units (square plane side). */
@@ -191,7 +193,10 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   let pieceMaterials: Record<string, THREE.MeshStandardMaterial> = {};
   let ghostMaterials: Record<string, THREE.MeshBasicMaterial> = {};
   let boardMaterial: THREE.MeshStandardMaterial = clayEnvMaterial();
-  let playfieldGroundMaterial: THREE.MeshStandardMaterial | null = null;
+  let playfieldGroundMaterial: THREE.MeshStandardMaterial | THREE.MeshBasicMaterial | null = null;
+  const backdropShadowMaterial = options.playfieldGround?.matchBackdrop
+    ? new THREE.ShadowMaterial({ opacity: 0.22, depthWrite: false })
+    : null;
   let gridMaterial = new THREE.MeshBasicMaterial({
     color: tokens.lines,
     side: THREE.DoubleSide,
@@ -211,9 +216,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     applyPlayfieldBackdrop(scene, surface);
   }
 
-  function ensurePlayfieldGroundMaterial(): THREE.MeshStandardMaterial {
+  function ensurePlayfieldGroundMaterial(): THREE.MeshStandardMaterial | THREE.MeshBasicMaterial {
     if (!playfieldGroundMaterial) {
-      playfieldGroundMaterial = new THREE.MeshStandardMaterial({
+      playfieldGroundMaterial = options.playfieldGround?.matchBackdrop
+        ? new THREE.MeshBasicMaterial({ color: options.playfieldGround.surfaceColor, side: THREE.DoubleSide, toneMapped: false })
+        : new THREE.MeshStandardMaterial({
         color: options.playfieldGround!.surfaceColor,
         roughness: 0.82,
         metalness: 0,
@@ -800,6 +807,13 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     ground.position.y = options.playfieldGround?.surfaceY ?? BOARD.PLAYFIELD_SURFACE_Y;
     boardGeometries.push(ground.geometry as THREE.BufferGeometry);
     board.add(ground);
+    if (backdropShadowMaterial) {
+      const shadow = createPlayfieldGroundMesh(backdropShadowMaterial, groundSize);
+      shadow.position.y = ground.position.y + 0.001;
+      shadow.renderOrder = 0;
+      boardGeometries.push(shadow.geometry);
+      board.add(shadow);
+    }
     if (
       options.topology.buildBoard?.({
         board,
@@ -1383,6 +1397,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       boardLighting.dispose();
       assistLayer.dispose();
       flipHaloMaterial.dispose();
+      playfieldGroundMaterial?.dispose();
+      backdropShadowMaterial?.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },
