@@ -1,12 +1,14 @@
 {
-  "name": "tzaar-3d-demo",
+  "name": "@abstract/boop",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 5199",
+    "dev": "vite --host 0.0.0.0 --port 5194",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --port 5197",
+    "smoke": "node scripts/play-smoke.mjs",
+    "preview": "vite preview --port 5195",
+    "screenshot": "node scripts/capture-screenshots.mjs",
     "test": "vitest run"
   },
   "dependencies": {
@@ -15,6 +17,7 @@
   },
   "devDependencies": {
     "@types/three": "^0.180.0",
+    "playwright": "^1.49.1",
     "typescript": "^5.9.3",
     "vite": "^7.1.9",
     "vitest": "^3.2.4"

@@ -10,11 +10,11 @@ Agent and contributor guidance: [AGENTS.md](./AGENTS.md).
 
 | Game | Path |
 |------|------|
-| Yinsh | `web-3d/demos/yinsh` |
-| Gomoku | `web-3d/demos/gomoku` |
-| Boop | `web-3d/demos/boop` |
-| Tak | `web-3d/tak` |
-| Tzaar | `web-3d/demos/tzaar` |
+| Yinsh | `web-3d/games/yinsh` |
+| Gomoku | `web-3d/games/gomoku` |
+| Boop | `web-3d/games/boop` |
+| Tak | `web-3d/games/tak` |
+| Tzaar | `web-3d/games/tzaar` |
 
 ## Development
 
@@ -29,7 +29,7 @@ npx playwright test
 Serve a single game locally (example — Tak):
 
 ```bash
-cd web-3d/tak && npm run dev
+cd web-3d/games/tak && npm run dev
 ```
 
 Stage all games plus the lobby hub for static hosting:

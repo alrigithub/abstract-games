@@ -9,11 +9,11 @@ const web3dRoot = path.resolve(engineDir, '../..');
 
 /** Demo entrypoints and custom scenes must not add their own Three.js lighting or renderer tone mapping. */
 const DEMO_SOURCE_ROOTS = [
-  path.join(web3dRoot, 'demos/boop/src'),
-  path.join(web3dRoot, 'demos/yinsh/src'),
-  path.join(web3dRoot, 'demos/tzaar/src'),
-  path.join(web3dRoot, 'demos/gomoku/src'),
-  path.join(web3dRoot, 'tak/src'),
+  path.join(web3dRoot, 'games/boop/src'),
+  path.join(web3dRoot, 'games/yinsh/src'),
+  path.join(web3dRoot, 'games/tzaar/src'),
+  path.join(web3dRoot, 'games/gomoku/src'),
+  path.join(web3dRoot, 'games/tak/src'),
 ];
 
 const SOURCE_EXT = new Set(['.ts', '.tsx']);

@@ -1,14 +1,13 @@
 {
-  "name": "tak-3d",
+  "name": "@abstract/gomoku",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 5190",
+    "dev": "vite --host 0.0.0.0 --port 5192",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --host 0.0.0.0 --port 5191",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "preview": "vite preview --port 5193",
+    "test": "vitest run"
   },
   "dependencies": {
     "@abstract/three-engine": "*",
@@ -18,6 +17,6 @@
     "@types/three": "^0.180.0",
     "typescript": "^5.9.3",
     "vite": "^7.1.9",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.7"
   }
 }

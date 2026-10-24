@@ -19,7 +19,7 @@ export interface DomPlacementGhostOptions {
 
 /**
  * Screen-space circular footprint preview (DOM overlay). Gomoku keeps its own
- * Three.js stone ghost in {@link demos/gomoku}; this helper is for flat footprints
+ * Three.js stone ghost in {@link games/gomoku}; this helper is for flat footprints
  * sized in world units (e.g. Boop kitten vs cat).
  */
 export class DomPlacementGhost {

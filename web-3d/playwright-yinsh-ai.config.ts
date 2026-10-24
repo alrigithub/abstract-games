@@ -12,7 +12,7 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'npm run dev -w yinsh-3d-demo',
+    command: 'npm run dev -w @abstract/yinsh',
     url: 'http://127.0.0.1:5196',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

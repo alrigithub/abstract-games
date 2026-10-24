@@ -1,12 +1,12 @@
 {
-  "name": "gomoku-3d-demo",
+  "name": "@abstract/tzaar",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 5192",
+    "dev": "vite --host 0.0.0.0 --port 5199",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --port 5193",
+    "preview": "vite preview --port 5197",
     "test": "vitest run"
   },
   "dependencies": {
@@ -17,6 +17,6 @@
     "@types/three": "^0.180.0",
     "typescript": "^5.9.3",
     "vite": "^7.1.9",
-    "vitest": "^3.2.7"
+    "vitest": "^3.2.4"
   }
 }
