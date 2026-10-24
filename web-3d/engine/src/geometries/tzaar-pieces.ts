@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import type { PieceGeometrySet, ThemeTokens } from '../types';
+import { GIPF_CHIP, createGipfChipGeometry, createGipfChipRimGeometry } from './gipf-set';
 import { decoratePieceMesh } from './piece-outlines';
 import type { TzaarKind } from './hex-board';
 
-export const TZAAR_DISC_RADIUS = 0.38;
-export const TZAAR_DISC_HEIGHT = 0.12;
+export const TZAAR_DISC_RADIUS = GIPF_CHIP.RADIUS;
+export const TZAAR_DISC_HEIGHT = GIPF_CHIP.HEIGHT;
 
 const SEGMENTS = 48;
 const EMBLEM_LIFT = 0.01;
@@ -24,10 +25,7 @@ export function tzaarEmblemsFor(kind: TzaarKind): TzaarEmblem[] {
 }
 
 export function createTzaarDiscGeometry(): THREE.BufferGeometry {
-  const geo = new THREE.CylinderGeometry(TZAAR_DISC_RADIUS, TZAAR_DISC_RADIUS, TZAAR_DISC_HEIGHT, SEGMENTS, 1, false);
-  geo.computeBoundingBox();
-  geo.computeBoundingSphere();
-  return geo;
+  return createGipfChipGeometry();
 }
 
 function annulus(inner: number, outer: number, height: number, y: number): THREE.BufferGeometry {
@@ -66,6 +64,7 @@ export function createTzaarSeparatorGeometry(): THREE.BufferGeometry {
 }
 
 const discGeo = createTzaarDiscGeometry();
+const chipRimGeo = createGipfChipRimGeometry();
 const ringGeo = createTzaarRingGeometry();
 const dotGeo = createTzaarDotGeometry();
 const separatorGeo = createTzaarSeparatorGeometry();
@@ -93,10 +92,12 @@ export function createTzaarPieceMesh(options: {
   const group = new THREE.Group();
   const palette = options.tokens.piece[options.player] ?? options.tokens.piece.A!;
   const fill = basic(palette.fill);
+  const rimFill = basic(palette.rim);
   const edge = new THREE.LineBasicMaterial({ color: palette.edge, transparent: true, opacity: 0.85 });
   const outline = basic(options.tokens.lines, { side: THREE.BackSide });
   const disc = decoratePieceMesh(new THREE.Mesh(discGeo, fill), edge, outline, options.edgeCache);
-  group.add(disc);
+  const rim = decoratePieceMesh(new THREE.Mesh(chipRimGeo, rimFill), edge, outline, options.edgeCache);
+  group.add(disc, rim);
 
   if (options.showSeparator) {
     const sepFill = basic(palette.edge);

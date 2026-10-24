@@ -64,4 +64,4 @@ Use `scene.enqueueAnimation(async () => { … applyMove … scene.setSnapshot(ne
 - `web-3d/tak` — full Tak vs AI
 - `web-3d/demos/gomoku` — intersection board + Go lens stones
 - `web-3d/demos/boop` — beveled crown cats / kitten cylinders
-- `web-3d/demos/tzaar` — official GIPF square board, 60-point triangular grid, stackable discs (Tott / Tzarra / Tzaar)
+- `web-3d/demos/tzaar` — GIPF-set chip + printed hex board (`gipf-set.ts`), 60-point Tzaar layout, stackable discs (Tott / Tzarra / Tzaar)

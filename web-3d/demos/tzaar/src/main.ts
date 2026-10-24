@@ -3,14 +3,15 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import {
   BOARD,
   CAMERA,
-  TZAAR_BOARD_SIDE,
-  TZAAR_DISC_HEIGHT,
+  GIPF_CHIP,
   bindThemeToggle,
-  createTzaarBoardGroup,
-  createTzaarDiscGeometry,
+  createGipfChipGeometry,
+  createGipfHexBoard,
   createTzaarHexTopology,
   createTzaarPieceMesh,
+  gipfLayoutFrameCorners,
   tzaarFixedStart,
+  tzaarLayout,
   tzaarPlayableCells,
   themeTokens,
   type ThemeId,
@@ -51,6 +52,7 @@ const piecesRoot = new THREE.Group();
 const shadowsRoot = new THREE.Group();
 scene.add(boardRoot, shadowsRoot, piecesRoot);
 
+const layout = tzaarLayout();
 const topology = createTzaarHexTopology();
 const cells = tzaarPlayableCells();
 const start = tzaarFixedStart();
@@ -59,7 +61,7 @@ const snapshot = {
   cellCount: cells.length,
   cells: cells.map(() => []),
 };
-const discGeo = createTzaarDiscGeometry();
+const discGeo = createGipfChipGeometry();
 
 interface StackLabel {
   el: HTMLSpanElement;
@@ -122,13 +124,7 @@ function fit(reframe = false) {
   }
   framed = true;
   camera.updateMatrixWorld();
-  const half = TZAAR_BOARD_SIDE / 2;
-  const points = topology.frameCorners?.(snapshot) ?? [
-    new THREE.Vector3(-half, 0, -half),
-    new THREE.Vector3(half, 0, -half),
-    new THREE.Vector3(-half, 0, half),
-    new THREE.Vector3(half, 0, half),
-  ];
+  const points = topology.frameCorners?.(snapshot) ?? gipfLayoutFrameCorners(layout);
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;
@@ -156,7 +152,7 @@ function applyTheme(id: ThemeId) {
   const tokens = themeTokens(id);
   scene.background = new THREE.Color(tokens.table);
   boardRoot.clear();
-  boardRoot.add(createTzaarBoardGroup(tokens));
+  boardRoot.add(createGipfHexBoard(layout, tokens));
   piecesRoot.clear();
   shadowsRoot.clear();
   for (const label of labels) label.el.remove();
@@ -184,9 +180,9 @@ function applyTheme(id: ThemeId) {
         edgeCache,
         showSeparator: level > 0,
       });
-      mesh.position.set(pos.x, y + TZAAR_DISC_HEIGHT / 2, pos.z);
+      mesh.position.set(pos.x, y + GIPF_CHIP.HEIGHT / 2, pos.z);
       piecesRoot.add(mesh);
-      y += TZAAR_DISC_HEIGHT;
+      y += GIPF_CHIP.HEIGHT;
     }
     const shadow = new THREE.Mesh(discGeo, shadowMat);
     shadow.scale.set(BOARD.SHADOW_SCALE, 0.001, BOARD.SHADOW_SCALE);

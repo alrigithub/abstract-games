@@ -10,14 +10,14 @@ import {
 } from './tzaar-pieces';
 
 describe('tzaar discs', () => {
-  it('uses a stackable cylinder at 0.38 radius and 0.12 height', () => {
-    expect(TZAAR_DISC_RADIUS).toBeCloseTo(0.38);
-    expect(TZAAR_DISC_HEIGHT).toBeCloseTo(0.12);
+  it('uses the shared GIPF chip for Tzaar discs', () => {
+    expect(TZAAR_DISC_RADIUS).toBeCloseTo(0.36);
+    expect(TZAAR_DISC_HEIGHT).toBeCloseTo(0.13);
     const disc = createTzaarDiscGeometry();
     disc.computeBoundingBox();
     const box = disc.boundingBox!;
-    expect(box.max.y - box.min.y).toBeCloseTo(0.12, 5);
-    expect(box.max.x).toBeCloseTo(0.38, 5);
+    expect(box.max.y - box.min.y).toBeCloseTo(0.13, 4);
+    expect(box.max.x).toBeCloseTo(0.36, 3);
     disc.dispose();
   });
 
@@ -43,8 +43,8 @@ describe('tzaar discs', () => {
 
   it('stacks discs by a constant height', () => {
     const set = tzaarPieceGeometrySet();
-    expect(set.height({ id: 'a', player: 'A', shape: 'tott' })).toBeCloseTo(0.12);
-    expect(set.height({ id: 'b', player: 'B', shape: 'tzaar' })).toBeCloseTo(0.12);
+    expect(set.height({ id: 'a', player: 'A', shape: 'tott' })).toBeCloseTo(0.13);
+    expect(set.height({ id: 'b', player: 'B', shape: 'tzaar' })).toBeCloseTo(0.13);
     expect(set.yaw('any')).toBe(0);
   });
 });
