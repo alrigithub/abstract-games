@@ -1,6 +1,25 @@
 import * as THREE from 'three';
 import { BOARD } from '../constants';
 
+let contactShadowTexture: THREE.CanvasTexture | null = null;
+
+function pieceContactShadowTexture(): THREE.CanvasTexture {
+  if (contactShadowTexture) return contactShadowTexture;
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0, 'rgba(0,0,0,0.55)');
+  g.addColorStop(0.45, 'rgba(0,0,0,0.16)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  contactShadowTexture = new THREE.CanvasTexture(canvas);
+  contactShadowTexture.colorSpace = THREE.SRGBColorSpace;
+  return contactShadowTexture;
+}
+
 export function decoratePieceMesh(
   mesh: THREE.Mesh,
   edgeMaterial: THREE.LineBasicMaterial,
@@ -36,10 +55,21 @@ export function makePieceShadow(
   material: THREE.MeshBasicMaterial,
   group: THREE.Group,
 ): THREE.Mesh {
-  const shadow = new THREE.Mesh(geo, material);
-  shadow.scale.set(BOARD.SHADOW_SCALE, 0.001, BOARD.SHADOW_SCALE);
-  shadow.position.y = 0;
-  shadow.renderOrder = 1;
-  group.add(shadow);
-  return shadow;
+  const decal = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshBasicMaterial({
+      map: pieceContactShadowTexture(),
+      transparent: true,
+      opacity: BOARD.PIECE_CONTACT_SHADOW_OPACITY,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  decal.rotation.x = -Math.PI / 2;
+  decal.scale.setScalar(BOARD.SHADOW_SCALE * 0.95);
+  decal.renderOrder = 1;
+  decal.castShadow = false;
+  decal.receiveShadow = false;
+  group.add(decal);
+  return decal;
 }
