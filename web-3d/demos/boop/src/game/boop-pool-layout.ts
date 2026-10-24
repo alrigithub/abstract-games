@@ -6,6 +6,12 @@ export type PoolSlot = { row: number; col: number };
 
 export type PoolColumn = 'kitten' | 'cat_hand' | 'cat_reserve';
 
+export type PoolCounts = {
+  kittens_in_hand: number;
+  cats_in_hand: number;
+  cats_in_reserve: number;
+};
+
 /** Side rows for pool pieces (avoid row −1 above the bed — it floated big vases off-screen). */
 const POOL_ROWS: number[] = [0, 1, 2, 3, 4, 5, 6, 7];
 
@@ -20,21 +26,44 @@ export function playerRestingColumn(player: PlayerId): number {
   return sideCols(player).cat_reserve;
 }
 
+/**
+ * Small vases sit in the front depression until the player earns hand cats;
+ * then kittens move to the rear column and big vases take the front row.
+ */
+export function kittenHandColumn(_player: PlayerId, counts: PoolCounts): PoolColumn {
+  return counts.cats_in_hand > 0 ? 'kitten' : 'cat_hand';
+}
+
 export function poolSlots(player: PlayerId, column: PoolColumn): PoolSlot[] {
   const col = sideCols(player)[column];
   return POOL_ROWS.map(row => ({ row, col }));
 }
 
-/** Hand pool column tapped for placement (reserve is display-only). */
-export function poolKindAtCell(player: PlayerId, row: number, col: number): PieceKind | null {
+function slotHasPiece(
+  player: PlayerId,
+  row: number,
+  col: number,
+  counts: PoolCounts,
+): PieceKind | null {
   const cols = sideCols(player);
-  if (col === cols.kitten) return 'kitten';
-  if (col === cols.cat_hand) return 'cat';
+  const kittenCol = cols[kittenHandColumn(player, counts)];
+  if (col === kittenCol && row >= 0 && row < counts.kittens_in_hand) return 'kitten';
+  if (col === cols.cat_hand && row >= 0 && row < counts.cats_in_hand) return 'cat';
   return null;
 }
 
-export function isPoolCell(row: number, col: number, player: PlayerId): boolean {
-  return poolKindAtCell(player, row, col) !== null;
+/** Hand pool column tapped for placement (reserve is display-only). */
+export function poolKindAtCell(
+  player: PlayerId,
+  row: number,
+  col: number,
+  counts: PoolCounts,
+): PieceKind | null {
+  return slotHasPiece(player, row, col, counts);
+}
+
+export function isPoolCell(row: number, col: number, player: PlayerId, counts: PoolCounts): boolean {
+  return poolKindAtCell(player, row, col, counts) !== null;
 }
 
 export function isReserveColumn(player: PlayerId, row: number, col: number): boolean {
@@ -49,24 +78,29 @@ export function poolCellIndex(player: PlayerId, column: PoolColumn, slotIndex = 
 }
 
 /** First pool slot that will contain a piece for this player/kind (for smoke / AI drag). */
-export function primaryPoolCellIndex(player: PlayerId, kind: PieceKind): number {
-  const column: PoolColumn = kind === 'kitten' ? 'kitten' : 'cat_hand';
+export function primaryPoolCellIndex(player: PlayerId, kind: PieceKind, counts: PoolCounts): number {
+  const column: PoolColumn =
+    kind === 'kitten' ? kittenHandColumn(player, counts) : 'cat_hand';
   return poolCellIndex(player, column, 0)!;
 }
 
 /** Exterior cells currently used by visible pool / reserve stacks (resting must avoid these). */
-export function poolOccupiedCells(
-  player: PlayerId,
-  counts: { kittens_in_hand: number; cats_in_hand: number; cats_in_reserve: number },
-): PoolSlot[] {
+export function poolOccupiedCells(player: PlayerId, counts: PoolCounts): PoolSlot[] {
   const out: PoolSlot[] = [];
   const pushSlots = (column: PoolColumn, count: number) => {
     poolSlots(player, column)
       .slice(0, Math.max(0, count))
       .forEach(slot => out.push(slot));
   };
-  pushSlots('kitten', counts.kittens_in_hand);
+  pushSlots(kittenHandColumn(player, counts), counts.kittens_in_hand);
   pushSlots('cat_hand', counts.cats_in_hand);
   pushSlots('cat_reserve', counts.cats_in_reserve);
   return out;
 }
+
+/** New-game pool counts (8 kittens, no hand cats yet). */
+export const BOOP_START_POOL_COUNTS: PoolCounts = {
+  kittens_in_hand: 8,
+  cats_in_hand: 0,
+  cats_in_reserve: 8,
+};

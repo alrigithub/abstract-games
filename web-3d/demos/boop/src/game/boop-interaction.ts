@@ -10,7 +10,7 @@ import {
   type ThemeId,
 } from '@abstract/three-engine';
 import { boopFootprintWorldUnits } from './boop-placement-footprints';
-import { primaryPoolCellIndex } from './boop-pool-layout';
+import { BOOP_START_POOL_COUNTS, primaryPoolCellIndex } from './boop-pool-layout';
 import type { BoopController } from './controller';
 import type { PieceKind } from './types';
 
@@ -196,12 +196,11 @@ export function wireBoopInteraction(
 }
 
 export function poolCellIndex(): number {
-  return primaryPoolCellIndex('A', 'kitten');
+  return primaryPoolCellIndex('A', 'kitten', BOOP_START_POOL_COUNTS);
 }
 
 export function aiPoolCellIndex(kind: 'kitten' | 'cat' = 'kitten'): number {
-  const row = kind === 'kitten' ? 3 : 5;
-  return cellIndex(GRID, row, GRID + 3, OUTSIDE)!;
+  return primaryPoolCellIndex('B', kind, BOOP_START_POOL_COUNTS);
 }
 
 export function cellAt(row: number, col: number): number {

@@ -130,6 +130,9 @@ declare global {
     __boopSetCameraPreset?: (preset: 'top' | 'axo') => void;
     __boopStageShowcase?: () => void;
     __boopPlayToHumanFirstGraduation?: () => Promise<boolean>;
+    __boopStageHumanGraduation?: () => void;
+    __boopPlaceHumanGraduationLine?: (options?: { scheduleAi?: boolean }) => Promise<boolean>;
+    __boopAssistStats?: () => ReturnType<SceneApi['getBoardAssistStats']>;
     __boopPreviewGhost?: (kind: 'kitten' | 'cat', row: number, col: number) => void;
   }
 }
@@ -157,6 +160,9 @@ window.__boopStageShowcase = () => {
 };
 
 window.__boopPlayToHumanFirstGraduation = () => controller.playToHumanFirstGraduation();
+window.__boopStageHumanGraduation = () => controller.stageHumanGraduationSetup();
+window.__boopPlaceHumanGraduationLine = options => controller.placeHumanGraduationLine(options);
+window.__boopAssistStats = () => scene.getBoardAssistStats();
 
 window.__boopPreviewGhost = (kind, row, col) => {
   controller.setStickyKind(kind);
