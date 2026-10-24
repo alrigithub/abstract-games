@@ -12,6 +12,7 @@ export * from './stack';
 export * from './stack-layout';
 export * from './theme';
 export * from './sound/place-sfx';
+export * from './ai-worker-client';
 export * from './ui/ai-strength';
 export * from './ui/game-buttons';
 export * from './ui/page-styles';

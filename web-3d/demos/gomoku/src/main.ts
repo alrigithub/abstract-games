@@ -1,9 +1,11 @@
 import {
+  AiWorkerSession,
   createGameButtons,
   GOMOKU_AI_STRENGTH_STORAGE_KEY,
   levelToSearchOptions,
   playWinSoundAfterPlace,
   readInitialTheme,
+  recordAiThinkMetrics,
   type GameButtonsBar,
   type ThemeId,
 } from '@abstract/three-engine';
@@ -13,8 +15,10 @@ import {
   coordIndex,
   createGame,
   indexCoord,
+  legalMoves,
   winningLine,
   type GameState,
+  type Move,
   type Player,
 } from './game/engine';
 
@@ -26,7 +30,7 @@ let humanColor: Player = 'black';
 let game: GameState = createGame();
 let aiPending = false;
 let aiGeneration = 0;
-let aiWorker: Worker | null = null;
+const aiSession = new AiWorkerSession();
 
 function applyTheme(id: ThemeId) {
   theme = id;
@@ -82,13 +86,12 @@ function syncBoard() {
 
 function stopAi() {
   aiGeneration++;
-  aiWorker?.terminate();
-  aiWorker = null;
+  aiSession.cancel();
   aiPending = false;
 }
 
-function maybeAiTurn() {
-  if (game.winner || game.toMove === humanColor || !gameButtons?.aiStrength) return;
+async function maybeAiTurn() {
+  if (game.winner || game.toMove === humanColor || !gameButtons?.aiStrength || aiPending) return;
   aiPending = true;
   scene.setInputEnabled(false);
   renderStatus();
@@ -96,21 +99,27 @@ function maybeAiTurn() {
   const search = levelToSearchOptions(gameButtons.aiStrength.getLevel());
   document.body.dataset.lastAiDepth = String(search.maxDepth);
   document.body.dataset.lastAiMaxNodes = String(search.maxNodes);
-  aiWorker = new Worker(new URL('./game/ai.worker.ts', import.meta.url), { type: 'module' });
-  aiWorker.onmessage = (event: MessageEvent<{ id: number; move: { type: 'place'; coord: { x: number; y: number } } | null }>) => {
-    if (event.data.id !== gen || gen !== aiGeneration) return;
-    aiWorker?.terminate();
-    aiWorker = null;
-    aiPending = false;
-    const move = event.data.move;
-    if (move && !game.winner) {
-      void playMove(move.coord.x, move.coord.y, false);
-    } else {
-      scene.setInputEnabled(true);
-      renderStatus();
-    }
-  };
-  aiWorker.postMessage({ id: gen, game, options: search });
+  const t0 = performance.now();
+  const move = await aiSession.request<Move | null>({
+    createWorker: () => new Worker(new URL('./game/ai.worker.ts', import.meta.url), { type: 'module' }),
+    postMessage: (worker, id) => worker.postMessage({ id, game, options: search }),
+    parseMessage: (event, id) => {
+      const data = event.data as { id: number; move: Move | null };
+      if (data.id !== id) return undefined;
+      return data.move ?? null;
+    },
+    timeBudgetMs: search.maxTimeMs,
+  });
+  recordAiThinkMetrics(performance.now() - t0);
+  if (gen !== aiGeneration) return;
+  aiPending = false;
+  const resolved = move ?? legalMoves(game)[0] ?? null;
+  if (resolved && !game.winner) {
+    void playMove(resolved.coord.x, resolved.coord.y, false);
+  } else {
+    scene.setInputEnabled(true);
+    renderStatus(resolved ? undefined : 'AI could not move — try undo or new game');
+  }
 }
 
 async function playMove(col: number, row: number, isHuman: boolean) {

@@ -5,8 +5,10 @@ import {
   createGameButtons,
   createYinshTopology,
   DEFAULT_LOBBY_HREF,
+  AiWorkerSession,
   levelToSearchOptions,
   readInitialTheme,
+  recordAiThinkMetrics,
   THEME_STORAGE_KEY,
   YINSH_AI_STRENGTH_STORAGE_KEY,
   yinshWorldPoint,
@@ -15,9 +17,6 @@ import {
   type Topology,
 } from '@abstract/three-engine';
 import type { AiResponse } from './game/ai.worker';
-
-/** Match engine {@link TAP_MOVE_THRESHOLD} (tap vs drag). */
-const TAP_MOVE_THRESHOLD = 8;
 import { serializeForWorker } from './game/serialize';
 import { GameState } from './game/state';
 import { gameStateToSnapshot } from './game/snapshot';
@@ -34,10 +33,13 @@ import {
 import { buildYinshAssist } from './game/move-hints';
 import { coordToIndex, indexToCoord } from './game/cells';
 import { coordEq, coordKey, type Coord } from './game/coord';
-import { chooseAiMove } from './game/ai';
+import { quickLegalMove } from './game/ai';
 import type { Move } from './game/state';
 import type { Player } from './game/player';
 import { loadYinshPieceGeometrySet, YINSH_RING_TARGET_OUTER_DIAMETER } from './yinsh-piece-models';
+
+/** Match engine tap vs drag threshold. */
+const TAP_MOVE_THRESHOLD = 8;
 
 const ringCloseupShot = new URLSearchParams(location.search).get('shot') === 'ring-closeup';
 
@@ -70,7 +72,7 @@ let aiPlayer: Player = 'B';
 let game = GameState.initial();
 let aiPending = false;
 let aiGeneration = 0;
-let aiWorker: Worker | null = null;
+const aiSession = new AiWorkerSession();
 let ringMoveFrom: Coord | null = null;
 let pendingTap: { x: number; y: number } | null = null;
 let hoverCellIndex: number | null = null;
@@ -173,8 +175,7 @@ function humanTurn() {
 
 function stopAi() {
   aiGeneration++;
-  aiWorker?.terminate();
-  aiWorker = null;
+  aiSession.cancel();
   aiPending = false;
 }
 
@@ -222,36 +223,41 @@ async function drainAutoWaits(): Promise<void> {
 }
 
 async function runAiTurn(): Promise<void> {
-  if (game.winner() || game.activePlayer !== aiPlayer) return;
+  if (game.winner() || game.activePlayer !== aiPlayer || aiPending) return;
   aiPending = true;
   renderStatus();
   const gen = ++aiGeneration;
-  const depth = levelToSearchOptions(gameButtons.aiStrength!.getLevel()).maxDepth;
-  document.body.dataset.yinshAiDepth = String(depth);
+  const search = levelToSearchOptions(gameButtons.aiStrength!.getLevel());
+  document.body.dataset.yinshAiDepth = String(search.maxDepth);
 
-  aiWorker = new Worker(new URL('./game/ai.worker.ts', import.meta.url), { type: 'module' });
-  aiWorker.onmessage = (event: MessageEvent<AiResponse>) => {
-    if (event.data.id !== gen || gen !== aiGeneration) return;
-    aiWorker?.terminate();
-    aiWorker = null;
-    const move = event.data.move;
-    void scene.enqueueAnimation(async () => {
-      const applied =
-        move ??
-        (() => {
-          try {
-            return chooseAiMove(game, 2);
-          } catch {
-            return null;
-          }
-        })();
-      if (applied) await performMove(applied, true);
-      renderStatus();
-      aiPending = false;
-      maybeAiTurn();
-    });
-  };
-  aiWorker.postMessage({ id: gen, state: serializeForWorker(game), maxDepth: depth });
+  const t0 = performance.now();
+  const move = await aiSession.request<Move | null>({
+    createWorker: () => new Worker(new URL('./game/ai.worker.ts', import.meta.url), { type: 'module' }),
+    postMessage: (worker, id) =>
+      worker.postMessage({
+        id,
+        state: serializeForWorker(game),
+        maxDepth: search.maxDepth,
+        maxNodes: search.maxNodes,
+        timeBudgetMs: search.maxTimeMs,
+      }),
+    parseMessage: (event, id) => {
+      const data = event.data as AiResponse;
+      if (data.id !== id) return undefined;
+      return data.move;
+    },
+    timeBudgetMs: search.maxTimeMs,
+  });
+  recordAiThinkMetrics(performance.now() - t0);
+  if (gen !== aiGeneration) return;
+
+  void scene.enqueueAnimation(async () => {
+    const applied = move ?? quickLegalMove(game);
+    if (applied) await performMove(applied, true);
+    renderStatus(applied ? undefined : 'AI could not move');
+    aiPending = false;
+    maybeAiTurn();
+  });
 }
 
 function maybeAiTurn() {
