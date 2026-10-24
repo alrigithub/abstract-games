@@ -9,7 +9,7 @@ const games = [
     path: '/?human=ivory',
     setup: async (page: import('@playwright/test').Page) => {
       const menu = page.locator('[data-testid="main-menu"]');
-      if (await menu.isVisible()) await page.click('[data-testid="mode-ai"]');
+      if (await menu.isVisible()) await page.click('[data-testid="mode-sandbox"]');
     },
   },
   { name: 'gomoku', path: '/' },
@@ -34,16 +34,24 @@ const games = [
   },
 ] as const;
 
-async function axo(page: import('@playwright/test').Page) {
+async function ensureAxoCamera(page: import('@playwright/test').Page) {
   const toggle = page.locator('[data-testid="camera-toggle"]');
-  if (await toggle.isVisible()) {
-    await toggle.click();
-    await page.waitForTimeout(350);
-  }
+  if (!(await toggle.isVisible())) return;
+  await page.evaluate(() => {
+    const w = window as unknown as { __boopSetCameraPreset?: (p: 'axo') => void };
+    if (w.__boopSetCameraPreset) {
+      w.__boopSetCameraPreset('axo');
+      return;
+    }
+    const btn = document.querySelector('[data-testid="camera-toggle"]') as HTMLButtonElement | null;
+    if (btn && /top/i.test(btn.getAttribute('aria-label') ?? '')) btn.click();
+  });
+  await page.waitForTimeout(350);
 }
 
 for (const game of games) {
   test(`${game.name} shadow lighting iso (before baseline)`, async ({ page }) => {
+    test.setTimeout(game.name === 'tak' ? 120_000 : 60_000);
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.addInitScript(() => localStorage.setItem('abstract-three-theme', 'light'));
     const base = {
@@ -55,8 +63,8 @@ for (const game of games) {
     }[game.name];
     await page.goto(`${base}${game.path}`);
     if (game.setup) await game.setup(page);
-    await page.waitForSelector('[data-testid="board"] canvas', { timeout: 120_000 });
-    await axo(page);
+    await page.waitForSelector('[data-testid="board"] canvas', { timeout: 60_000 });
+    await ensureAxoCamera(page);
     await page.waitForTimeout(500);
     await page.screenshot({ path: path.join(outDir, `${game.name}-iso-light.png`) });
   });

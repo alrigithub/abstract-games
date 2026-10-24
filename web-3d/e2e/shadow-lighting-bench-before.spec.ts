@@ -6,8 +6,8 @@ const games = [
     name: 'tak',
     url: 'http://127.0.0.1:5190/?human=ivory',
     setup: async (page: import('@playwright/test').Page) => {
-      const menu = page.locator('[data-testid="main-menu"]');
-      if (await menu.isVisible()) await page.click('[data-testid="mode-ai"]');
+      const sandbox = page.locator('[data-testid="mode-sandbox"]');
+      if (await sandbox.isVisible()) await sandbox.click();
     },
   },
   { name: 'gomoku', url: 'http://127.0.0.1:5192/' },
@@ -46,5 +46,6 @@ for (const game of games) {
       body: Buffer.from(JSON.stringify({ game: game.name, avgFrameMs: ms, method: 'rAF' }, null, 2)),
       contentType: 'application/json',
     });
+    console.log(`[bench-before] ${game.name}=${ms.toFixed(2)}ms`);
   });
 }
