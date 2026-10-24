@@ -30,6 +30,9 @@ export const YINSH_MARKER_WORLD_RADIUS = (YINSH_MARKER_OUTER_DIAMETER_M / 2) * Y
 /** Move-assist destination dots (~35% of marker diameter). */
 export const YINSH_ASSIST_DOT_RADIUS = YINSH_MARKER_WORLD_RADIUS * 0.35;
 
+/** Flat marker preview sits slightly above the playfield, visible through ring holes. */
+export const YINSH_MARKER_GHOST_SURFACE_Y = 0.016;
+
 /** World-space ring footprint for assist shadows / ghosts (matches GLB scale). */
 export const YINSH_RING_OUTER_RADIUS = YINSH_RING_TARGET_OUTER_DIAMETER / 2;
 

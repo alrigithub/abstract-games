@@ -685,6 +685,9 @@ function simulateHoverAtCell(index: number) {
   syncYinshInteractionPreview(pt.x, pt.y);
 }
 
+(window as unknown as { __yinshAssistStats?: () => ReturnType<typeof scene.getBoardAssistStats> }).__yinshAssistStats =
+  () => scene.getBoardAssistStats();
+
 if (urlParams.has('e2e')) {
   startGame('A');
   (window as unknown as { __yinshE2e?: Record<string, unknown> }).__yinshE2e = {

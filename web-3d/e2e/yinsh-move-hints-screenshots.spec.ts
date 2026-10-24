@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import path from 'node:path';
 
 const screenshotDir = path.join(process.cwd(), 'e2e', 'screenshots');
@@ -21,6 +21,17 @@ test.describe('Yinsh move assist screenshots', () => {
         await page.goto(`http://127.0.0.1:5196/?shot=${slug}&theme=${theme}`);
         await page.waitForSelector('[data-testid="board"] canvas', { timeout: 90_000 });
         await page.waitForTimeout(slug === 'assist-run-glow' ? 1200 : 900);
+        const stats = await page.evaluate(() => {
+          const fn = (window as unknown as { __yinshAssistStats?: () => Record<string, number> }).__yinshAssistStats;
+          return fn?.() ?? {};
+        });
+        if (slug === 'assist-marker-place') {
+          expect(stats.markerGhostCount ?? 0).toBeGreaterThanOrEqual(2);
+          expect(stats.markerGhostMinOpacity ?? 0).toBeGreaterThan(0.3);
+        }
+        if (slug === 'assist-run-glow') {
+          expect(stats.runGlowCellCount ?? 0).toBe(5);
+        }
         const suffix = theme === 'dark' ? '-dark' : '-light';
         await page.screenshot({
           path: path.join(screenshotDir, `${file}${suffix}.png`),

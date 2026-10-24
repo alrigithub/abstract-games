@@ -191,6 +191,8 @@ export interface BoardAssistState {
   runGlowStyle?: AssistRunGlowStyle;
   /** Marker preview disc radius for ring-centre ghosts (world units). */
   markerGhostRadius?: number;
+  /** World Y for marker preview discs (above playfield, below seated stones). */
+  markerGhostSurfaceY?: number;
   /** Ring-removal step: halos under removable rings. */
   ringPickGlows?: readonly AssistRingPickGlow[];
   flipPieceIds?: readonly string[];
@@ -222,6 +224,12 @@ export interface AssistRingPickGlow {
 export interface BoardAssistStats {
   visibleMeshCount: number;
   pathSegmentCount: number;
+  /** Visible marker-preview discs (ring-centre placement ghosts). */
+  markerGhostCount: number;
+  /** Minimum opacity among visible marker ghosts (0 when none). */
+  markerGhostMinOpacity: number;
+  /** Distinct board cells with row celebration halos. */
+  runGlowCellCount: number;
 }
 
 export interface SceneApi {

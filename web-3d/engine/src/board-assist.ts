@@ -25,12 +25,13 @@ const PATH_HALF_WIDTH = 0.024;
 const LAST_MOVE_HALF_WIDTH = 0.028;
 const RUN_ROW_HALF_WIDTH = 0.052;
 const DEFAULT_MARKER_RADIUS = 0.31;
-const DEFAULT_HALO_SCALE = 1.4;
+const DEFAULT_HALO_SCALE = 1.72;
+const DEFAULT_MARKER_GHOST_SURFACE_Y = 0.016;
 const ASSIST_RENDER_ORDER = 0;
-/** Marker-centre previews draw above ring meshes (order 1) but below stacked markers (2). */
-const MARKER_GHOST_RENDER_ORDER = 2;
-/** Row halos sit on the board plane; outer soft pass uses depthTest off so the rim stays visible. */
-const RUN_HALO_RENDER_ORDER = 1;
+/** Marker-centre previews draw above rings and seated stones. */
+const MARKER_GHOST_RENDER_ORDER = 10;
+/** Row celebration halos sit on the board plane under stone markers (renderOrder 2). */
+const RUN_HALO_RENDER_ORDER = 0;
 const SHADOW_MAX_OPACITY = 0.3;
 const SHADOW_PLANE = new THREE.PlaneGeometry(1, 1);
 
@@ -90,7 +91,15 @@ export class BoardAssistLayer {
   private ringPickMaterial: THREE.MeshBasicMaterial;
   private markerGhostMesh: THREE.Mesh | null = null;
   private pieceColors: ThemeTokens['piece'] | null = null;
-  private lastStats: BoardAssistStats = { visibleMeshCount: 0, pathSegmentCount: 0 };
+  private lastStats: BoardAssistStats = {
+    visibleMeshCount: 0,
+    pathSegmentCount: 0,
+    markerGhostCount: 0,
+    markerGhostMinOpacity: 0,
+    runGlowCellCount: 0,
+  };
+  private markerGhostSurfaceY = DEFAULT_MARKER_GHOST_SURFACE_Y;
+  private lightTable = true;
   private runPulseActive = false;
   private runHaloRadius = DEFAULT_MARKER_RADIUS * DEFAULT_HALO_SCALE;
   private runGlowTexture: THREE.CanvasTexture | null = null;
@@ -207,20 +216,17 @@ export class BoardAssistLayer {
   /** Gentle pulse on row halos; returns true when active. */
   tick(now: number): boolean {
     if (!this.runPulseActive) return false;
-    const pulse = 0.9 + 0.1 * Math.sin(now * 0.0045);
-    const scale = 1 + 0.05 * Math.sin(now * 0.0045 + 1.2);
+    const pulse = 0.88 + 0.12 * Math.sin(now * 0.0045);
+    const scale = 1 + 0.06 * Math.sin(now * 0.0045 + 1.2);
     const r = this.runHaloRadius;
-    for (const mesh of this.runMarkerPool) {
+    for (const mesh of this.runMarkerOuterPool) {
       if (!mesh.visible) continue;
       mesh.scale.set(r * scale, r * scale, 1);
       const mat = mesh.material;
-      if (mat instanceof THREE.MeshBasicMaterial) mat.opacity = 0.78 * pulse;
-    }
-    for (const mesh of this.runMarkerOuterPool) {
-      if (!mesh.visible) continue;
-      mesh.scale.set(r * 1.12 * scale * 1.08, r * 1.12 * scale * 1.08, 1);
-      const mat = mesh.material;
-      if (mat instanceof THREE.MeshBasicMaterial) mat.opacity = 0.42 * pulse;
+      if (mat instanceof THREE.MeshBasicMaterial) {
+        const base = mesh.userData.runHaloBaseOpacity as number | undefined;
+        if (base !== undefined) mat.opacity = base * pulse;
+      }
     }
     return true;
   }
@@ -274,6 +280,14 @@ export class BoardAssistLayer {
     this.ringPickMaterial.color.set(accent);
     this.shadowTint = new THREE.Color(tokens.shadow).getHex();
     this.shadowMaterial.color.set(tokens.shadow);
+    this.lightTable = tokens.table === '#f3f1ec';
+  }
+
+  private markerPreviewColor(player: string): THREE.Color {
+    const fill = (this.pieceColors?.[player]?.fill ?? '#cccccc').toLowerCase();
+    if (this.lightTable && fill === '#ffffff') return new THREE.Color('#b8aa96');
+    if (!this.lightTable && fill === '#000000') return new THREE.Color('#3a3a3a');
+    return new THREE.Color(this.pieceColors?.[player]?.fill ?? '#cccccc');
   }
 
   update(state: BoardAssistState | null, cellPosition: CellPosition) {
@@ -290,11 +304,18 @@ export class BoardAssistLayer {
       this.hideAllRingPicks();
       this.hideMarkerGhost();
       this.root.visible = false;
-      this.lastStats = { visibleMeshCount: 0, pathSegmentCount: 0 };
+      this.lastStats = {
+        visibleMeshCount: 0,
+        pathSegmentCount: 0,
+        markerGhostCount: 0,
+        markerGhostMinOpacity: 0,
+        runGlowCellCount: 0,
+      };
       return;
     }
 
     this.root.visible = true;
+    this.markerGhostSurfaceY = state.markerGhostSurfaceY ?? DEFAULT_MARKER_GHOST_SURFACE_Y;
 
     const dotRadius = state.destinationDotRadius ?? DEFAULT_DEST_DOT_RADIUS;
     this.placeDots(state.destinationCells ?? [], cellPosition, dotRadius, this.destDotMaterial);
@@ -319,10 +340,35 @@ export class BoardAssistLayer {
     this.placeRunGlows(state.runGlows ?? [], cellPosition);
     this.placeRingPickGlows(state.ringPickGlows ?? [], cellPosition);
 
+    const ghostStats = this.collectMarkerGhostStats();
     this.lastStats = {
       visibleMeshCount: this.countVisibleMeshes(),
       pathSegmentCount: 0,
+      ...ghostStats,
+      runGlowCellCount: this.countVisibleRunGlowCells(),
     };
+  }
+
+  private collectMarkerGhostStats(): Pick<BoardAssistStats, 'markerGhostCount' | 'markerGhostMinOpacity'> {
+    let count = 0;
+    let minOpacity = 1;
+    for (const mesh of this.ghostMarkerPool) {
+      if (!mesh.visible) continue;
+      count++;
+      const mat = mesh.material;
+      if (mat instanceof THREE.MeshBasicMaterial) {
+        minOpacity = Math.min(minOpacity, mat.opacity);
+      }
+    }
+    return { markerGhostCount: count, markerGhostMinOpacity: count ? minOpacity : 0 };
+  }
+
+  private countVisibleRunGlowCells(): number {
+    let n = 0;
+    for (const mesh of this.runMarkerOuterPool) {
+      if (mesh.visible) n++;
+    }
+    return n;
   }
 
   private countVisibleMeshes(): number {
@@ -406,17 +452,17 @@ export class BoardAssistLayer {
     for (const m of this.ringPickPool) m.visible = false;
   }
 
-  private runMarkerOpacity(strength: AssistRunRowGlow['strength'], highlighted: boolean): number {
+  private runHaloOpacity(strength: AssistRunRowGlow['strength'], highlighted: boolean): number {
     if (highlighted) {
-      return strength === 'hover' ? 0.92 : 0.82;
+      return strength === 'hover' ? 0.36 : 0.3;
     }
     switch (strength) {
       case 'hover':
-        return 0.72;
+        return 0.28;
       case 'option':
-        return 0.58;
+        return 0.18;
       default:
-        return 0.74;
+        return 0.24;
     }
   }
 
@@ -441,12 +487,11 @@ export class BoardAssistLayer {
       }
     }
 
-    let innerIdx = 0;
     let outerIdx = 0;
     for (const [cell, meta] of markerStrength) {
       const highlighted = meta.highlight || highlightSet.has(cell);
       const p = cellPosition(cell);
-      const y = BOARD.PLAYFIELD_SURFACE_Y + 0.002;
+      const y = BOARD.PLAYFIELD_SURFACE_Y + 0.0008;
 
       let outer = this.runMarkerOuterPool[outerIdx];
       if (!outer) {
@@ -459,30 +504,15 @@ export class BoardAssistLayer {
       outer.visible = true;
       const outerMat = this.runMarkerMaterial.clone();
       outerMat.color.set(this.runCelebrationColor);
-      outerMat.opacity = highlighted ? 0.38 : 0.28;
-      outerMat.depthTest = false;
+      const baseOpacity = this.runHaloOpacity(meta.strength, highlighted);
+      outerMat.opacity = baseOpacity;
+      outerMat.depthTest = true;
+      outerMat.depthWrite = false;
       outer.material = outerMat;
-      outer.scale.set(this.runHaloRadius * 1.12, this.runHaloRadius * 1.12, 1);
+      outer.userData.runHaloBaseOpacity = baseOpacity;
+      outer.scale.set(this.runHaloRadius, this.runHaloRadius, 1);
       outer.position.set(p.x, y, p.z);
       outerIdx++;
-
-      let inner = this.runMarkerPool[innerIdx];
-      if (!inner) {
-        inner = new THREE.Mesh(new THREE.CircleGeometry(1, BOARD.RADIAL_SEGMENTS), this.runMarkerMaterial.clone());
-        inner.rotation.x = -Math.PI / 2;
-        inner.renderOrder = RUN_HALO_RENDER_ORDER + 1;
-        this.root.add(inner);
-        this.runMarkerPool.push(inner);
-      }
-      inner.visible = true;
-      const innerMat = this.runMarkerMaterial.clone();
-      innerMat.color.set(this.runCelebrationColor);
-      innerMat.opacity = this.runMarkerOpacity(meta.strength, highlighted);
-      innerMat.depthTest = false;
-      inner.material = innerMat;
-      inner.scale.set(this.runHaloRadius, this.runHaloRadius, 1);
-      inner.position.set(p.x, y + 0.0001, p.z);
-      innerIdx++;
     }
   }
 
@@ -599,14 +629,14 @@ export class BoardAssistLayer {
           mesh.material instanceof THREE.MeshBasicMaterial
             ? mesh.material
             : this.ghostMarkerMaterial.clone();
-        mat.color.set(fill);
-        mat.opacity = strong ? 0.55 : 0.42;
+        mat.color.copy(this.markerPreviewColor(hint.player));
+        mat.opacity = strong ? 0.68 : 0.56;
         mat.depthWrite = false;
         mat.depthTest = false;
         mesh.material = mat;
         mesh.renderOrder = MARKER_GHOST_RENDER_ORDER;
         mesh.scale.set(hint.marker.radius, hint.marker.radius, 1);
-        mesh.position.set(p.x, BOARD.PLAYFIELD_SURFACE_Y + 0.0035, p.z);
+        mesh.position.set(p.x, this.markerGhostSurfaceY, p.z);
         markerIdx++;
       }
     }

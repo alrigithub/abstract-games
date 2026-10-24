@@ -21,6 +21,7 @@ import { ringDestinationCoords } from './ring-destinations';
 import { coordToIndex, indexToCoord } from './cells';
 import {
   YINSH_ASSIST_DOT_RADIUS,
+  YINSH_MARKER_GHOST_SURFACE_Y,
   YINSH_MARKER_WORLD_RADIUS,
   YINSH_RING_FOOTPRINT,
 } from '../yinsh-piece-models';
@@ -79,27 +80,44 @@ function aiLastMoveAssist(last: AiMoveHighlight, aiPlayer: Player): Pick<BoardAs
   };
 }
 
+function findHoveredRunOption(options: RunOption[], hoverCell: number | null): RunOption | undefined {
+  if (hoverCell === null) return undefined;
+  const hover = indexToCoord(hoverCell);
+  return (
+    options.find(o => coordEq(o.seed, hover)) ??
+    options.find(o => o.five.some(c => coordEq(c, hover)))
+  );
+}
+
 function runGlowRows(
   options: RunOption[],
   hoverCell: number | null,
   mode: 'announce' | 'pick',
 ): AssistRunRowGlow[] {
-  let hoverOption: RunOption | undefined;
-  if (hoverCell !== null && mode === 'pick') {
-    const hover = indexToCoord(hoverCell);
-    hoverOption =
-      options.find(o => coordEq(o.seed, hover)) ??
-      options.find(o => o.five.some(c => coordEq(c, hover)));
+  if (mode === 'pick') {
+    const hoverOption = findHoveredRunOption(options, hoverCell);
+    if (hoverOption) {
+      return [
+        {
+          markerCells: indices(hoverOption.five),
+          highlightCells: indices(hoverOption.five),
+          strength: 'hover',
+        },
+      ];
+    }
+    const candidates = new Set<number>();
+    for (const option of options) {
+      for (const c of option.five) candidates.add(coordToIndex(c));
+    }
+    if (!candidates.size) return [];
+    return [{ markerCells: [...candidates], strength: 'option' }];
   }
 
   const rows: AssistRunRowGlow[] = [];
   for (const option of options) {
-    const strength =
-      mode === 'announce' ? 'announce' : option === hoverOption ? 'hover' : 'option';
     rows.push({
       markerCells: indices(option.five),
-      highlightCells: option === hoverOption ? indices(option.five) : undefined,
-      strength,
+      strength: 'announce',
     });
   }
   return rows;
@@ -151,8 +169,9 @@ export function buildYinshAssist(
   if (!options.humanTurn) {
     const assist: BoardAssistState = {
       destinationDotRadius: YINSH_ASSIST_DOT_RADIUS,
-      runGlowStyle: { markerRadius: YINSH_MARKER_WORLD_RADIUS, haloScale: 1.4 },
+      runGlowStyle: { markerRadius: YINSH_MARKER_WORLD_RADIUS, haloScale: 1.72 },
       markerGhostRadius: markerGhostRadius(),
+      markerGhostSurfaceY: YINSH_MARKER_GHOST_SURFACE_Y,
       ...runGlowState,
     };
     if (options.lastAiMove) {
@@ -167,8 +186,9 @@ export function buildYinshAssist(
   const board = state.board;
   const assist: BoardAssistState = {
     destinationDotRadius: YINSH_ASSIST_DOT_RADIUS,
-    runGlowStyle: { markerRadius: YINSH_MARKER_WORLD_RADIUS, haloScale: 1.4 },
+    runGlowStyle: { markerRadius: YINSH_MARKER_WORLD_RADIUS, haloScale: 1.72 },
     markerGhostRadius: markerGhostRadius(),
+    markerGhostSurfaceY: YINSH_MARKER_GHOST_SURFACE_Y,
     shadows: [],
     ghosts: [],
     ...runGlowState,

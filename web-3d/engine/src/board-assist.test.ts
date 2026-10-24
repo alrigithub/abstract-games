@@ -60,7 +60,8 @@ describe('BoardAssistLayer', () => {
       cellPosition,
     );
     expect(layer.getStats().pathSegmentCount).toBe(0);
-    expect(layer.getStats().visibleMeshCount).toBeGreaterThanOrEqual(10);
+    expect(layer.getStats().runGlowCellCount).toBe(5);
+    expect(layer.getStats().visibleMeshCount).toBeGreaterThanOrEqual(5);
   });
 
   it('draws assist below piece render order', () => {
