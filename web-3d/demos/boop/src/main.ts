@@ -17,6 +17,7 @@ import { applyBoopAnimationPacing, BOOP_ANIM } from './game/animation';
 import { cellAt, poolCellIndex, wireBoopInteraction, type BoopInteractionHandle } from './game/boop-interaction';
 import { boardPlayfieldTopY } from './game/boop-grounding';
 import { createBoopPieceGeometrySet } from './game/boop-stone-cats';
+import { BOOP_DEMO_BOOP_SFX_URLS, BOOP_DEMO_PLACE_SFX_URLS } from './game/boop-sfx-manifest';
 import { BoopController } from './game/controller';
 
 applyBoopAnimationPacing(ANIMATION);
@@ -39,6 +40,10 @@ const scene = await createBoardScene(board, {
   pieces,
   initialTheme: theme,
   playfieldSurfaceY: boardPlayfieldTopY(),
+  placeSfx: {
+    place: BOOP_DEMO_PLACE_SFX_URLS,
+    boop: BOOP_DEMO_BOOP_SFX_URLS,
+  },
 });
 
 const stage = board.querySelector('canvas') ?? board;
