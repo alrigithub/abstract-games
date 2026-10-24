@@ -159,3 +159,6 @@ export const GOMOKU_AI_STRENGTH_STORAGE_KEY = 'abstract-gomoku-ai-strength';
 
 /** Suggested storage key for Tak web-3d. */
 export const TAK_AI_STRENGTH_STORAGE_KEY = 'abstract-tak-ai-strength';
+
+/** Suggested storage key for Boop web-3d. */
+export const BOOP_AI_STRENGTH_STORAGE_KEY = 'abstract-boop-ai-strength';

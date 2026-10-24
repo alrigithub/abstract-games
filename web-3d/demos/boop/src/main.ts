@@ -1,80 +1,26 @@
 import {
   boopPieceGeometrySet,
-  cellIndex,
   createBoardScene,
   createBoopCatGeometry,
   createBoopKittenGeometry,
   createGameButtons,
   createSquareTopology,
+  BOOP_AI_STRENGTH_STORAGE_KEY,
+  levelToSearchOptions,
   readInitialTheme,
   storeTheme,
-  type BoardSnapshot,
-  type EnginePiece,
   type SceneApi,
   type ThemeId,
 } from '@abstract/three-engine';
-
-const STATUS = 'Boop — piece preview (rules & AI coming)';
+import { BoopController } from './game/controller';
 
 const size = 6;
 const OUTSIDE_ROWS = 2;
-const cellTotal = (size + OUTSIDE_ROWS * 2) ** 2;
-const KITTENS_PER_PLAYER = 8;
 
 const cat = createBoopCatGeometry();
 const kitten = createBoopKittenGeometry();
 const pieces = boopPieceGeometrySet(cat, kitten);
 const topology = createSquareTopology({ size, outsideRows: OUTSIDE_ROWS });
-
-function pushStack(
-  cells: EnginePiece[][],
-  row: number,
-  col: number,
-  player: 'A' | 'B',
-  shape: 'cat' | 'kitten',
-  count: number,
-  prefix: string,
-) {
-  const index = cellIndex(size, row, col, OUTSIDE_ROWS);
-  if (index === null) return;
-  for (let i = 0; i < count; i++) {
-    cells[index]!.push({ id: `${prefix}-${i}`, player, shape });
-  }
-}
-
-function fullSidePools(cells: EnginePiece[][]) {
-  const leftCol = -2;
-  const rightCol = size + 1;
-  pushStack(cells, 3, leftCol, 'A', 'kitten', KITTENS_PER_PLAYER, 'pool-a-k');
-  pushStack(cells, 3, rightCol, 'B', 'kitten', KITTENS_PER_PLAYER, 'pool-b-k');
-}
-
-/** Midgame layout for piece preview (initial view). */
-function mockupOnBoard(cells: EnginePiece[][]) {
-  const at = (row: number, col: number, piece: EnginePiece) => {
-    cells[row * size + col]!.push(piece);
-  };
-  at(2, 2, { id: 'w-cat-1', player: 'A', shape: 'cat' });
-  at(2, 3, { id: 'b-kitten-1', player: 'B', shape: 'kitten' });
-  at(3, 2, { id: 'b-cat-1', player: 'B', shape: 'cat' });
-  at(3, 3, { id: 'w-kitten-1', player: 'A', shape: 'kitten' });
-  at(2, 4, { id: 'b-kitten-2', player: 'B', shape: 'kitten' });
-  at(4, 2, { id: 'w-cat-2', player: 'A', shape: 'cat' });
-  at(4, 3, { id: 'w-kitten-2', player: 'A', shape: 'kitten' });
-}
-
-function buildSnapshot(emptyBoard: boolean): BoardSnapshot {
-  const cells: EnginePiece[][] = Array.from({ length: cellTotal }, () => []);
-  if (!emptyBoard) mockupOnBoard(cells);
-  fullSidePools(cells);
-  return {
-    playableCells: size * size,
-    cellCount: cellTotal,
-    cells,
-  };
-}
-
-let snapshot = buildSnapshot(false);
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 let theme: ThemeId = readInitialTheme();
@@ -85,7 +31,6 @@ const scene = await createBoardScene(board, {
   pieces,
   initialTheme: theme,
 });
-scene.setSnapshot(snapshot);
 
 function applyTheme(id: ThemeId) {
   theme = id;
@@ -94,27 +39,43 @@ function applyTheme(id: ThemeId) {
 
 const cameraViews = scene.createCameraViews();
 
+let controller!: BoopController;
+
 const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
   cameraViews,
   applyTheme,
-  onNewGameReset: () => {
-    snapshot = buildSnapshot(true);
-    scene.setSnapshot(snapshot);
-    gameButtons.setStatus(STATUS);
+  aiStrengthStorageKey: BOOP_AI_STRENGTH_STORAGE_KEY,
+  onAiStrengthChange: () => controller?.renderStatus(),
+  onNewGameReset: () => controller.newGame(),
+});
+
+controller = new BoopController({
+  scene,
+  setStatus: t => gameButtons.setStatus(t),
+  getAiDepth: () => {
+    const ai = gameButtons.aiStrength;
+    return ai ? levelToSearchOptions(ai.getLevel()).maxDepth : 4;
+  },
+  onReady: () => {
+    board.dataset.ready = 'true';
   },
 });
 
-gameButtons.setStatus(STATUS);
+await controller.init();
+
+wirePointerInput(board, scene, () => controller);
 
 declare global {
   interface Window {
     __boopScene?: SceneApi;
     __boopSetTheme?: (theme: ThemeId) => void;
+    __boopController?: BoopController;
   }
 }
 
 window.__boopScene = scene;
+window.__boopController = controller;
 window.__boopSetTheme = (id: ThemeId) => {
   storeTheme(id);
   applyTheme(id);
@@ -126,4 +87,27 @@ if (forcedTheme === 'light' || forcedTheme === 'dark') {
   window.__boopSetTheme(forcedTheme);
 }
 
-board.dataset.ready = 'true';
+function wirePointerInput(container: HTMLElement, sceneApi: SceneApi, getController: () => BoopController) {
+  const canvas = container.querySelector('canvas');
+  if (!canvas) return;
+  let downX = 0;
+  let downY = 0;
+  let downCell: number | null = null;
+
+  canvas.addEventListener('pointerdown', e => {
+    downX = e.clientX;
+    downY = e.clientY;
+    downCell = sceneApi.hitTest(e.clientX, e.clientY);
+  });
+
+  canvas.addEventListener('pointerup', e => {
+    if (downCell === null) return;
+    const dx = e.clientX - downX;
+    const dy = e.clientY - downY;
+    if (dx * dx + dy * dy > 64) return;
+    const cell = sceneApi.hitTest(e.clientX, e.clientY);
+    if (cell !== downCell) return;
+    void getController().handleCellClick(cell);
+    downCell = null;
+  });
+}

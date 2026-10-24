@@ -141,6 +141,16 @@ impl GameState {
         self.pools[pool_index(player)] = pool;
     }
 
+    #[doc(hidden)]
+    pub fn set_winner(&mut self, winner: Option<Player>) {
+        self.winner = winner;
+    }
+
+    #[doc(hidden)]
+    pub fn set_pending_graduation(&mut self, lines: Vec<[Coord; 3]>) {
+        self.pending_graduation = lines;
+    }
+
     /// What the player to move must do next (meaningless once there is a winner).
     pub fn turn_mode(&self) -> TurnMode {
         if !self.pending_graduation.is_empty() {
