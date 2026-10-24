@@ -9,7 +9,7 @@ import {
 import { createCameraViewController, fitOrthographicToWorldPoints, type CameraViewController } from './camera-views';
 import { ANIMATION, BOARD, CAMERA } from './constants';
 import { createContactShadowBlob } from './geometries/contact-shadow';
-import { decoratePieceMesh, makePieceShadow } from './geometries/piece-outlines';
+import { decoratePieceMesh, makePieceShadow, syncPieceContactShadowScale } from './geometries/piece-outlines';
 import { stackHeight } from './stack';
 import { layoutStackCenters, stackExtent, type StackMeasure } from './stack-layout';
 import {
@@ -249,13 +249,13 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     if (options.pieces.replaceVisual) {
       options.pieces.replaceVisual(item.mesh, piece);
       item.mesh.userData.shape = piece.shape;
-      item.shadow.geometry = geometry(piece as never);
+      syncPieceContactShadowScale(item.shadow, geometry(piece as never));
       return;
     }
     if (!(item.mesh instanceof THREE.Mesh)) return;
     if (item.mesh.geometry === geometry(piece as never)) return;
     item.mesh.geometry = geometry(piece as never);
-    item.shadow.geometry = geometry(piece as never);
+    syncPieceContactShadowScale(item.shadow, geometry(piece as never));
     if (pieceUsesOutline(piece)) {
       decoratePieceMesh(item.mesh, edgeMaterials[piece.player]!, outlineMaterial, edgeCache, pieceEdgeThreshold);
     }
@@ -763,7 +763,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
           ));
     const position = exterior ? new THREE.Vector3(exterior.position.x, 0, exterior.position.y) : cellPosition(target!);
     if (selected[0]) {
-      previewShadow.geometry = geometry(selected[0] as never);
+      syncPieceContactShadowScale(previewShadow, geometry(selected[0] as never));
       previewShadow.rotation.y = pieceYaw(selected[0].id);
       previewShadow.position.set(position.x, y + BOARD.SHADOW_CONTACT_EPSILON, position.z);
     }
@@ -803,7 +803,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     for (const item of objects.values()) {
       const isSelected = selectedIds.has(item.pieceId);
       const stack = snapshot.cells[Number(item.mesh.userData.cellIndex)] ?? [];
-      item.shadow.visible = !isSelected && stack[0]?.id === item.pieceId;
+      item.shadow.visible = stack[0]?.id === item.pieceId;
       if (isSelected && !item.selected) {
         item.pickupAt = performance.now();
         item.restX = item.mesh.position.x;

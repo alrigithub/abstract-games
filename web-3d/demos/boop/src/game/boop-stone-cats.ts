@@ -204,13 +204,11 @@ function createStonePieceSet(templates: Record<PlayerId, Record<StoneCatVariant,
   return {
     geometry: geometryFor,
     height: heightFor,
-    verticalOffset(piece) {
-      return -heightFor(piece) / 2;
-    },
+    geometryOrigin: 'base' as const,
     yaw: () => BOOP_STONE_CAT_YAW,
     edgeThreshold: BOARD.EDGE_THRESHOLD_BOOP,
     useOutline: () => false,
-    /** Keep embedded GLB PBR materials; board IBL supplies lighting (see engine applyBoardEnvironment). */
+    /** Keep embedded GLB stone materials; board IBL supplies lighting (see engine applyBoardEnvironment). */
     materialFor: () => null,
     createVisual(piece: EnginePiece) {
       const root = new THREE.Group();
