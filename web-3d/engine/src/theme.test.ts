@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DARK_ARENA_SURFACE,
+  LIGHT_ARENA_SURFACE,
   LIGHT_THEME_TOKENS,
   invertHex,
   invertThemeTokens,
@@ -18,6 +20,8 @@ describe('theme inversion', () => {
   it('derives dark scene tokens from light', () => {
     const dark = themeTokens('dark');
     expect(dark.table).toBe(invertHex(LIGHT_THEME_TOKENS.table));
+    expect(dark.arenaSurface).toBe(DARK_ARENA_SURFACE);
+    expect(themeTokens('light').arenaSurface).toBe(LIGHT_ARENA_SURFACE);
     expect(dark.piece.A!.fill).toBe('#000000');
     expect(dark.piece.B!.fill).toBe('#ffffff');
     expect(dark.ghostOpacity).toBeCloseTo(1 - LIGHT_THEME_TOKENS.ghostOpacity);
