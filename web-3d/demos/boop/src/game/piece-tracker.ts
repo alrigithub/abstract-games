@@ -5,13 +5,29 @@ import type { GameView, PieceKind, PlayerId } from './types';
 const GRID = 6;
 const OUTSIDE = 2;
 
-/** Stable piece ids for 3D tweening across boops and pool transfers. */
+interface RestingPiece {
+  id: string;
+  player: PlayerId;
+  kind: PieceKind;
+  row: number;
+  col: number;
+}
+
+export interface PlacementSource {
+  id: string;
+  from: 'pool' | 'resting';
+  restRow?: number;
+  restCol?: number;
+}
+
+/** Stable piece ids for 3D tweening across boops, pool, and off-board rests. */
 export class PieceTracker {
   private board = new Map<string, string>();
   private poolStacks: Record<PlayerId, Record<PieceKind, string[]>> = {
     A: { kitten: [], cat: [] },
     B: { kitten: [], cat: [] },
   };
+  private resting: RestingPiece[] = [];
   private seq = 0;
 
   private key(x: number, y: number) {
@@ -22,8 +38,13 @@ export class PieceTracker {
     return `${prefix}-${this.seq++}`;
   }
 
+  restingCount() {
+    return this.resting.length;
+  }
+
   resetFromNewGame() {
     this.board.clear();
+    this.resting = [];
     this.poolStacks = { A: { kitten: [], cat: [] }, B: { kitten: [], cat: [] } };
     for (const player of ['A', 'B'] as const) {
       for (let i = 0; i < 8; i++) this.poolStacks[player].kitten.push(this.mint(`pool-${player}-k`));
@@ -31,9 +52,36 @@ export class PieceTracker {
     }
   }
 
-  /** Reconcile ids with authoritative rules view (after animations). */
+  /** Exterior cell one step beyond the bed edge in the boop push direction. */
+  static restingCell(from: { x: number; y: number }, push: { push_x: number; push_y: number }) {
+    return { row: from.y + push.push_y, col: from.x + push.push_x };
+  }
+
+  addResting(id: string, player: PlayerId, kind: PieceKind, row: number, col: number) {
+    this.resting.push({ id, player, kind, row, col });
+  }
+
+  removeRestingById(id: string) {
+    this.resting = this.resting.filter(r => r.id !== id);
+  }
+
+  takeForPlacement(player: PlayerId, kind: PieceKind): PlacementSource | null {
+    for (let i = this.resting.length - 1; i >= 0; i--) {
+      const r = this.resting[i]!;
+      if (r.player === player && r.kind === kind) {
+        this.resting.splice(i, 1);
+        return { id: r.id, from: 'resting', restRow: r.row, restCol: r.col };
+      }
+    }
+    const id = this.poolStacks[player][kind].pop();
+    return id ? { id, from: 'pool' } : null;
+  }
+
+  private restingCountFor(player: PlayerId, kind: PieceKind) {
+    return this.resting.filter(r => r.player === player && r.kind === kind).length;
+  }
+
   syncBoard(view: GameView) {
-    const seen = new Set<string>();
     for (let y = 0; y < GRID; y++) {
       for (let x = 0; x < GRID; x++) {
         const cell = view.board[y]?.[x];
@@ -45,7 +93,6 @@ export class PieceTracker {
         let id = this.board.get(k);
         if (!id) id = this.mint(`b-${x}-${y}`);
         this.board.set(k, id);
-        seen.add(id);
       }
     }
     for (const player of ['A', 'B'] as const) {
@@ -55,19 +102,11 @@ export class PieceTracker {
     }
   }
 
-  private resizePool(player: PlayerId, kind: PieceKind, count: number) {
+  private resizePool(player: PlayerId, kind: PieceKind, inHand: number) {
     const stack = this.poolStacks[player][kind];
-    while (stack.length < count) stack.push(this.mint(`pool-${player}-${kind}`));
-    while (stack.length > count) stack.pop();
-  }
-
-  takeFromPool(player: PlayerId, kind: PieceKind): string | null {
-    const stack = this.poolStacks[player][kind];
-    return stack.pop() ?? null;
-  }
-
-  returnToPool(player: PlayerId, kind: PieceKind, id: string) {
-    this.poolStacks[player][kind].push(id);
+    const visible = Math.max(0, inHand - this.restingCountFor(player, kind));
+    while (stack.length < visible) stack.push(this.mint(`pool-${player}-${kind}`));
+    while (stack.length > visible) stack.pop();
   }
 
   moveBoardId(from: { x: number; y: number }, to: { x: number; y: number }) {
@@ -87,6 +126,16 @@ export class PieceTracker {
     const k = this.key(x, y);
     const id = this.board.get(k) ?? null;
     this.board.delete(k);
+    return id;
+  }
+
+  /** Keep tween ids stable when the rules view no longer lists a briefly visible piece. */
+  ensureIdAt(x: number, y: number, player: PlayerId, kind: PieceKind): string {
+    const k = this.key(x, y);
+    const existing = this.board.get(k);
+    if (existing) return existing;
+    const id = this.mint(`b-${x}-${y}-${player}-${kind}`);
+    this.board.set(k, id);
     return id;
   }
 
@@ -119,6 +168,21 @@ export class PieceTracker {
     pushPool(3, rightCol, 'B', 'kitten');
     pushPool(5, leftCol, 'A', 'cat');
     pushPool(5, rightCol, 'B', 'cat');
+
+    const restGroups = new Map<string, RestingPiece[]>();
+    for (const r of this.resting) {
+      const k = `${r.row},${r.col}`;
+      const list = restGroups.get(k) ?? [];
+      list.push(r);
+      restGroups.set(k, list);
+    }
+    for (const group of restGroups.values()) {
+      group.forEach((r, stackIndex) => {
+        const idx = cellIndex(GRID, r.row, r.col, OUTSIDE);
+        if (idx === null) return;
+        cells[idx]!.push({ id: r.id, player: r.player, shape: r.kind, data: { restStack: stackIndex } });
+      });
+    }
 
     return { playableCells: GRID * GRID, cellCount: cellTotal, cells };
   }

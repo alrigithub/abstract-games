@@ -41,12 +41,27 @@ async function main() {
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
     await page.waitForSelector('[data-testid="board"][data-ready="true"]', { timeout: 30_000 });
     await page.waitForFunction(() => window.__boopController != null, null, { timeout: 15_000 });
+    await page.waitForFunction(() => window.__boopSmokePickAndPlace != null, null, { timeout: 5_000 });
 
-    for (let i = 0; i < 4; i++) {
+    await page.evaluate(async () => {
+      await window.__boopSmokePickAndPlace();
+    });
+    await page.waitForTimeout(2200);
+    const pickAfterPlace = await page.getAttribute('[data-testid="board"]', 'data-pick-active');
+    if (pickAfterPlace === 'true') throw new Error('pick still active after drag placement');
+
+    for (let i = 1; i < 4; i++) {
       await page.evaluate(async idx => {
         await window.__boopController.smokePlace(2 + (idx % 2), 2 + Math.floor(idx / 2));
       }, i);
-      await page.waitForTimeout(1200);
+      await page.waitForTimeout(2200);
+    }
+
+    const rested = await page.evaluate(async () => window.__boopController.ensureRestingOffBoardPiece());
+    if (!rested) throw new Error('could not produce resting off-board piece');
+    const restingCount = await page.getAttribute('[data-testid="board"]', 'data-resting-count');
+    if (!restingCount || Number(restingCount) < 1) {
+      throw new Error(`expected data-resting-count >= 1, got ${restingCount}`);
     }
 
     const status = await page.locator('[data-testid="game-status"]').textContent();

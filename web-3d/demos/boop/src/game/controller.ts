@@ -1,5 +1,11 @@
-import { ANIMATION, cellCoordinates, type SceneApi } from '@abstract/three-engine';
+import {
+  cellCoordinates,
+  type BoardSnapshot,
+  type SceneApi,
+  type Selection,
+} from '@abstract/three-engine';
 import init, { BoopGame } from '../../wasm/boop_wasm.js';
+import { BOOP_ANIM } from './animation';
 import { PieceTracker } from './piece-tracker';
 import type { GameView, MoveJson, PieceKind, PlayerId } from './types';
 import { parseGameView } from './types';
@@ -10,6 +16,7 @@ const HUMAN: PlayerId = 'A';
 const AI: PlayerId = 'B';
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+const stepMs = () => BOOP_ANIM.MOVE_MS + BOOP_ANIM.STEP_GAP_MS;
 
 export interface BoopControllerOptions {
   scene: SceneApi;
@@ -22,7 +29,6 @@ export class BoopController {
   private game!: BoopGame;
   private tracker = new PieceTracker();
   private view!: GameView;
-  private selectedKind: PieceKind = 'kitten';
   private aiGeneration = 0;
   private inputEnabled = true;
   private readonly scene: SceneApi;
@@ -50,21 +56,84 @@ export class BoopController {
     this.view = parseGameView(this.game.view_json());
     this.inputEnabled = true;
     this.publishSnapshot();
-    this.renderStatus('Your turn — tap kittens pool (left), then an empty cell');
+    this.renderStatus('Your turn — pick up a kitten from the pool or resting pile, then place on the bed');
+  }
+
+  getSnapshot(): BoardSnapshot {
+    return this.tracker.buildSnapshot(this.view);
+  }
+
+  isPlaceMode() {
+    return this.view.turn_mode.kind === 'place';
   }
 
   canInteract() {
     return this.inputEnabled && !this.view.winner && this.view.to_move === HUMAN;
   }
 
-  selectPoolKind(kind: PieceKind) {
-    this.selectedKind = kind;
-    if (this.canInteract()) this.renderStatus(`Selected ${kind} — tap an empty cell`);
+  pickHeightForCell(cell: number, snap: BoardSnapshot): number {
+    if (!this.canInteract()) return 0;
+    const { row, col } = cellCoordinates(GRID, cell, OUTSIDE);
+    const stack = snap.cells[cell] ?? [];
+    if (!stack.length) return 0;
+
+    if (this.view.turn_mode.kind === 'place') {
+      if (this.isHumanPoolCell(row, col)) return 1;
+      if (this.isOffBedCell(row, col) && this.isHumanRestingStack(stack)) return 1;
+      return 0;
+    }
+    if (this.view.turn_mode.kind === 'alternate_graduation') {
+      if (row < 0 || row >= GRID || col < 0 || col >= GRID) return 0;
+      const p = this.view.board[row]?.[col];
+      if (p?.player === HUMAN) return 1;
+    }
+    return 0;
+  }
+
+  private isHumanPoolCell(row: number, col: number) {
+    if (col === -2 && row === 3) return this.view.pools[0]!.kittens_in_hand > 0;
+    if (col === -2 && row === 5) return this.view.pools[0]!.cats_in_hand > 0;
+    return false;
+  }
+
+  private isOffBedCell(row: number, col: number) {
+    return row < 0 || row >= GRID || col < 0 || col >= GRID;
+  }
+
+  private isHumanRestingStack(stack: BoardSnapshot['cells'][number]) {
+    const top = stack.at(-1);
+    return top?.player === HUMAN && (top.shape === 'kitten' || top.shape === 'cat');
+  }
+
+  async commitPlacement(selection: Selection, targetIndex: number) {
+    if (!this.canInteract() || !this.isPlaceMode()) return;
+    if (selection.count !== 1 || typeof selection.source !== 'number') return;
+    const { row, col } = cellCoordinates(GRID, targetIndex, OUTSIDE);
+    if (row < 0 || row >= GRID || col < 0 || col >= GRID) return;
+    if (this.view.board[row]?.[col]) return;
+
+    const kind = this.inferKindFromSource(selection.source);
+    if (!kind) return;
+    const moveJson = this.game.move_for_interaction_json(HUMAN, col, row, kind);
+    if (!moveJson) return;
+    await this.playMoveJson(moveJson);
+  }
+
+  private inferKindFromSource(sourceIndex: number): PieceKind | null {
+    const snap = this.getSnapshot();
+    const top = snap.cells[sourceIndex]?.at(-1);
+    if (top?.shape === 'kitten' || top?.shape === 'cat') return top.shape;
+    const { row, col } = cellCoordinates(GRID, sourceIndex, OUTSIDE);
+    if (col === -2 && row === 5) return 'cat';
+    if (col === -2 && row === 3) return 'kitten';
+    return 'kitten';
   }
 
   private publishSnapshot() {
     this.tracker.syncBoard(this.view);
     this.scene.setSnapshot(this.tracker.buildSnapshot(this.view));
+    const board = document.querySelector<HTMLElement>('[data-testid="board"]');
+    if (board) board.dataset.restingCount = String(this.tracker.restingCount());
   }
 
   renderStatus(detail?: string) {
@@ -85,7 +154,7 @@ export class BoopController {
       this.setStatus(detail ?? 'AI thinking…');
       return;
     }
-    this.setStatus(detail ?? `Your turn · ${this.selectedKind} selected`);
+    this.setStatus(detail ?? 'Drag from pool or resting pile to an empty bed cell');
   }
 
   private highlightWin() {
@@ -103,50 +172,58 @@ export class BoopController {
 
   async handleCellClick(cellIndexHit: number) {
     if (!this.inputEnabled || this.view.winner) return;
-    const { row, col } = cellCoordinates(GRID, cellIndexHit, OUTSIDE);
-    if (row === 3 && col === -2) {
-      this.handlePoolClick();
-      return;
-    }
     if (this.view.to_move !== HUMAN) return;
-    const moveJson = this.game.move_for_interaction_json(HUMAN, col, row, this.selectedKind);
+    if (this.isPlaceMode()) return;
+    const { row, col } = cellCoordinates(GRID, cellIndexHit, OUTSIDE);
+    const onBed = row >= 0 && row < GRID && col >= 0 && col < GRID;
+    const kind =
+      (onBed ? this.view.board[row]?.[col]?.kind : undefined) ??
+      this.inferKindFromSource(cellIndexHit) ??
+      'kitten';
+    const moveJson = this.game.move_for_interaction_json(HUMAN, col, row, kind);
     if (!moveJson) return;
     await this.playMoveJson(moveJson);
   }
 
-  handlePoolClick() {
-    if (!this.canInteract()) return;
-    const pool = this.view.pools[0]!;
-    if (pool.kittens_in_hand > 0) this.selectPoolKind('kitten');
-    else if (pool.cats_in_hand > 0) this.selectPoolKind('cat');
-  }
-
-  private async playMoveJson(moveJson: string) {
-    const move = JSON.parse(moveJson) as MoveJson;
+  async playMoveJson(moveJson: string, options?: { scheduleAi?: boolean }) {
+    const scheduleAi = options?.scheduleAi ?? true;
     const actor = this.view.to_move;
     await this.scene.enqueueAnimation(async () => {
       const before = parseGameView(this.game.view_json());
       this.game.apply_move_json(moveJson);
       const after = parseGameView(this.game.view_json());
+      const move = JSON.parse(moveJson) as MoveJson;
       await this.animateMove(before, after, move, actor);
       this.view = after;
       this.highlightWin();
       this.renderStatus();
-      if (!this.view.winner && this.view.to_move === AI) await this.runAiTurn();
+      if (scheduleAi && !this.view.winner && this.view.to_move === AI) await this.runAiTurn();
       else this.inputEnabled = !this.view.winner && this.view.to_move === HUMAN;
     });
   }
 
   private async animateMove(before: GameView, after: GameView, move: MoveJson, actor: PlayerId) {
     const effects = after.effects;
-    const step = ANIMATION.DURATION + 25;
+    const step = stepMs();
 
     if (move.type === 'place') {
-      const id = this.tracker.takeFromPool(actor, move.piece);
-      if (id) this.tracker.placeOnBoard(move.x, move.y, id);
-      this.view = cloneBoardView(before, after, move.x, move.y);
-      this.publishSnapshot();
-      await sleep(step);
+      const taken = this.tracker.takeForPlacement(actor, move.piece);
+      if (taken?.from === 'resting') {
+        this.tracker.addResting(taken.id, actor, move.piece, taken.restRow!, taken.restCol!);
+        this.view = before;
+        this.publishSnapshot();
+        await sleep(step);
+        this.tracker.removeRestingById(taken.id);
+        this.tracker.placeOnBoard(move.x, move.y, taken.id);
+        this.view = cloneBoardView(before, after, move.x, move.y);
+        this.publishSnapshot();
+        await sleep(step);
+      } else if (taken) {
+        this.tracker.placeOnBoard(move.x, move.y, taken.id);
+        this.view = cloneBoardView(before, after, move.x, move.y);
+        this.publishSnapshot();
+        await sleep(step);
+      }
     }
 
     for (const d of effects.displacements) {
@@ -157,8 +234,13 @@ export class BoopController {
     }
 
     for (const o of effects.off_board) {
-      const id = this.tracker.removeFromBoard(o.from.x, o.from.y);
-      if (id) this.tracker.returnToPool(o.player, o.kind, id);
+      const id = this.tracker.ensureIdAt(o.from.x, o.from.y, o.player, o.kind);
+      const { row, col } = PieceTracker.restingCell(o.from, o);
+      this.view = withBoardPiece(before, o.from.x, o.from.y, o.player, o.kind);
+      this.publishSnapshot();
+      await sleep(step);
+      this.tracker.removeFromBoard(o.from.x, o.from.y);
+      this.tracker.addResting(id, o.player, o.kind, row, col);
       this.view = after;
       this.publishSnapshot();
       await sleep(step);
@@ -178,7 +260,7 @@ export class BoopController {
   private async runAiTurn() {
     this.inputEnabled = false;
     this.renderStatus();
-    await sleep(60);
+    await sleep(BOOP_ANIM.AI_PAUSE_MS);
     const moveJson = this.game.choose_ai_move(this.getAiDepth());
     if (!moveJson) {
       this.inputEnabled = true;
@@ -190,7 +272,19 @@ export class BoopController {
 
   async smokePlace(x = 2, y = 2) {
     const mv = this.game.move_for_interaction_json(HUMAN, x, y, 'kitten');
-    if (mv) await this.playMoveJson(mv);
+    if (mv) await this.playMoveJson(mv, { scheduleAi: false });
+  }
+
+  async ensureRestingOffBoardPiece() {
+    this.newGame();
+    const m0 = this.game.move_for_interaction_json(HUMAN, 0, 0, 'kitten');
+    if (!m0) return false;
+    await this.playMoveJson(m0, { scheduleAi: false });
+    const boop = this.game.move_for_interaction_json(AI, 1, 0, 'kitten');
+    if (!boop) return false;
+    await this.playMoveJson(boop, { scheduleAi: false });
+    await sleep(stepMs());
+    return this.tracker.restingCount() > 0;
   }
 }
 
@@ -198,4 +292,16 @@ function cloneBoardView(before: GameView, after: GameView, x: number, y: number)
   const board = before.board.map(row => row.map(c => (c ? { ...c } : null)));
   board[y]![x] = after.board[y]![x] ? { ...after.board[y]![x]! } : null;
   return { ...before, board, pools: after.pools, effects: { ...after.effects, displacements: [], off_board: [] } };
+}
+
+function withBoardPiece(
+  base: GameView,
+  x: number,
+  y: number,
+  player: string,
+  kind: string,
+): GameView {
+  const board = base.board.map(row => row.map(c => (c ? { ...c } : null)));
+  board[y]![x] = { player: player as PlayerId, kind: kind as PieceKind };
+  return { ...base, board };
 }

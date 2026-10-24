@@ -419,4 +419,30 @@ mod tests {
         let restored = BoopGame::import_state(&exported).unwrap();
         assert_eq!(game.view_json(), restored.view_json());
     }
+
+    /// Web grid is board[y][x]; move JSON and highlights use the same x/y as rules `Coord`.
+    #[test]
+    fn view_board_coords_match_rules_and_moves() {
+        let mut game = BoopGame::new();
+        let mv = game
+            .move_for_interaction_json("A", 2, 3, "kitten")
+            .expect("legal opening");
+        game.apply_move_json(&mv).unwrap();
+        let view: GameView = serde_json::from_str(&game.view_json()).unwrap();
+        assert_eq!(view.board[3][2].as_ref().unwrap().kind, "kitten");
+        assert_eq!(view.board[3][2].as_ref().unwrap().player, "A");
+
+        game.apply_move_json(
+            &game
+                .move_for_interaction_json("B", 1, 0, "kitten")
+                .expect("legal reply"),
+        )
+        .unwrap();
+        let view2: GameView = serde_json::from_str(&game.view_json()).unwrap();
+        assert_eq!(view2.board[0][1].as_ref().unwrap().player, "B");
+        for cell in view2.board.iter().flatten().flatten() {
+            assert!(cell.kind == "kitten" || cell.kind == "cat");
+            assert!(cell.player == "A" || cell.player == "B");
+        }
+    }
 }
