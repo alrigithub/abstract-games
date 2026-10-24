@@ -112,6 +112,20 @@ export interface BoardSceneOptions {
   stackedPiecesReceiveShadow?: boolean;
   /** Optional placement / boop push clip URLs (must be set before audio init). */
   placeSfx?: PlaceSfxPools;
+  /**
+   * Compact shadow-catching ground for arena GLB games (replaces the default 8192 clay plane).
+   * Backdrop and fog match {@link PlayfieldGroundOptions.surfaceColor} so margins read as one surface.
+   */
+  playfieldGround?: PlayfieldGroundOptions;
+}
+
+export interface PlayfieldGroundOptions {
+  /** World units (square plane side). */
+  size: number;
+  /** Ground + scene backdrop in light theme. */
+  surfaceColor: string;
+  /** When omitted, uses {@link surfaceColor} in dark theme too (e.g. white epic arenas). */
+  darkSurfaceColor?: string;
 }
 
 export async function createBoardScene(container: HTMLElement, options: BoardSceneOptions): Promise<SceneApi> {
@@ -175,16 +189,46 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   let pieceMaterials: Record<string, THREE.MeshStandardMaterial> = {};
   let ghostMaterials: Record<string, THREE.MeshBasicMaterial> = {};
   let boardMaterial: THREE.MeshStandardMaterial = clayEnvMaterial();
+  let playfieldGroundMaterial: THREE.MeshStandardMaterial | null = null;
   let gridMaterial = new THREE.MeshBasicMaterial({
     color: tokens.lines,
     side: THREE.DoubleSide,
     depthWrite: false,
   });
+  function playfieldSurfaceColorForTheme(): string | null {
+    const spec = options.playfieldGround;
+    if (!spec) return null;
+    if (themeId === 'dark' && spec.darkSurfaceColor) return spec.darkSurfaceColor;
+    return spec.surfaceColor;
+  }
+
+  function syncPlayfieldGroundAppearance() {
+    const surface = playfieldSurfaceColorForTheme();
+    if (!surface || !playfieldGroundMaterial) return;
+    playfieldGroundMaterial.color.set(surface);
+    applyPlayfieldBackdrop(scene, surface);
+  }
+
+  function ensurePlayfieldGroundMaterial(): THREE.MeshStandardMaterial {
+    if (!playfieldGroundMaterial) {
+      playfieldGroundMaterial = new THREE.MeshStandardMaterial({
+        color: options.playfieldGround!.surfaceColor,
+        roughness: 0.82,
+        metalness: 0,
+        side: THREE.DoubleSide,
+      });
+    }
+    return playfieldGroundMaterial;
+  }
+
   function rebuildMaterials() {
     tokens = themeTokens(themeId);
     syncClayMaterialTheme(themeId);
     boardMaterial = clayEnvMaterial();
-    applyPlayfieldBackdrop(scene, tokens.table);
+    const compactSurface = playfieldSurfaceColorForTheme();
+    if (compactSurface) applyPlayfieldBackdrop(scene, compactSurface);
+    else applyPlayfieldBackdrop(scene, tokens.table);
+    syncPlayfieldGroundAppearance();
     gridMaterial.color.set(tokens.lines);
     outlineMaterial.dispose();
     outlineMaterial = new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.BackSide });
@@ -747,7 +791,10 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     for (const geo of boardGeometries) geo.dispose();
     boardGeometries.length = 0;
     const size = options.gridSize;
-    const ground = createPlayfieldGroundMesh(boardMaterial);
+    const groundSize = options.playfieldGround?.size ?? BOARD.PLAYFIELD_GROUND_SIZE;
+    const groundMaterial = options.playfieldGround ? ensurePlayfieldGroundMaterial() : boardMaterial;
+    syncPlayfieldGroundAppearance();
+    const ground = createPlayfieldGroundMesh(groundMaterial, groundSize);
     boardGeometries.push(ground.geometry as THREE.BufferGeometry);
     board.add(ground);
     if (
