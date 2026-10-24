@@ -7,6 +7,7 @@ import {
   heightFromBoundingBox,
   takPieceGeometrySet,
   type EnginePiece,
+  clonePieceVisualTemplate,
   pieceGlbSideForPlayer,
   type PieceGeometrySet,
   type ThemeId,
@@ -56,7 +57,7 @@ function anchorObjectBaseToY0(object: THREE.Object3D): void {
 }
 
 function prepareTemplate(scene: THREE.Object3D): THREE.Object3D {
-  const root = scene.clone(true);
+  const root = clonePieceVisualTemplate(scene);
   root.scale.setScalar(TAK_GLB_WORLD_SCALE);
   root.updateMatrixWorld(true);
   anchorObjectBaseToY0(root);
@@ -136,12 +137,12 @@ export async function loadTakPieceGeometrySet(): Promise<PieceGeometrySet> {
       materialFor: () => null,
       createVisual(piece) {
         const root = new THREE.Group();
-        const model = templateFor(templates, piece).clone(true);
+        const model = clonePieceVisualTemplate(templateFor(templates, piece));
         mountModel(root, model);
         return root;
       },
       replaceVisual(root, piece) {
-        const model = templateFor(templates, piece).clone(true);
+        const model = clonePieceVisualTemplate(templateFor(templates, piece));
         mountModel(root as THREE.Group, model);
       },
       onThemeChange(id) {

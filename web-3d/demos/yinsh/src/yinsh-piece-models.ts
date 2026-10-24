@@ -6,6 +6,7 @@ import {
   createYinshRingGeometry,
   yinshPieceGeometrySet,
   type EnginePiece,
+  clonePieceVisualTemplate,
   pieceGlbSideForPlayer,
   type PieceGeometrySet,
   type ThemeId,
@@ -102,7 +103,7 @@ function anchorObjectBaseToY0(object: THREE.Object3D): void {
 }
 
 function prepareTemplate(scene: THREE.Object3D, shape: ShapeKey): THREE.Object3D {
-  const root = scene.clone(true);
+  const root = clonePieceVisualTemplate(scene);
   root.scale.setScalar(YINSH_GLB_WORLD_SCALE);
   root.updateMatrixWorld(true);
   anchorObjectBaseToY0(root);
@@ -182,14 +183,14 @@ export async function loadYinshPieceGeometrySet(): Promise<PieceGeometrySet> {
       createVisual(piece) {
         const root = new THREE.Group();
         const shape = piece.shape === 'marker' ? 'marker' : 'ring';
-        const model = templateFor(templates, piece).clone(true);
+        const model = clonePieceVisualTemplate(templateFor(templates, piece));
         configureStoneMeshes(model, shape);
         mountModel(root, model);
         return root;
       },
       replaceVisual(root, piece) {
         const shape = piece.shape === 'marker' ? 'marker' : 'ring';
-        const model = templateFor(templates, piece).clone(true);
+        const model = clonePieceVisualTemplate(templateFor(templates, piece));
         configureStoneMeshes(model, shape);
         mountModel(root as THREE.Group, model);
       },
