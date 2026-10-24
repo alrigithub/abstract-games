@@ -30,7 +30,7 @@ export function createTakPieceGeometries(): {
 } {
   const flat = anchorGeometryBaseToY0(new THREE.BoxGeometry(0.68, 0.18, 0.68));
   const standing = anchorGeometryBaseToY0(new THREE.BoxGeometry(0.68, 0.68, 0.18));
-  const capstone = createTruncatedPyramid(0.56, 0.28, 0.78);
+  const capstone = anchorGeometryBaseToY0(createTruncatedPyramid(0.56, 0.28, 0.78));
   return { flat, standing, capstone };
 }
 

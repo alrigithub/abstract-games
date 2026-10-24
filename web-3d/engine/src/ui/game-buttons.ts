@@ -167,6 +167,16 @@ export interface CreateGameButtonsOptions {
   /** Alias for {@link applyTheme}. */
   onThemeChange?: (theme: ThemeId) => void;
   fullscreenElement?: HTMLElement;
+  /** Optional buttons appended to the primary row (e.g. Tak flip-stone). */
+  extraButtons?: Array<{
+    id?: string;
+    testId?: string;
+    label: string;
+    ariaLabel?: string;
+    title?: string;
+    className?: string;
+    onClick(): void;
+  }>;
 }
 
 export interface GameButtonsBar {
@@ -225,7 +235,21 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   lobby.dataset.testid = 'back-to-lobby';
   lobby.textContent = 'Back to Lobby';
 
-  row.append(fullscreenBtn, ...(themeApply ? [themeBtn] : []), newGameBtn, aiSlot, lobby);
+  const extraButtons: HTMLButtonElement[] = [];
+  for (const spec of options.extraButtons ?? []) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = spec.label;
+    if (spec.id) btn.id = spec.id;
+    if (spec.testId) btn.dataset.testid = spec.testId;
+    if (spec.ariaLabel) btn.setAttribute('aria-label', spec.ariaLabel);
+    if (spec.title) btn.title = spec.title;
+    if (spec.className) btn.className = spec.className;
+    btn.addEventListener('click', () => spec.onClick());
+    extraButtons.push(btn);
+  }
+
+  row.append(fullscreenBtn, ...(themeApply ? [themeBtn] : []), newGameBtn, ...extraButtons, aiSlot, lobby);
 
   const status = document.createElement('p');
   status.className = 'game-button-status';
