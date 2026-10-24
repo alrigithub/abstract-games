@@ -16,12 +16,24 @@ describe('defaultRestingCell', () => {
 });
 
 describe('resolveRestingCell', () => {
-  it('slides to another row on the owner column when the preferred row is blocked by pool pieces', () => {
+  it('rests on the near gap column without overlapping outward pool stacks', () => {
     const blocked = poolOccupiedCells('A', { kittens_in_hand: 8, cats_in_hand: 0, cats_in_reserve: 8 });
     const slot = resolveRestingCell({ x: 0, y: 2 }, { push_x: -1, push_y: 0 }, [], 'A', blocked);
     expect(slot.col).toBe(-2);
-    expect(slot.row).not.toBe(2);
+    expect(blocked.some(b => b.row === slot.row && b.col === slot.col)).toBe(false);
     expect(cellIndex(BOOP_GRID, slot.row, slot.col, BOOP_OUTSIDE)).not.toBeNull();
+  });
+
+  it('slides to another row on the owner column when the preferred row is taken', () => {
+    const slot = resolveRestingCell(
+      { x: 0, y: 2 },
+      { push_x: -1, push_y: 0 },
+      [{ row: 2, col: -2 }],
+      'A',
+      [],
+    );
+    expect(slot.col).toBe(-2);
+    expect(slot.row).not.toBe(2);
   });
 
   it('keeps white and black resting on opposite sides', () => {

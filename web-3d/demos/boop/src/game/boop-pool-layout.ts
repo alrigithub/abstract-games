@@ -15,15 +15,25 @@ export type PoolCounts = {
 /** Side rows for pool pieces (avoid row −1 above the bed — it floated big vases off-screen). */
 const POOL_ROWS: number[] = [0, 1, 2, 3, 4, 5, 6, 7];
 
-/** Reserve column sits in each side's mesh depression (see arena GLB `White_Earth` trays). */
-function sideCols(player: PlayerId): Record<PoolColumn, number> {
-  return player === 'A'
-    ? { kitten: -4, cat_hand: -1, cat_reserve: -2 }
-    : { kitten: BOOP_GRID + 3, cat_hand: BOOP_GRID, cat_reserve: BOOP_GRID + 1 };
+/** Empty exterior columns between the playfield edge and the nearest pool stack. */
+export const POOL_GAP_CELLS_FROM_BED = 2;
+
+/** Nearest pool column is the 3rd cell out from the bed edge (after {@link POOL_GAP_CELLS_FROM_BED} gaps). */
+function frontPoolColumn(player: PlayerId): number {
+  return player === 'A' ? -(POOL_GAP_CELLS_FROM_BED + 1) : BOOP_GRID + POOL_GAP_CELLS_FROM_BED;
 }
 
+/** Hand / reserve / rear-kitten columns; order matches #101 (front hand, reserve inward, kittens rear). */
+function sideCols(player: PlayerId): Record<PoolColumn, number> {
+  const front = frontPoolColumn(player);
+  return player === 'A'
+    ? { cat_hand: front, cat_reserve: front - 1, kitten: front - 3 }
+    : { cat_hand: front, cat_reserve: front + 1, kitten: front + 3 };
+}
+
+/** Booped-off pieces rest on the near lip (gap columns), not on pool stacks. */
 export function playerRestingColumn(player: PlayerId): number {
-  return sideCols(player).cat_reserve;
+  return player === 'A' ? -2 : BOOP_GRID + 1;
 }
 
 /**
