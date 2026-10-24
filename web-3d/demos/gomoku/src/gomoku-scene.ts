@@ -27,8 +27,7 @@ import {
   type ThemeId,
 } from '@abstract/three-engine';
 import { loadGomokuStoneAssets, type GomokuStoneAssets } from './gomoku-piece-models';
-
-export const GOMOKU_WIN_ACCENT = '#3b82f6';
+import { GomokuWinGlowLayer } from './gomoku-win-glow';
 
 export type ScenePlayer = 'A' | 'B';
 
@@ -93,8 +92,9 @@ export async function createGomokuScene(
   const shadowsGroup = new THREE.Group();
   const stonesGroup = new THREE.Group();
   const ghostGroup = new THREE.Group();
-  const winGroup = new THREE.Group();
-  scene.add(boardGroup, shadowsGroup, stonesGroup, ghostGroup, winGroup);
+  const winGlow = new GomokuWinGlowLayer();
+  winGlow.attach(scene);
+  scene.add(boardGroup, shadowsGroup, stonesGroup, ghostGroup);
 
   const disposables: THREE.BufferGeometry[] = [];
   const stoneMeshes = new Map<string, THREE.Object3D>();
@@ -183,35 +183,17 @@ export async function createGomokuScene(
     return mesh;
   }
 
-  function clearWinLine() {
-    winGroup.clear();
-  }
-
-  function drawWinLine(cells: { row: number; col: number }[]) {
-    clearWinLine();
-    if (cells.length < 2) return;
-    const points = cells.map(c => {
-      const p = gomokuCellWorld(size, c.row, c.col);
-      return new THREE.Vector3(p.x, 0.012, p.z);
-    });
-    const geo = new THREE.BufferGeometry().setFromPoints(points);
-    disposables.push(geo);
-    const line = new THREE.Line(
-      geo,
-      new THREE.LineBasicMaterial({ color: GOMOKU_WIN_ACCENT, linewidth: 2, transparent: true, opacity: 0.95 }),
-    );
-    winGroup.add(line);
-    for (const c of cells) {
-      const p = gomokuCellWorld(size, c.row, c.col);
-      const ring = new THREE.Mesh(
-        new THREE.RingGeometry(GOMOKU_DIMS.STONE_R * 0.72, GOMOKU_DIMS.STONE_R * 0.88, 32),
-        new THREE.MeshBasicMaterial({ color: GOMOKU_WIN_ACCENT, side: THREE.DoubleSide, transparent: true, opacity: 0.35 }),
-      );
-      disposables.push(ring.geometry as THREE.BufferGeometry);
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.set(p.x, 0.011, p.z);
-      winGroup.add(ring);
+  function setWinGlow(cells: { row: number; col: number }[] | null) {
+    if (!cells?.length) {
+      winGlow.clear();
+      return;
     }
+    winGlow.setWorldCells(
+      cells.map(c => {
+        const p = gomokuCellWorld(size, c.row, c.col);
+        return { x: p.x, z: p.z };
+      }),
+    );
   }
 
   function pickCell(clientX: number, clientY: number): { row: number; col: number } | null {
@@ -230,17 +212,40 @@ export async function createGomokuScene(
 
   let frame = 0;
   let disposed = false;
+  let pulseLoop = 0;
 
-  function render() {
+  function render(now = performance.now()) {
     if (disposed) return;
+    winGlow.tick(now);
     renderer.render(scene, camera);
   }
 
+  function stopPulseLoop() {
+    if (pulseLoop) {
+      cancelAnimationFrame(pulseLoop);
+      pulseLoop = 0;
+    }
+  }
+
+  function ensurePulseLoop() {
+    if (!winGlow.needsContinuousRender() || pulseLoop || disposed) return;
+    const loop = (now: number) => {
+      pulseLoop = 0;
+      if (disposed || !winGlow.needsContinuousRender()) return;
+      render(now);
+      pulseLoop = requestAnimationFrame(loop);
+    };
+    pulseLoop = requestAnimationFrame(loop);
+  }
+
   function requestRender() {
-    if (!frame) frame = requestAnimationFrame(() => {
-      frame = 0;
-      render();
-    });
+    if (!frame) {
+      frame = requestAnimationFrame(now => {
+        frame = 0;
+        render(now);
+        ensurePulseLoop();
+      });
+    }
   }
 
   function updateGhost(row: number | null, col: number | null, player: ScenePlayer | null) {
@@ -378,8 +383,7 @@ export async function createGomokuScene(
         }
       }
       for (const s of stones) upsertStone(s, restY);
-      if (winLine?.length) drawWinLine(winLine);
-      else clearWinLine();
+      setWinGlow(winLine);
       requestRender();
     },
     setHover(row, col, player) {
@@ -426,6 +430,8 @@ export async function createGomokuScene(
     dispose() {
       cameraViewsRef?.dispose();
       disposed = true;
+      stopPulseLoop();
+      winGlow.dispose();
       ro.disconnect();
       controls.dispose();
       boardLighting.dispose();

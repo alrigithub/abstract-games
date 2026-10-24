@@ -23,6 +23,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5192' },
     },
     {
+      name: 'gomoku-win-glow',
+      testMatch: '**/gomoku-win-glow.spec.ts',
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://127.0.0.1:5192' },
+    },
+    {
       name: 'menu-screenshots',
       testMatch: '**/game-menu-screenshots.spec.ts',
       use: { ...devices['Desktop Chrome'] },

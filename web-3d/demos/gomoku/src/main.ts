@@ -178,4 +178,37 @@ function startGame(color: Player) {
   if (game.toMove !== humanColor) maybeAiTurn();
 }
 
-startGame('black');
+function applyDemoShot() {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('shot') !== 'win-glow') return;
+
+  stopAi();
+  humanColor = 'black';
+  game = createGame();
+  const row = 7;
+  for (let col = 5; col <= 9; col++) {
+    game.cells[coordIndex({ x: col, y: row })] = 'black';
+  }
+  game.winner = 'black';
+  game.lastMove = { x: 9, y: row };
+  game.toMove = 'white';
+  game.moveCount = 5;
+  scene.setInputEnabled(false);
+  syncBoard();
+  renderStatus('Black wins');
+  document.body.dataset.demoShot = 'win-glow';
+}
+
+applyDemoShot();
+
+if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('shot') === 'win-glow') {
+  (window as unknown as { __gomokuWinGlowCount?: () => number }).__gomokuWinGlowCount = () => {
+    const line = winLineCells();
+    return line?.length ?? 0;
+  };
+}
+
+if (!new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('shot')) {
+  startGame('black');
+}
