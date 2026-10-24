@@ -9,10 +9,11 @@ export type PoolColumn = 'kitten' | 'cat_hand' | 'cat_reserve';
 /** Side rows for pool pieces (avoid row −1 above the bed — it floated big vases off-screen). */
 const POOL_ROWS: number[] = [0, 1, 2, 3, 4, 5, 6, 7];
 
+/** Reserve column sits in each side's mesh depression (see arena GLB `White_Earth` trays). */
 function sideCols(player: PlayerId): Record<PoolColumn, number> {
   return player === 'A'
-    ? { kitten: -4, cat_hand: -1, cat_reserve: -5 }
-    : { kitten: BOOP_GRID + 3, cat_hand: BOOP_GRID, cat_reserve: BOOP_GRID + 4 };
+    ? { kitten: -4, cat_hand: -1, cat_reserve: -2 }
+    : { kitten: BOOP_GRID + 3, cat_hand: BOOP_GRID, cat_reserve: BOOP_GRID + 1 };
 }
 
 export function playerRestingColumn(player: PlayerId): number {

@@ -18,7 +18,7 @@ describe('boop pool layout', () => {
     const a = poolOccupiedCells('A', { kittens_in_hand: 8, cats_in_hand: 3, cats_in_reserve: 5 });
     const cols = new Set(a.map(c => c.col));
     expect(cols.size).toBe(3);
-    expect(cols.has(-5)).toBe(true);
+    expect(cols.has(-2)).toBe(true);
     expect(cols.has(-4)).toBe(true);
     expect(cols.has(-1)).toBe(true);
     for (const slot of a) {
