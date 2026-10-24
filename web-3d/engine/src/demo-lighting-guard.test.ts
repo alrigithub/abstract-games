@@ -76,8 +76,9 @@ describe('demo lighting guard', () => {
     const rendererSrc = readFileSync(path.join(engineDir, 'board-renderer.ts'), 'utf8');
     const sceneSrc = readFileSync(path.join(engineDir, 'board-scene.ts'), 'utf8');
     const lightingSrc = readFileSync(path.join(engineDir, 'board-lighting.ts'), 'utf8');
-    expect(rendererSrc).toMatch(/shadowMap\.enabled = true/);
-    expect(rendererSrc).toMatch(/PCFSoftShadowMap/);
+    expect(rendererSrc).toMatch(/configureBoardShadowMap/);
+    expect(lightingSrc).toMatch(/shadowMap\.enabled = true/);
+    expect(lightingSrc).toMatch(/VSMShadowMap|PCFSoftShadowMap/);
     expect(rendererSrc).toMatch(/AgXToneMapping/);
     expect(rendererSrc).toMatch(/toneMappingExposure/);
     expect(rendererSrc).toMatch(/export function applyBoardEnvironment/);

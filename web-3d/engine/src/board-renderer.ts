@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { configureBoardShadowMap } from './board-lighting';
 import { BOARD, CLAY } from './constants';
 
 /**
@@ -17,8 +18,7 @@ export function configureBoardWebGLRenderer(renderer: THREE.WebGLRenderer): void
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.AgXToneMapping;
   renderer.toneMappingExposure = CLAY.TONE_MAPPING_EXPOSURE;
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  configureBoardShadowMap(renderer);
   renderer.domElement.setAttribute('aria-hidden', 'true');
   renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;touch-action:none;';
 }

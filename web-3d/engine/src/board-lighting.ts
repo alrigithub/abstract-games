@@ -32,15 +32,25 @@ const PLAYFIELD_CATCHER_NAME = '__playfieldShadowCatcher';
 const SCENE_SHADOW_CATCHER_NAME = '__sceneShadowCatcher';
 const playfieldBounds = new THREE.Box3();
 
+function boardShadowMapType(): THREE.ShadowMapType {
+  return CLAY.SHADOW_MAP_TYPE === 'vsm' ? THREE.VSMShadowMap : THREE.PCFSoftShadowMap;
+}
+
 function chooseShadowMapSize(): number {
-  return 2048;
+  return CLAY.SHADOW_MAP_SIZE;
 }
 
 function applyShadowMapSettings(light: THREE.DirectionalLight, size: number) {
   light.shadow.mapSize.set(size, size);
-  light.shadow.bias = -0.00012;
-  light.shadow.normalBias = 0.0022;
+  light.shadow.bias = CLAY.SHADOW_BIAS;
+  light.shadow.normalBias = CLAY.SHADOW_NORMAL_BIAS;
   light.shadow.radius = 2;
+  light.shadow.blurSamples = CLAY.SHADOW_BLUR_SAMPLES;
+}
+
+export function configureBoardShadowMap(renderer: THREE.WebGLRenderer): void {
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = boardShadowMapType();
 }
 
 function fillBoxCorners(box: THREE.Box3, out: THREE.Vector3[]) {
@@ -92,8 +102,7 @@ export function applyBoardLighting(
   renderer: THREE.WebGLRenderer,
   options: BoardLightingOptions = {},
 ): BoardLightingHandle {
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  configureBoardShadowMap(renderer);
 
   const pieceHeightMargin = options.pieceHeightMargin ?? 1.35;
   const light = new THREE.DirectionalLight(CLAY.KEY_LIGHT_COLOR, CLAY.KEY_LIGHT_INTENSITY);
@@ -133,7 +142,7 @@ export function applyBoardLighting(
     }
     tmpBox.min.y = Math.min(tmpBox.min.y, BOARD.PLAYFIELD_SURFACE_Y);
     tmpBox.max.y = Math.max(tmpBox.max.y, BOARD.PLAYFIELD_SURFACE_Y + pieceHeightMargin);
-    tmpBox.expandByScalar(0.35);
+    tmpBox.expandByScalar(CLAY.SHADOW_FRUSTUM_EXPAND);
 
     const center = tmpBox.getCenter(new THREE.Vector3());
     const size = tmpBox.getSize(new THREE.Vector3());
@@ -142,7 +151,10 @@ export function applyBoardLighting(
     target.position.copy(center);
     light.position.copy(center).addScaledVector(LIGHT_DIR, lightDistance);
 
-    const pad = Math.max(0.55, Math.max(size.x, size.z) * 0.1);
+    const pad = Math.max(
+      CLAY.SHADOW_FRUSTUM_PAD_MIN,
+      Math.max(size.x, size.z) * CLAY.SHADOW_FRUSTUM_PAD_XZ_RATIO,
+    );
     fitShadowCameraToBox(light, tmpBox, pad);
   }
 

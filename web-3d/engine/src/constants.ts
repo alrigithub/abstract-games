@@ -65,12 +65,25 @@ export const BOARD = {
 export const CLAY = {
   TONE_MAPPING_EXPOSURE: 0.98,
   AO_ENABLED: true,
-  AO_QUALITY: 'Performance' as const,
+  /** Low: stable on laptops; Performance is noisier. */
+  AO_QUALITY: 'Low' as const,
   AO_HALF_RES: true,
-  AO_INTENSITY: 2.0,
-  AO_RADIUS: 2.05,
-  AO_DISTANCE_FALLOFF: 1.0,
+  AO_INTENSITY: 2.35,
+  /** World-space contact radius (~board is ~10u); avoids edge-halo AO. */
+  AO_RADIUS: 1.55,
+  AO_DISTANCE_FALLOFF: 0.72,
   KEY_LIGHT_INTENSITY: 0.82,
+  /** VSM gives softer penumbra than PCFSoft on directional lights (laptop-friendly blur). */
+  SHADOW_MAP_TYPE: 'vsm' as const,
+  SHADOW_MAP_SIZE: 2048,
+  SHADOW_BIAS: -0.00004,
+  SHADOW_NORMAL_BIAS: 0.0014,
+  /** VSM blur passes (ignored for PCFSoft). */
+  SHADOW_BLUR_SAMPLES: 6,
+  /** Tight ortho fit → more texels on playfield, less blocky penumbra. */
+  SHADOW_FRUSTUM_EXPAND: 0.26,
+  SHADOW_FRUSTUM_PAD_MIN: 0.42,
+  SHADOW_FRUSTUM_PAD_XZ_RATIO: 0.085,
   /** Soft cool daylight (not warm studio). */
   KEY_LIGHT_COLOR: 0xf4f6f3,
   /** Playfield / board / arena GLB albedo (light airy grey-green). */
