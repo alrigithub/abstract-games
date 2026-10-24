@@ -1,3 +1,16 @@
+/** True when the user asked for instant UI motion. */
+export function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+}
+
+/** Resolves after `ms`, or immediately when reduced-motion / non-positive. */
+export function motionDelay(ms: number, reduced = prefersReducedMotion()): Promise<void> {
+  if (reduced || ms <= 0) return Promise.resolve();
+  return new Promise(resolve => {
+    setTimeout(resolve, ms);
+  });
+}
+
 /** Serializes animations so AI moves never overlap player motion. */
 export class AnimationQueue {
   private chain: Promise<void> = Promise.resolve();
