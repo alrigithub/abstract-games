@@ -4,6 +4,7 @@ import {
   createInteraction,
   createSquareTopology,
   createTakPieceGeometries,
+  INTERACTION,
   readStoredTheme,
   storeTheme,
   takPieceGeometrySet,
@@ -46,7 +47,6 @@ function canEditSandbox() {
 
 const gameUi = createGameUi({
   scene,
-  board,
   onActive: active => {
     sandbox = !active;
     document.querySelector<HTMLButtonElement>('#reset')!.disabled = active;
@@ -57,11 +57,16 @@ const gameUi = createGameUi({
   },
 });
 
+function canUseBoardInteraction() {
+  return canEditSandbox() || (gameUi.isActive() && gameUi.humanTurn());
+}
+
 const controller = createInteraction({
   element: stage as HTMLElement,
   getSnapshot: () => toEngineSnapshot(state),
-  canInteract: () => canEditSandbox(),
-  hitTest: (x, y) => (canEditSandbox() ? scene.hitTest(x, y) : null),
+  canInteract: () => canUseBoardInteraction(),
+  getHoldInterval: () => INTERACTION.HOLD_INTERVAL,
+  hitTest: (x, y) => (canUseBoardInteraction() ? scene.hitTest(x, y) : null),
   hitReserve: (x, y) => (canEditSandbox() ? scene.hitReserve(x, y) : null),
   onView: view => {
     lastView = view;
@@ -71,7 +76,7 @@ const controller = createInteraction({
     if (view.selection) {
       label.textContent = String(view.selection.count);
       document.querySelector<HTMLElement>('#hold-ring')!.style.setProperty('--progress', `${view.progress * 360}deg`);
-      pieceActions.hidden = false;
+      pieceActions.hidden = !canEditSandbox();
       const source = view.selection.source;
       const top =
         typeof source === 'number'
@@ -83,6 +88,10 @@ const controller = createInteraction({
     }
   },
   onCommit: (selection, target) => {
+    if (gameUi.isActive()) {
+      gameUi.commitDrag(toTakSelection(selection), target);
+      return;
+    }
     const next = moveSelection(state, toTakSelection(selection), target);
     if (next !== state) commit(next);
   },
@@ -189,7 +198,13 @@ refresh();
 menu.showModal();
 
 if (location.search.includes('human=ivory')) {
-  (window as unknown as { __takE2e?: { pilePoint(): { x: number; y: number }; centerPoint(): { x: number; y: number } } }).__takE2e = {
+  (window as unknown as {
+    __takE2e?: {
+      pilePoint(): { x: number; y: number };
+      centerPoint(): { x: number; y: number };
+      openingReservePoint(): { x: number; y: number };
+    };
+  }).__takE2e = {
     pilePoint() {
       let index = 0;
       let height = 0;
@@ -204,6 +219,21 @@ if (location.search.includes('human=ivory')) {
     centerPoint() {
       const mid = Math.floor((boardSize * boardSize) / 2);
       return scene.cellScreen(mid);
+    },
+    openingReservePoint() {
+      const playable = boardSize * boardSize;
+      let index = playable;
+      let height = 0;
+      state.cells.forEach((stack, i) => {
+        if (i < playable || !stack.length) return;
+        const top = stack.at(-1);
+        if (top?.color !== 'charcoal' || top.kind !== 'stone') return;
+        if (stack.length >= height) {
+          height = stack.length;
+          index = i;
+        }
+      });
+      return scene.cellScreen(index);
     },
   };
 }
