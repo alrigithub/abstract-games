@@ -91,3 +91,24 @@ Generated artifacts (`*_bg.wasm`, `*.js` in game folders) are gitignored; CI com
 - Port games to JS/Canvas2D engines
 - Break `cargo test -p yinsh` / `cargo test -p yinsh_ai`
 - Commit secrets or large binary assets without need
+
+## Cursor Cloud specific instructions
+
+- Build with current stable Rust (`rustup default stable`, with `rustfmt`, `clippy`, and the `wasm32-unknown-unknown` target). Edition 2024 and Bevy 0.17 need that toolchain. The image's preinstalled Rust 1.83 cannot compile this workspace.
+- Host packages for Bevy, matching CI plus what a window needs here: `pkg-config`, `libasound2-dev`, `libudev-dev`, `libwayland-dev`, `libxkbcommon-dev`, `libxkbcommon-x11-0`, `libx11-dev`, and `mesa-vulkan-drivers` (lavapipe).
+- `wasm-bindgen` **0.2.106** must be on `PATH` so it matches `Cargo.lock`. `/usr/local/bin/wasm-bindgen` is the right place.
+- `cargo fetch` rewrites `Cargo.lock` because the lockfile still lists `bevy_tweening` under `tzaar_gui`, and that crate does not depend on it. `cargo test --workspace` follows CI and does not pass `--locked`. Restore `Cargo.lock` after a fetch when the worktree should stay clean.
+- CI checks are `cargo test --workspace` and `cargo clippy --workspace --all-targets`. `cargo fmt --check` reports existing formatting diffs on `main`.
+- `cargo run -p yinsh_gui` opens a window on lavapipe, then panics: cameras use `Msaa::Sample8` with `Hdr`, and llvmpipe allows at most 4 samples for `Rgba16Float`. This VM also has no ALSA device, so Bevy logs a missing audio output before that panic.
+- Play through the browser. A dev WASM build is enough to place a ring:
+
+```bash
+export RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
+cargo build --target wasm32-unknown-unknown -p yinsh_gui
+wasm-bindgen --out-dir web/yinsh --target web --no-typescript \
+  target/wasm32-unknown-unknown/debug/yinsh.wasm
+python3 -m http.server 8080 --directory web
+# http://127.0.0.1:8080/yinsh/
+```
+
+`./scripts/build_web.sh` is the optimized build for every game.
