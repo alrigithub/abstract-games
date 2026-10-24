@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { AnimationQueue } from './animation-queue';
+import { createCameraViewController, fitOrthographicToWorldPoints, type CameraViewController } from './camera-views';
 import { ANIMATION, BOARD, CAMERA } from './constants';
 import { createContactShadowBlob } from './geometries/contact-shadow';
 import { decoratePieceMesh, makePieceShadow } from './geometries/piece-outlines';
@@ -221,6 +222,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   let pressBlocksCamera = false;
   let replayingTouch = false;
   let controls: OrbitControls;
+  let cameraViewsRef: CameraViewController | null = null;
 
   function cellPosition(index: number) {
     return options.topology.cellPosition(index, snapshot);
@@ -415,12 +417,40 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     container.dispatchEvent(new CustomEvent('camera-change'));
   });
 
-  function fit(reframe = false) {
+  function collectFramePoints(): THREE.Vector3[] {
+    const size = options.gridSize;
+    const points: THREE.Vector3[] = options.topology.frameCorners?.(snapshot) ?? [];
+    if (!points.length) {
+      const half = size / 2 + 0.04;
+      for (const x of [-half, half]) for (const z of [-half, half]) points.push(new THREE.Vector3(x, 0, z));
+    }
+    for (const slot of snapshot.reserves ?? []) {
+      const top =
+        stackHeight(
+          Array.from({ length: slot.count }, () => ({ shape: slot.shape, id: 'x', player: slot.player })),
+          p => height(p as never),
+        ) + 0.025;
+      for (const dx of [-0.43, 0.43])
+        for (const dz of [-0.43, 0.43]) {
+          points.push(
+            new THREE.Vector3(slot.position.x + dx, 0, slot.position.z + dz),
+            new THREE.Vector3(slot.position.x + dx, top, slot.position.z + dz),
+          );
+        }
+    }
+    return points;
+  }
+
+  function syncRendererSize() {
     const bounds = container.getBoundingClientRect();
     width = Math.max(1, Math.round(bounds.width));
     viewportHeight = Math.max(1, Math.round(bounds.height));
     const dpr = window.devicePixelRatio || 1;
-    const renderScale = Math.min(Math.max(CAMERA.minRenderScale, dpr), CAMERA.maxPixelRatio, Math.sqrt(CAMERA.maxBufferPixels / (width * viewportHeight)));
+    const renderScale = Math.min(
+      Math.max(CAMERA.minRenderScale, dpr),
+      CAMERA.maxPixelRatio,
+      Math.sqrt(CAMERA.maxBufferPixels / (width * viewportHeight)),
+    );
     const nextBufferWidth = Math.max(1, Math.round(width * renderScale));
     const nextBufferHeight = Math.max(1, Math.round(viewportHeight * renderScale));
     if (nextBufferWidth !== bufferWidth || nextBufferHeight !== bufferHeight) {
@@ -428,7 +458,16 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       bufferHeight = nextBufferHeight;
       renderer.setSize(bufferWidth, bufferHeight, false);
     }
-    const aspect = width / viewportHeight;
+    return width / viewportHeight;
+  }
+
+  function fit(reframe = false) {
+    const aspect = syncRendererSize();
+    if (cameraViewsRef) {
+      cameraViewsRef.refit();
+      requestRender();
+      return;
+    }
     const size = options.gridSize;
     if (framed && !reframe) {
       const centerX = (camera.left + camera.right) / 2;
@@ -441,33 +480,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     }
     framed = true;
     camera.updateMatrixWorld();
-    const points: THREE.Vector3[] = options.topology.frameCorners?.(snapshot) ?? [];
-    if (!points.length) {
-      const half = size / 2 + 0.04;
-      for (const x of [-half, half]) for (const z of [-half, half]) points.push(new THREE.Vector3(x, 0, z));
-    }
-    for (const slot of snapshot.reserves ?? []) {
-      const top = stackHeight(Array.from({ length: slot.count }, () => ({ shape: slot.shape, id: 'x', player: slot.player })), p => height(p as never)) + 0.025;
-      for (const dx of [-0.43, 0.43]) for (const dz of [-0.43, 0.43]) {
-        points.push(new THREE.Vector3(slot.position.x + dx, 0, slot.position.z + dz), new THREE.Vector3(slot.position.x + dx, top, slot.position.z + dz));
-      }
-    }
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const point of points) {
-      point.applyMatrix4(camera.matrixWorldInverse);
-      minX = Math.min(minX, point.x);
-      maxX = Math.max(maxX, point.x);
-      minY = Math.min(minY, point.y);
-      maxY = Math.max(maxY, point.y);
-    }
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-    const halfHeight = Math.max((maxY - minY) / 2, (maxX - minX) / (2 * aspect)) * CAMERA.framePadding;
-    camera.left = centerX - halfHeight * aspect;
-    camera.right = centerX + halfHeight * aspect;
-    camera.top = centerY + halfHeight;
-    camera.bottom = centerY - halfHeight;
-    camera.updateProjectionMatrix();
+    const points = collectFramePoints().map(p => p.clone());
+    fitOrthographicToWorldPoints(camera, points, aspect, CAMERA.framePadding);
     requestRender();
   }
 
@@ -774,7 +788,10 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       }
     }
     updateInteraction();
-    if (reframeCamera) fit(true);
+    if (reframeCamera) {
+      if (cameraViewsRef) cameraViewsRef.refit();
+      else fit(true);
+    }
   }
 
   const resizeObserver = new ResizeObserver(() => {
@@ -835,6 +852,22 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
 
   return {
     setSnapshot,
+    createCameraViews(cameraOptions = {}) {
+      cameraViewsRef?.dispose();
+      const getBounds = cameraOptions.getBounds ?? collectFramePoints;
+      cameraViewsRef = createCameraViewController({
+        camera,
+        controls,
+        getBounds,
+        getAspect: () => {
+          syncRendererSize();
+          return width / viewportHeight;
+        },
+        onUpdate: requestRender,
+      });
+      framed = true;
+      return cameraViewsRef;
+    },
     setInteraction(next) {
       view = next;
       updateInteraction();

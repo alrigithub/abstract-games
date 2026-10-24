@@ -6,13 +6,11 @@ import {
   createInteraction,
   createSquareTopology,
   createTakPieceGeometries,
-  DEFAULT_LOBBY_HREF,
   INTERACTION,
   levelToSearchOptions,
-  readStoredTheme,
+  readInitialTheme,
   TAK_AI_STRENGTH_STORAGE_KEY,
   takPieceGeometrySet,
-  THEME_STORAGE_KEY,
   type InteractionView,
   type ThemeId,
 } from '@abstract/three-engine';
@@ -34,7 +32,7 @@ const geos = createTakPieceGeometries();
 const pieces = takPieceGeometrySet(geos);
 let boardSize = 5;
 let topology = createSquareTopology({ size: boardSize, outsideRows: 6 });
-let theme: ThemeId = readStoredTheme();
+let theme: ThemeId = readInitialTheme();
 let state: BoardState = createSandboxState(boardSize);
 const history: BoardState[] = [];
 let sandbox = true;
@@ -51,9 +49,10 @@ const stage = board.querySelector('canvas') ?? board;
 
 function applyTheme(id: ThemeId) {
   theme = id;
-  document.documentElement.dataset.theme = id;
   scene.setTheme(id);
 }
+
+const cameraViews = scene.createCameraViews();
 
 function syncFlipBarButton() {
   const btn = document.querySelector<HTMLButtonElement>('[data-testid="flip-stone"]');
@@ -63,7 +62,7 @@ function syncFlipBarButton() {
 
 const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
-  lobbyHref: DEFAULT_LOBBY_HREF,
+  cameraViews,
   aiStrengthStorageKey: TAK_AI_STRENGTH_STORAGE_KEY,
   applyTheme,
   extraButtons: [
@@ -91,17 +90,6 @@ const gameButtons = createGameButtons({
   onAiStrengthChange: () => gameUi.refresh(),
 });
 
-try {
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    try {
-      if (localStorage.getItem(THEME_STORAGE_KEY) === null) applyTheme(readStoredTheme());
-    } catch {
-      /* ignore */
-    }
-  });
-} catch {
-  /* ignore */
-}
 
 function refresh() {
   scene.setSnapshot(toEngineSnapshot(state));
@@ -300,6 +288,8 @@ if (location.search.includes('human=ivory')) {
       pilePoint(): { x: number; y: number };
       centerPoint(): { x: number; y: number };
       openingReservePoint(): { x: number; y: number };
+      capReservePoint(color?: Color): { x: number; y: number };
+      seedCapStackDemo(): void;
     };
   }).__takE2e = {
     pilePoint() {
