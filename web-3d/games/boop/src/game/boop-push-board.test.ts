@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { PieceTracker } from './piece-tracker';
-import { boardAfterDisplacements, boardWithOffBoardOnBed } from './boop-push-board';
+import {
+  boardAfterDisplacements,
+  boardBeforeGraduationClear,
+  boardWithOffBoardOnBed,
+} from './boop-push-board';
 import type { GameView } from './types';
 
 function emptyBed(): GameView['board'] {
@@ -66,6 +70,22 @@ describe('push snapshot continuity', () => {
     const ids = snap.cells.flat().map(p => p.id);
     expect(ids).toContain(pushedId);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe('boardBeforeGraduationClear', () => {
+  it('includes the third placement cell before graduation clears the line', () => {
+    const board = emptyBed();
+    board[0]![0] = { player: 'A', kind: 'kitten' };
+    board[0]![1] = { player: 'A', kind: 'kitten' };
+    const before = baseView(board);
+    const staged = boardBeforeGraduationClear(
+      before,
+      { type: 'place', x: 2, y: 0, piece: 'kitten' },
+      'A',
+      { displacements: [], off_board: [] },
+    );
+    expect(staged[0]![2]).toEqual({ player: 'A', kind: 'kitten' });
   });
 });
 
