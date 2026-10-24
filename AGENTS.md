@@ -77,15 +77,20 @@ python3 -m http.server 8080 --directory web
 
 Generated artifacts (`*_bg.wasm`, `*.js` in game folders) are gitignored; CI compiles WASM but does not commit bundles.
 
-### Yinsh (Pixi alternate client)
+### Pixi web clients (`web-pixi/`)
 
-Source: `web-pixi/yinsh/` (Rust rules via `yinsh_wasm`, AI in a Web Worker). Production build output: `web/yinsh-pixi/` (hub link `./yinsh-pixi/`).
+npm workspace: `shared` (`@abstract/pixi-shared`, from BimSavage `lib/pixi-stage` + Yinsh light-theme VFX/HUD helpers), plus per-game Vite apps.
+
+**Yinsh** — `web-pixi/yinsh/` (Rust `yinsh_wasm`, AI Web Worker). Output: `web/yinsh-pixi/`.
+
+**Boop** — `web-pixi/boop/` (TypeScript rules/AI from BimSavage `games/boop`, AI Web Worker). Output: `web/boop-pixi/`.
 
 ```bash
+cd web-pixi && npm install
 ./scripts/build_yinsh_wasm.sh
-cd web-pixi/yinsh && npm install && npm run build
-# dev: npm run dev
-# preview + Playwright: npm run test:e2e:ci
+npm run build -w yinsh-pixi
+npm run build -w boop-pixi
+# Playwright: npm run test:e2e:ci -w yinsh-pixi && npm run test:e2e:ci -w boop-pixi
 ```
 
 ## Patterns to copy (from yinsh)

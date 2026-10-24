@@ -13,6 +13,11 @@ import { AnimatedBackground } from "./animated-background";
 import { ScoreEffects } from "./effects";
 import type { GameController, VisualEvent } from "./game-controller";
 import { theme } from "./theme";
+import {
+  PixiPanZoomInput,
+  drawHoverRing,
+  easeInOutCubic,
+} from "@abstract/pixi-shared";
 import type { Player, RenderState } from "./types";
 
 type PieceKind = "ring" | "marker";
@@ -37,11 +42,8 @@ export class YinshScene {
   private pieces = new Map<string, PieceView>();
   private spacing = 80;
   private factor = 1;
-  private panX = 0;
-  private panY = 0;
-  private zoom = 1;
-  private dragging = false;
-  private dragStart = { x: 0, y: 0, panX: 0, panY: 0 };
+  private panZoom = { panX: 0, panY: 0, zoom: 1 };
+  private panZoomInput: PixiPanZoomInput | null = null;
   private hoverCoord: Coord | null = null;
   private highlightedRing: Coord | null = null;
   private ghostRing: Graphics | null = null;
@@ -76,6 +78,12 @@ export class YinshScene {
     this.world.addChild(this.indicatorLayer);
     this.world.addChild(this.pieceLayer);
 
+    this.panZoomInput = new PixiPanZoomInput(
+      this.app.canvas,
+      this.panZoom,
+      undefined,
+      () => this.layoutWorld(),
+    );
     this.setupInput();
     this.app.ticker.add((t) => {
       const dt = t.deltaMS;
@@ -87,51 +95,15 @@ export class YinshScene {
 
   private setupInput() {
     const canvas = this.app.canvas;
-    canvas.addEventListener(
-      "wheel",
-      (e) => {
-        e.preventDefault();
-        if (e.ctrlKey) {
-          const delta = e.deltaY > 0 ? 0.92 : 1.08;
-          this.zoom = Math.min(2.5, Math.max(0.45, this.zoom * delta));
-        } else {
-          this.panX -= e.deltaX;
-          this.panY -= e.deltaY;
-        }
-        this.layoutWorld();
-      },
-      { passive: false },
-    );
-
-    canvas.addEventListener("pointerdown", (e) => {
-      if (e.button === 1 || e.buttons === 4 || e.shiftKey) {
-        this.dragging = true;
-        this.dragStart = {
-          x: e.clientX,
-          y: e.clientY,
-          panX: this.panX,
-          panY: this.panY,
-        };
-      }
-    });
     canvas.addEventListener("pointermove", (e) => {
-      if (this.dragging) {
-        this.panX = this.dragStart.panX + (e.clientX - this.dragStart.x);
-        this.panY = this.dragStart.panY + (e.clientY - this.dragStart.y);
-        this.layoutWorld();
-        return;
-      }
       this.updateHover(e.clientX, e.clientY);
-    });
-    canvas.addEventListener("pointerup", () => {
-      this.dragging = false;
     });
     canvas.addEventListener("pointerleave", () => {
       this.hoverCoord = null;
       this.drawIndicators(null);
     });
     canvas.addEventListener("click", (e) => {
-      if (this.dragging) return;
+      if (this.panZoomInput?.wasDragging()) return;
       const coord = this.pickCoord(e.clientX, e.clientY);
       if (!coord) {
         void this.controller.cancelRingSelection();
@@ -235,7 +207,7 @@ export class YinshScene {
           v.player,
           v.slot,
           this.spacing,
-          (this.app.screen.width / this.zoom) * 0.5,
+          (this.app.screen.width / this.panZoom.zoom) * 0.5,
           this.factor,
         );
         this.tweenPieceTo(v.coord, dest, "ring", v.player, true);
@@ -277,7 +249,7 @@ export class YinshScene {
     const endP = screenPoint(to, this.spacing);
     const start = performance.now();
     const tick = () => {
-      const t = easeInOut(Math.min(1, (performance.now() - start) / theme.animMs));
+      const t = easeInOutCubic(Math.min(1, (performance.now() - start) / theme.animMs));
       pv.g.position.set(
         startP.x + (endP.x - startP.x) * t,
         startP.y + (endP.y - startP.y) * t,
@@ -306,7 +278,7 @@ export class YinshScene {
     const startP = screenPoint(from, this.spacing);
     const start = performance.now();
     const tick = () => {
-      const t = easeInOut(Math.min(1, (performance.now() - start) / theme.animMs));
+      const t = easeInOutCubic(Math.min(1, (performance.now() - start) / theme.animMs));
       pv.g.position.set(
         startP.x + (dest.x - startP.x) * t,
         startP.y + (dest.y - startP.y) * t,
@@ -438,11 +410,7 @@ export class YinshScene {
     }
     if (hover) {
       const p = screenPoint(hover, this.spacing);
-      g.circle(p.x, p.y, this.spacing / 6).stroke({
-        width: 2,
-        color: theme.hover,
-        alpha: 0.85,
-      });
+      drawHoverRing(g, p.x, p.y, this.spacing / 6);
     }
     this.indicatorLayer.addChild(g);
   }
@@ -532,19 +500,16 @@ export class YinshScene {
 
   private layoutWorld() {
     this.spacing = spacingForViewport(
-      this.app.screen.width / this.zoom,
-      this.app.screen.height / this.zoom,
+      this.app.screen.width / this.panZoom.zoom,
+      this.app.screen.height / this.panZoom.zoom,
     );
     this.factor = this.spacing / 80;
-    this.world.scale.set(this.zoom);
+    this.world.scale.set(this.panZoom.zoom);
     this.world.position.set(
-      this.app.screen.width / 2 + this.panX,
-      this.app.screen.height / 2 + this.panY,
+      this.app.screen.width / 2 + this.panZoom.panX,
+      this.app.screen.height / 2 + this.panZoom.panY,
     );
     this.bg.resize(this.app.screen.width, this.app.screen.height);
   }
 }
 
-function easeInOut(t: number): number {
-  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-}
