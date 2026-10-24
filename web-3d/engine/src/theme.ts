@@ -1,10 +1,26 @@
-import type { ThemeId, ThemeTokens } from './types';
+import type { BoardBuildContext, ThemeId, ThemeTokens } from './types';
 
 export type { ThemeId, ThemeTokens };
 
 const PLAYERS = ['A', 'B'] as const;
 
 export const WIN_ACCENT = '#3b82f6';
+
+/** GIPF-style printed boards built from live board materials (Tzaar topology, Yinsh hex grid). */
+export function themeTokensFromBoardContext(ctx: BoardBuildContext): ThemeTokens {
+  const board = `#${ctx.boardMaterial.color.getHexString()}`;
+  const lines = `#${ctx.gridMaterial.color.getHexString()}`;
+  return {
+    table: board,
+    board,
+    lines,
+    win: WIN_ACCENT,
+    runCelebration: '#ffb347',
+    ghostOpacity: 0.24,
+    shadow: lines,
+    piece: {},
+  };
+}
 
 export function themeTokens(id: ThemeId): ThemeTokens {
   if (id === 'dark') {
