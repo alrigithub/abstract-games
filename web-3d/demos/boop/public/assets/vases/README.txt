@@ -1,11 +1,9 @@
 Alex stone vase GLBs (Y-up, metres, origin at base centre).
 
-Kitten pool (in use):
-  vase-small-white.glb — player A (light / granite)
-  vase-small-black.glb — player B (dark / slate)
+In use (one uniform scale; large vase X/Z ≈ 0.96 of a bed cell):
+  vase-large-white.glb — player A cat
+  vase-large-black.glb — player B cat
+  vase-small-white.glb — player A kitten
+  vase-small-black.glb — player B kitten
 
-Alternate cat-scale vases (committed, not loaded by default):
-  vase-large-white.glb
-  vase-large-black.glb
-
-Use the same uniform scale factor as public/assets/cats/ (fitted to adult cat footprint).
+Legacy stone cat GLBs remain under public/assets/cats/ but are not loaded.

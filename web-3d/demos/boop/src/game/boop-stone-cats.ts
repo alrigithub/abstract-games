@@ -10,24 +10,22 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createGroundedBoopPieces } from './boop-grounding';
 
-/** Adult cat max X/Z on a 1-unit bed cell (~80% of tile), then global piece boost. */
-const ADULT_TILE_FOOTPRINT = 0.8 * 1.2;
+/** Large vase max X/Z on a 1-unit bed cell (~80% of tile × 1.2 boost ≈ 0.96). */
+const LARGE_VASE_TILE_FOOTPRINT = 0.8 * 1.2;
 
 /** Face +X-authored models toward the default camera in XZ. */
 export const BOOP_STONE_CAT_YAW =
   Math.atan2(CAMERA.position[0], CAMERA.position[2]) - Math.PI / 2;
 
-function assetUrl(folder: 'cats' | 'vases', file: string): string {
-  return new URL(`assets/${folder}/${file}`, document.baseURI).toString();
+function vaseAssetUrl(file: string): string {
+  return new URL(`assets/vases/${file}`, document.baseURI).toString();
 }
 
-const CAT_FILES = {
-  A: 'cat-adult-granite.glb',
-  B: 'cat-adult-slate.glb',
-} as const;
+function catFileCandidates(player: PlayerId): string[] {
+  return [player === 'A' ? 'vase-large-white.glb' : 'vase-large-black.glb'];
+}
 
-/** Kitten pool uses small stone vases from `public/assets/vases/`. */
-function vaseFileCandidates(player: PlayerId): string[] {
+function kittenFileCandidates(player: PlayerId): string[] {
   const primary = player === 'A' ? 'vase-small-white.glb' : 'vase-small-black.glb';
   const stone = player === 'A' ? 'granite' : 'slate';
   return [
@@ -54,16 +52,16 @@ function loadGltfScene(url: string): Promise<THREE.Group> {
   });
 }
 
-async function loadFirstGltf(folder: 'cats' | 'vases', names: readonly string[]): Promise<THREE.Group> {
+async function loadFirstGltf(names: readonly string[]): Promise<THREE.Group> {
   let lastError: unknown;
   for (const name of names) {
     try {
-      return await loadGltfScene(assetUrl(folder, name));
+      return await loadGltfScene(vaseAssetUrl(name));
     } catch (err) {
       lastError = err;
     }
   }
-  throw lastError ?? new Error(`No GLB found in assets/${folder}/ for ${names.join(', ')}`);
+  throw lastError ?? new Error(`No vase GLB found for ${names.join(', ')}`);
 }
 
 function collectMeshes(root: THREE.Object3D): THREE.Mesh[] {
@@ -131,23 +129,27 @@ function prepareFromScene(scene: THREE.Group, worldScale: number): StoneTemplate
   return bakeSceneToFloorGeometry(clone);
 }
 
-async function loadKittenTemplate(player: PlayerId, scale: number): Promise<StoneTemplate> {
-  const scene = await loadFirstGltf('vases', vaseFileCandidates(player));
+async function loadVariantTemplate(
+  player: PlayerId,
+  variant: StoneCatVariant,
+  scale: number,
+): Promise<StoneTemplate> {
+  const names = variant === 'kitten' ? kittenFileCandidates(player) : catFileCandidates(player);
+  const scene = await loadFirstGltf(names);
   return prepareFromScene(scene, scale);
 }
 
 async function loadTemplates(): Promise<Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>> {
-  const adultScene = await loadGltfScene(assetUrl('cats', CAT_FILES.A));
-  const scale = ADULT_TILE_FOOTPRINT / xzExtent(adultScene);
+  const largeScene = await loadGltfScene(vaseAssetUrl('vase-large-white.glb'));
+  const scale = LARGE_VASE_TILE_FOOTPRINT / xzExtent(largeScene);
 
   const players = ['A', 'B'] as const;
   const out = {} as Record<PlayerId, Record<StoneCatVariant, StoneTemplate>>;
 
   for (const player of players) {
-    const catScene = await loadGltfScene(assetUrl('cats', CAT_FILES[player]));
     out[player] = {
-      cat: prepareFromScene(catScene, scale),
-      kitten: await loadKittenTemplate(player, scale),
+      cat: await loadVariantTemplate(player, 'cat', scale),
+      kitten: await loadVariantTemplate(player, 'kitten', scale),
     };
   }
   return out;
@@ -198,7 +200,7 @@ function createStonePieceSet(templates: Record<PlayerId, Record<StoneCatVariant,
   };
 }
 
-/** Load Alex stone GLBs (cats + vases for kittens); fall back to procedural pieces if loading fails. */
+/** Load Alex stone vase GLBs; fall back to procedural pieces if loading fails. */
 export async function createBoopPieceGeometrySet(
   fallbackCat: THREE.BufferGeometry,
   fallbackKitten: THREE.BufferGeometry,
@@ -207,7 +209,7 @@ export async function createBoopPieceGeometrySet(
     const templates = await loadTemplates();
     return createStonePieceSet(templates);
   } catch (err) {
-    console.warn('[boop] stone GLB load failed, using procedural pieces', err);
+    console.warn('[boop] stone vase GLB load failed, using procedural pieces', err);
     return createGroundedBoopPieces(fallbackCat, fallbackKitten);
   }
 }
