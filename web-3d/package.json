@@ -11,6 +11,7 @@
     "games/tzaar"
   ],
   "scripts": {
+    "export:boop": "python scripts/reexport-boop-arena.py",
     "test": "npm run test -w @abstract/three-engine && npm run test -w @abstract/yinsh && npm run test -w @abstract/boop && npm run test -w @abstract/tzaar",
     "test:e2e": "playwright test",
     "build": "npm run build -w @abstract/three-engine && npm run build -w @abstract/tak && npm run build -w @abstract/gomoku && npm run build -w @abstract/boop && npm run build -w @abstract/yinsh && npm run build -w @abstract/tzaar",

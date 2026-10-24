@@ -17,8 +17,10 @@ parser.add_argument('--grid', required=True)
 parser.add_argument('--output', required=True)
 parser.add_argument('--source-copy', required=True)
 parser.add_argument('--resolution', type=int, default=1536)
+parser.add_argument('--contrast', type=float, default=1.06, help='Key-to-fill lighting ratio multiplier; 1 restores the original lighting')
 parser.add_argument('--allow-grid-offsets', action='store_true', help='Keep intentionally moved tile centers and record their reference offsets')
 args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
+assert math.isfinite(args.contrast) and args.contrast > 0, 'Contrast must be positive and finite'
 args.output = os.path.abspath(args.output)
 os.makedirs(args.output, exist_ok=True)
 
@@ -103,7 +105,7 @@ for o in scene.objects:
     if o.type == 'LIGHT':
         o.hide_render = True
 sun_data = bpy.data.lights.new('Boop matched daylight', 'SUN')
-sun_data.energy = 2
+sun_data.energy = 2 * math.sqrt(args.contrast)
 sun_data.angle = math.radians(12)
 sun_data.color = (1, .95, .88)
 sun = bpy.data.objects.new('Boop matched daylight', sun_data)
@@ -112,7 +114,7 @@ sun.rotation_euler = Vector((-1, -1, -math.sqrt(2))).to_track_quat('-Z', 'Y').to
 scene.world = bpy.data.worlds.new('Boop soft studio')
 scene.world.use_nodes = True
 scene.world.node_tree.nodes['Background'].inputs['Color'].default_value = (.8, .8, .8, 1)
-scene.world.node_tree.nodes['Background'].inputs['Strength'].default_value = .5
+scene.world.node_tree.nodes['Background'].inputs['Strength'].default_value = .5 / math.sqrt(args.contrast)
 
 camera_data = bpy.data.cameras.new('Boop locked orthographic')
 camera = bpy.data.objects.new('Boop locked orthographic', camera_data)
@@ -146,6 +148,7 @@ for o in columns:
     o.visible_camera = False
 
 report = {
+    'lightingContrast': args.contrast,
     'referenceCellCount': len(cells), 'maxSourceAlignmentError': max(errors),
     'maxSourceHeightChange': max(height_changes),
     'groundCutout': ground_cutout,

@@ -6,3 +6,6 @@ e2e/screenshots/
 games/*/screenshots/
 **/.vite/
 .cache/
+.boop-export/
+.boop-export.local.json
+__pycache__/
