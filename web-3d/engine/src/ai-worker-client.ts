@@ -70,7 +70,7 @@ export class AiWorkerSession {
   }
 
   private terminateWorker(): void {
-    this.worker?.terminate();
+    this.worker?.terminate?.();
     this.worker = null;
   }
 }

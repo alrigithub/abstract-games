@@ -5,6 +5,7 @@ import {
   createBoopKittenGeometry,
   createGameButtons,
   createSquareTopology,
+  DomPlacementGhost,
   BOOP_AI_STRENGTH_STORAGE_KEY,
   DEFAULT_AI_STRENGTH_LEVELS,
   levelToSearchOptions,
@@ -32,6 +33,11 @@ const topology = createSquareTopology({ size, outsideRows: OUTSIDE_ROWS });
 const board = document.querySelector<HTMLDivElement>('#board')!;
 injectBoopUiStyles();
 let theme: ThemeId = readInitialTheme();
+const placementGhost = new DomPlacementGhost(board, {
+  className: 'boop-placement-ghost',
+  testId: 'boop-placement-ghost',
+  theme,
+});
 
 const scene = await createBoardScene(board, {
   gridSize: size,
@@ -46,6 +52,8 @@ const stage = board.querySelector('canvas') ?? board;
 function applyTheme(id: ThemeId) {
   theme = id;
   scene.setTheme(id);
+  placementGhost.applyTheme(id);
+  interaction?.setGhostTheme(id);
 }
 
 const cameraViews = scene.createCameraViews();
@@ -101,7 +109,7 @@ gameButtons = createGameButtons({
 });
 
 await controller.init();
-interaction = wireBoopInteraction(stage as HTMLElement, board, scene, () => controller);
+interaction = wireBoopInteraction(stage as HTMLElement, board, scene, () => controller, placementGhost);
 controller.setAiPlaceTap((from, to) => interaction.tapPlaceOnBed(from, to, { ai: true }));
 
 window.__boopController = controller;
@@ -116,6 +124,7 @@ declare global {
     __boopSetScreenshotCamera?: () => void;
     __boopSetCameraPreset?: (preset: 'top' | 'axo') => void;
     __boopStageShowcase?: () => void;
+    __boopPreviewGhost?: (kind: 'kitten' | 'cat', row: number, col: number) => void;
   }
 }
 
@@ -139,6 +148,11 @@ window.__boopSetCameraPreset = preset => {
 
 window.__boopStageShowcase = () => {
   controller.stageShowcaseForScreenshots();
+};
+
+window.__boopPreviewGhost = (kind, row, col) => {
+  controller.setStickyKind(kind);
+  interaction.previewGhostAt(cellAt(row, col), kind);
 };
 
 window.__boopSetScreenshotCamera = () => {
@@ -181,6 +195,20 @@ function injectBoopUiStyles() {
       outline: 2px solid #3b82f6;
       outline-offset: 2px;
       background: color-mix(in srgb, var(--game-button-bg, #fff) 85%, #3b82f6);
+    }
+    .boop-placement-ghost {
+      position: absolute;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      border: 2px dashed rgba(59, 130, 246, 0.75);
+      background: rgba(59, 130, 246, 0.12);
+      box-sizing: border-box;
+      z-index: 2;
+    }
+    .boop-placement-ghost[data-theme='dark'] {
+      border-color: rgba(147, 197, 253, 0.85);
+      background: rgba(147, 197, 253, 0.14);
     }
   `;
   document.head.append(style);

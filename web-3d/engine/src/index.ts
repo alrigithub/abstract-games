@@ -7,6 +7,7 @@ export * from './camera-views';
 export * from './constants';
 export * from './interaction';
 export * from './tap-interaction';
+export * from './placement-ghost-footprint';
 export * from './stack';
 export * from './stack-layout';
 export * from './theme';
