@@ -63,17 +63,25 @@ export const BOARD = {
 
 /** Central tuning for the shared clay / maquette look (tone map, AO, key light). */
 export const CLAY = {
-  TONE_MAPPING_EXPOSURE: 0.82,
+  TONE_MAPPING_EXPOSURE: 0.78,
   AO_ENABLED: true,
   AO_QUALITY: 'Performance' as const,
   AO_HALF_RES: true,
-  AO_INTENSITY: 3.35,
-  AO_RADIUS: 2.65,
-  AO_DISTANCE_FALLOFF: 1.05,
-  KEY_LIGHT_INTENSITY: 0.78,
-  KEY_LIGHT_COLOR: 0xfff6ee,
-  /** Scene background / fog vs playfield table (cyclorama falloff). */
-  BACKDROP_DARKEN: 0.9,
+  AO_INTENSITY: 3.55,
+  AO_RADIUS: 2.55,
+  AO_DISTANCE_FALLOFF: 1.08,
+  KEY_LIGHT_INTENSITY: 0.72,
+  /** Soft cool daylight (not warm studio). */
+  KEY_LIGHT_COLOR: 0xf0f2ef,
+  /** Playfield / board / arena GLB albedo (grey-green stone). */
+  ENV: '#d5d4d2',
+  /** Fog + scene background vignette (darker grey-green). */
+  BACKDROP: '#b1b0ae',
+  /** Dark-theme environment albedo. */
+  ENV_DARK: '#6d6c6a',
+  PIECE_LIGHT: '#e8e4dc',
+  PIECE_DARK: '#4a4a48',
+  MATERIAL_ROUGHNESS: 0.9,
 } as const;
 
 export const CAMERA = {

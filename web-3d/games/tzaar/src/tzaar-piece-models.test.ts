@@ -9,12 +9,8 @@ import {
   TZAAR_GLB_WORLD_SCALE,
   layoutStackCenters,
 } from '@abstract/three-engine';
-import {
-  TZAAR_MODEL,
-  configureTzaarStoneMaterials,
-  tzaarKindOf,
-  tzaarModelRelPath,
-} from './tzaar-piece-models';
+import { CLAY, applyClayPieceMaterials, getClayMaterial } from '@abstract/three-engine';
+import { TZAAR_MODEL, tzaarKindOf, tzaarModelRelPath } from './tzaar-piece-models';
 
 const modelsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public/models');
 
@@ -106,33 +102,16 @@ describe('tzaar GLB mapping', () => {
   });
 });
 
-describe('tzaar stone colour look', () => {
-  it('does not recolour PBR blacks — only fixes map color space and IBL gain', () => {
-    const mat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff,
-      roughness: 0.6,
-      metalness: 0,
-      envMapIntensity: 0.24,
-      specularIntensity: 0.5,
-    });
-    const map = new THREE.Texture();
-    mat.map = map;
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
-    configureTzaarStoneMaterials(mesh, 'B');
-    expect(mat.color.getHex()).toBe(0xffffff);
-    expect(mat.roughness).toBeCloseTo(0.6, 5);
-    expect(mat.specularIntensity).toBeCloseTo(0.5, 5);
-    expect(mat.envMapIntensity).toBe(1);
-    expect(map.colorSpace).toBe(THREE.SRGBColorSpace);
-  });
-
-  it('does not recolour unlit whites', () => {
-    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const map = new THREE.Texture();
-    mat.map = map;
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
-    configureTzaarStoneMaterials(mesh, 'A');
-    expect(mat.color.getHex()).toBe(0xffffff);
-    expect(map.colorSpace).toBe(THREE.SRGBColorSpace);
+describe('tzaar stone clay materials', () => {
+  it('overrides authored GLB materials with shared clay piece colors', () => {
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0xff00ff }));
+    const root = new THREE.Group();
+    root.add(mesh);
+    applyClayPieceMaterials(root, 'light');
+    expect(mesh.material).toBe(getClayMaterial('piece_light'));
+    expect(`#${(mesh.material as THREE.MeshStandardMaterial).color.getHexString()}`).toBe(CLAY.PIECE_LIGHT);
+    applyClayPieceMaterials(root, 'dark');
+    expect(mesh.material).toBe(getClayMaterial('piece_dark'));
+    expect(`#${(mesh.material as THREE.MeshStandardMaterial).color.getHexString()}`).toBe(CLAY.PIECE_DARK);
   });
 });

@@ -10,6 +10,7 @@ import {
   syncSceneShadowCatcher,
   createBoardRenderPipeline,
   createBoardWebGLRenderer,
+  syncClayMaterialTheme,
   createCameraViewController,
   applyPlayfieldBackdrop,
   measureBoardFrameMs,
@@ -65,6 +66,7 @@ export async function createGomokuScene(
 ): Promise<GomokuSceneApi> {
   initPlaceSfx();
   let themeId: ThemeId = options.theme ?? 'light';
+  syncClayMaterialTheme(themeId);
   let materials = gomokuThemeMaterials(themeId);
   let inputEnabled = true;
 
@@ -337,11 +339,9 @@ export async function createGomokuScene(
   return {
     setTheme(id: ThemeId) {
       themeId = id;
-      materials.board.dispose();
       materials.line.dispose();
       materials.star.dispose();
-      materials.stoneA.dispose();
-      materials.stoneB.dispose();
+      syncClayMaterialTheme(themeId);
       materials = gomokuThemeMaterials(themeId);
       applyPlayfieldBackdrop(scene, materials.table);
       arenaLayout.setTheme(themeId);

@@ -4,6 +4,7 @@ import {
   GOMOKU_DIMS,
   GOMOKU_GLB_WORLD_SCALE,
   createGomokuStoneGeometry,
+  applyClayPieceMaterials,
   applyGhostOpacity,
   clonePieceVisualTemplate,
   gomokuGlbStoneHeight,
@@ -69,6 +70,8 @@ async function loadScene(url: string): Promise<THREE.Object3D> {
 
 async function buildTemplates(): Promise<StoneTemplates> {
   const [white, black] = await Promise.all([loadScene(modelUrl(MODEL.white)), loadScene(modelUrl(MODEL.black))]);
+  applyClayPieceMaterials(white, 'light');
+  applyClayPieceMaterials(black, 'dark');
   return { A: prepareTemplate(white), B: prepareTemplate(black) };
 }
 
@@ -97,7 +100,7 @@ function ghostOpacity(themeId: ThemeId): number {
 function createProceduralVisual(
   player: StonePlayer,
   geometry: THREE.BufferGeometry,
-  materials: { stoneA: THREE.MeshBasicMaterial; stoneB: THREE.MeshBasicMaterial },
+  materials: { stoneA: THREE.Material; stoneB: THREE.Material },
 ): THREE.Mesh {
   const mesh = new THREE.Mesh(geometry, player === 'A' ? materials.stoneA : materials.stoneB);
   mesh.castShadow = true;
@@ -110,7 +113,7 @@ function createProceduralVisual(
  * Load Alex go-stone GLBs; falls back to procedural lens geometry on failure.
  */
 export async function loadGomokuStoneAssets(
-  materials: { stoneA: THREE.MeshBasicMaterial; stoneB: THREE.MeshBasicMaterial },
+  materials: { stoneA: THREE.Material; stoneB: THREE.Material },
 ): Promise<GomokuStoneAssets> {
   const shadowGeometry = createGomokuStoneGeometry();
   const fallbackHeight = GOMOKU_DIMS.STONE_H;

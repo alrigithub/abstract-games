@@ -1,6 +1,7 @@
 export * from './animation-queue';
 export * from './board-renderer';
 export * from './board-render-pipeline';
+export * from './clay-materials';
 export * from './board-lighting';
 export * from './board-arena-glb';
 export * from './board-grid-lines'; // zoom-stable grid line helpers

@@ -1,6 +1,7 @@
 import {
   BOARD,
   CAMERA,
+  applyClayPieceMaterials,
   clonePieceVisualTemplate,
   pieceGlbSideForPlayer,
   type EnginePiece,
@@ -137,6 +138,7 @@ async function loadVariantTemplate(
 ): Promise<StoneTemplate> {
   const file = boopVaseGlbFor(player, variant);
   const scene = await loadGltfScene(vaseAssetUrl(file));
+  applyClayPieceMaterials(scene, player === 'B' ? 'dark' : 'light');
   return prepareVisualTemplate(scene, scale);
 }
 

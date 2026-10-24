@@ -25,6 +25,7 @@ import {
   tagPlayfieldForShadows,
 } from './board-lighting';
 import { createBoardRenderPipeline } from './board-render-pipeline';
+import { clayEnvMaterial, clayMaterialForPlayer, syncClayMaterialTheme } from './clay-materials';
 import { applyBoardEnvironment, createBoardWebGLRenderer, measureBoardFrameMs } from './board-renderer';
 import { BoardAssistLayer, type AssistGhostPieceRenderer } from './board-assist';
 import { WIN_ACCENT } from './theme';
@@ -158,13 +159,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const edgeCache = new Map<THREE.BufferGeometry, THREE.EdgesGeometry>();
   let outlineMaterial = new THREE.MeshBasicMaterial({ color: '#000000', side: THREE.BackSide });
   let edgeMaterials: Record<string, THREE.LineBasicMaterial> = {};
-  let pieceMaterials: Record<string, THREE.MeshBasicMaterial> = {};
+  let pieceMaterials: Record<string, THREE.MeshStandardMaterial> = {};
   let ghostMaterials: Record<string, THREE.MeshBasicMaterial> = {};
-  let boardMaterial = new THREE.MeshBasicMaterial({
-    color: tokens.board,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-  });
+  let boardMaterial: THREE.MeshStandardMaterial = clayEnvMaterial();
   let gridMaterial = new THREE.MeshBasicMaterial({
     color: tokens.lines,
     side: THREE.DoubleSide,
@@ -172,22 +169,23 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   });
   function rebuildMaterials() {
     tokens = themeTokens(themeId);
+    syncClayMaterialTheme(themeId);
+    boardMaterial = clayEnvMaterial();
     applyPlayfieldBackdrop(scene, tokens.table);
-    boardMaterial.color.set(tokens.board);
     gridMaterial.color.set(tokens.lines);
     outlineMaterial.dispose();
     outlineMaterial = new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.BackSide });
     for (const m of Object.values(edgeMaterials)) m.dispose();
-    for (const m of Object.values(pieceMaterials)) m.dispose();
     for (const m of Object.values(ghostMaterials)) m.dispose();
     edgeMaterials = {};
-    pieceMaterials = {};
     ghostMaterials = {};
+    pieceMaterials = {};
     for (const player of players) {
       const t = tokens.piece[player] ?? tokens.piece.A!;
       edgeMaterials[player] = new THREE.LineBasicMaterial({ color: t.edge, transparent: true, opacity: 0.85 });
-      pieceMaterials[player] = new THREE.MeshBasicMaterial({ color: t.fill, toneMapped: false });
-      pieceMaterials[`${player}Selected`] = new THREE.MeshBasicMaterial({ color: t.fill, toneMapped: false });
+      const clay = clayMaterialForPlayer(player);
+      pieceMaterials[player] = clay;
+      pieceMaterials[`${player}Selected`] = clay;
       ghostMaterials[player] = new THREE.MeshBasicMaterial({
         color: t.fill,
         transparent: true,

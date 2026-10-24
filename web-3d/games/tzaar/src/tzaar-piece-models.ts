@@ -7,6 +7,7 @@ import {
   tzaarPieceGeometrySet,
   type EnginePiece,
   type PieceGeometrySet,
+  applyClayPieceMaterials,
   clonePieceVisualTemplate,
   pieceGlbSideForPlayer,
   type TzaarKind,
@@ -52,27 +53,6 @@ function modelUrl(path: string): string {
   return new URL(`${prefix}${path}`, origin).href;
 }
 
-/** sRGB/linear map setup only — stone-mixed-final albedo and PBR stay as authored. */
-export function configureTzaarStoneMaterials(object: THREE.Object3D, _side?: TzaarStoneSide): void {
-  object.traverse(node => {
-    if (!(node instanceof THREE.Mesh)) return;
-    const mats = Array.isArray(node.material) ? node.material : [node.material];
-    for (const mat of mats) {
-      if (mat instanceof THREE.MeshPhysicalMaterial || mat instanceof THREE.MeshStandardMaterial) {
-        if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
-        if (mat.normalMap) mat.normalMap.colorSpace = THREE.LinearSRGBColorSpace;
-        mat.envMapIntensity = 1;
-        mat.needsUpdate = true;
-        continue;
-      }
-      if (mat instanceof THREE.MeshBasicMaterial) {
-        if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
-        mat.needsUpdate = true;
-      }
-    }
-  });
-}
-
 function anchorObjectBaseToY0(object: THREE.Object3D): void {
   object.updateMatrixWorld(true);
   _box.setFromObject(object);
@@ -89,7 +69,6 @@ function prepareTemplate(scene: THREE.Object3D): THREE.Object3D {
   root.scale.setScalar(TZAAR_GLB_WORLD_SCALE);
   root.updateMatrixWorld(true);
   anchorObjectBaseToY0(root);
-  configureTzaarStoneMaterials(root);
   root.updateMatrixWorld(true);
   return root;
 }
@@ -109,6 +88,8 @@ async function buildTemplates(): Promise<TzaarTemplates> {
     loadScene(modelUrl(TZAAR_MODEL.tottWhite)),
     loadScene(modelUrl(TZAAR_MODEL.tottBlack)),
   ]);
+  for (const scene of [tzaarWhite, tzarraWhite, tottWhite]) applyClayPieceMaterials(scene, 'light');
+  for (const scene of [tzaarBlack, tzarraBlack, tottBlack]) applyClayPieceMaterials(scene, 'dark');
   return {
     tzaar: { A: prepareTemplate(tzaarWhite), B: prepareTemplate(tzaarBlack) },
     tzarra: { A: prepareTemplate(tzarraWhite), B: prepareTemplate(tzarraBlack) },
@@ -150,13 +131,11 @@ export async function loadTzaarPieceGeometrySet(): Promise<PieceGeometrySet> {
       createVisual(piece) {
         const root = new THREE.Group();
         const model = clonePieceVisualTemplate(templateFor(templates, piece));
-        configureTzaarStoneMaterials(model);
         mountModel(root, model);
         return root;
       },
       replaceVisual(root, piece) {
         const model = clonePieceVisualTemplate(templateFor(templates, piece));
-        configureTzaarStoneMaterials(model);
         mountModel(root as THREE.Group, model);
       },
       onThemeChange(id) {

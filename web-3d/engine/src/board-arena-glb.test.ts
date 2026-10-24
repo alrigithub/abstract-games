@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { applyArenaGlbThemeMaterials, tagArenaGlbForShadows } from './board-arena-glb';
-import { DARK_ARENA_SURFACE, LIGHT_ARENA_SURFACE } from './theme';
+import { CLAY } from './constants';
+import { syncClayMaterialTheme } from './clay-materials';
 
 describe('board arena glb helpers', () => {
   it('tags arena meshes to cast and receive shadows', () => {
@@ -13,20 +14,19 @@ describe('board arena glb helpers', () => {
     expect(mesh.receiveShadow).toBe(true);
   });
 
-  it('retints standard materials from theme arenaSurface tokens', () => {
+  it('assigns shared clay ENV material regardless of authored GLB colors', () => {
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1),
       new THREE.MeshStandardMaterial({ color: 0xffffff }),
     );
     const root = new THREE.Group();
     root.add(mesh);
-    applyArenaGlbThemeMaterials(root, 'dark');
-    expect(`#${(mesh.material as THREE.MeshStandardMaterial).color.getHexString()}`).toBe(
-      DARK_ARENA_SURFACE,
-    );
+    syncClayMaterialTheme('light');
     applyArenaGlbThemeMaterials(root, 'light');
-    expect(`#${(mesh.material as THREE.MeshStandardMaterial).color.getHexString()}`).toBe(
-      LIGHT_ARENA_SURFACE,
-    );
+    expect(`#${(mesh.material as THREE.MeshStandardMaterial).color.getHexString()}`).toBe(CLAY.ENV);
+    syncClayMaterialTheme('dark');
+    applyArenaGlbThemeMaterials(root, 'dark');
+    expect(`#${(mesh.material as THREE.MeshStandardMaterial).color.getHexString()}`).toBe(CLAY.ENV_DARK);
+    syncClayMaterialTheme('light');
   });
 });
