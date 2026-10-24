@@ -7,6 +7,13 @@ import type { BoardBuildContext, BoardSnapshot, Topology, YinshCoord } from '../
 const BOARD_RADIUS_SQ = 4.6 * 4.6;
 const SQRT3 = Math.sqrt(3);
 
+/** Step along each of the three Yinsh line families (see `yinsh::Direction::AXES`). */
+const SEGMENT_DIRS: readonly YinshCoord[] = [
+  { x: -1, y: 0 },
+  { x: -1, y: -1 },
+  { x: 0, y: 1 },
+];
+
 export function isYinshCoordInside(coord: YinshCoord): boolean {
   const x = coord.x;
   const y = coord.y;
@@ -21,8 +28,11 @@ export function allYinshCoords(): YinshCoord[] {
       if (isYinshCoordInside(coord)) coords.push(coord);
     }
   }
+  coords.sort((a, b) => a.x - b.x || a.y - b.y);
   return coords;
 }
+
+export const YINSH_COORDS = allYinshCoords();
 
 export function yinshCoordKey(coord: YinshCoord): string {
   return `${coord.x},${coord.y}`;
@@ -36,11 +46,55 @@ export function yinshWorldPoint(coord: YinshCoord, spacing: number = YINSH.SPACI
   );
 }
 
+function addCoord(a: YinshCoord, b: YinshCoord): YinshCoord {
+  return { x: a.x + b.x, y: a.y + b.y };
+}
+
+function convexHullXZ(points: THREE.Vector2[]): THREE.Vector2[] {
+  if (points.length < 3) return points;
+  const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+  const cross = (o: THREE.Vector2, a: THREE.Vector2, b: THREE.Vector2) =>
+    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const lower: THREE.Vector2[] = [];
+  for (const p of sorted) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2]!, lower[lower.length - 1]!, p) <= 0) lower.pop();
+    lower.push(p);
+  }
+  const upper: THREE.Vector2[] = [];
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const p = sorted[i]!;
+    while (upper.length >= 2 && cross(upper[upper.length - 2]!, upper[upper.length - 1]!, p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  lower.pop();
+  upper.pop();
+  return lower.concat(upper);
+}
+
+function expandPolygon(poly: THREE.Vector2[], margin: number): THREE.Vector2[] {
+  const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length;
+  const cy = poly.reduce((s, p) => s + p.y, 0) / poly.length;
+  return poly.map(p => {
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    const len = Math.hypot(dx, dy) || 1;
+    return new THREE.Vector2(p.x + (dx / len) * margin, p.y + (dy / len) * margin);
+  });
+}
+
+function boardOutlinePolygon(spacing: number): THREE.Vector2[] {
+  const xz = YINSH_COORDS.map(c => {
+    const p = yinshWorldPoint(c, spacing);
+    return new THREE.Vector2(p.x, p.z);
+  });
+  const hull = convexHullXZ(xz);
+  return expandPolygon(hull, YINSH.RING_OUTER * 0.35);
+}
+
 function nearestCoord(x: number, z: number, spacing: number = YINSH.SPACING): { coord: YinshCoord; distSq: number } {
-  const coords = allYinshCoords();
-  let best = coords[0]!;
+  let best = YINSH_COORDS[0]!;
   let bestDist = Infinity;
-  for (const coord of coords) {
+  for (const coord of YINSH_COORDS) {
     const p = yinshWorldPoint(coord, spacing);
     const dx = p.x - x;
     const dz = p.z - z;
@@ -53,57 +107,69 @@ function nearestCoord(x: number, z: number, spacing: number = YINSH.SPACING): { 
   return { coord: best, distSq: bestDist };
 }
 
-function drawHexLines(ctx: BoardBuildContext, spacing: number) {
+function drawYinshGridSegments(ctx: BoardBuildContext, spacing: number) {
+  const inside = new Set(YINSH_COORDS.map(yinshCoordKey));
   const lineWidth = BOARD.LINE_W;
-  const addLine = (start: THREE.Vector3, end: THREE.Vector3) => {
-    const dx = end.x - start.x;
-    const dz = end.z - start.z;
-    const length = Math.hypot(dx, dz) + lineWidth;
-    const geo = new THREE.PlaneGeometry(lineWidth, length);
-    ctx.boardGeometries.push(geo);
-    const line = new THREE.Mesh(geo, ctx.gridMaterial);
-    line.rotation.x = -Math.PI / 2;
-    line.rotation.y = Math.atan2(dx, dz);
-    line.position.set((start.x + end.x) / 2, 0.002, (start.z + end.z) / 2);
-    ctx.board.add(line);
+  const lineY = 0.006;
+  const positions: number[] = [];
+  const halfW = lineWidth * 0.5;
+
+  const pushQuad = (a: THREE.Vector3, b: THREE.Vector3) => {
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-5) return;
+    const px = (-dz / len) * halfW;
+    const pz = (dx / len) * halfW;
+    const y = lineY;
+    positions.push(
+      a.x + px, y, a.z + pz,
+      a.x - px, y, a.z - pz,
+      b.x - px, y, b.z - pz,
+      a.x + px, y, a.z + pz,
+      b.x - px, y, b.z - pz,
+      b.x + px, y, b.z + pz,
+    );
   };
 
-  for (let x = -5; x <= 5; x++) {
-    const coords = allYinshCoords().filter(c => c.x === x);
-    if (!coords.length) continue;
-    const minY = Math.min(...coords.map(c => c.y));
-    const maxY = Math.max(...coords.map(c => c.y));
-    addLine(yinshWorldPoint({ x, y: minY }, spacing), yinshWorldPoint({ x, y: maxY }, spacing));
+  for (const coord of YINSH_COORDS) {
+    const a = yinshWorldPoint(coord, spacing);
+    for (const dir of SEGMENT_DIRS) {
+      const neighbor = addCoord(coord, dir);
+      if (!inside.has(yinshCoordKey(neighbor))) continue;
+      const b = yinshWorldPoint(neighbor, spacing);
+      pushQuad(a, b);
+    }
   }
-  for (let y = -5; y <= 5; y++) {
-    const coords = allYinshCoords().filter(c => c.y === y);
-    if (!coords.length) continue;
-    const minX = Math.min(...coords.map(c => c.x));
-    const maxX = Math.max(...coords.map(c => c.x));
-    addLine(yinshWorldPoint({ x: minX, y }, spacing), yinshWorldPoint({ x: maxX, y }, spacing));
-  }
-  for (let d = -5; d <= 5; d++) {
-    const coords = allYinshCoords().filter(c => c.y === c.x + d);
-    if (!coords.length) continue;
-    const minX = Math.min(...coords.map(c => c.x));
-    const maxX = Math.max(...coords.map(c => c.x));
-    addLine(
-      yinshWorldPoint({ x: minX, y: minX + d }, spacing),
-      yinshWorldPoint({ x: maxX, y: maxX + d }, spacing),
-    );
-  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.computeVertexNormals();
+  ctx.boardGeometries.push(geo);
+  const grid = new THREE.Mesh(geo, ctx.gridMaterial);
+  grid.renderOrder = 2;
+  ctx.board.add(grid);
 }
 
 function buildYinshBoardSurface(ctx: BoardBuildContext, spacing: number) {
-  const extent = spacing * 5.65;
-  const thin = 0.028;
-  const slab = new THREE.CylinderGeometry(extent, extent, thin, 6, 1);
-  ctx.boardGeometries.push(slab);
-  const slabMesh = new THREE.Mesh(slab, ctx.boardMaterial);
-  slabMesh.position.y = -thin / 2;
+  ctx.gridMaterial.depthWrite = false;
+  const outline = boardOutlinePolygon(spacing);
+  const thin = BOARD.TAK_SLAB;
+  const shape = new THREE.Shape();
+  shape.moveTo(outline[0]!.x, outline[0]!.y);
+  for (let i = 1; i < outline.length; i++) shape.lineTo(outline[i]!.x, outline[i]!.y);
+  shape.closePath();
+  const slabGeo = new THREE.ExtrudeGeometry(shape, { depth: thin, bevelEnabled: false });
+  slabGeo.rotateX(-Math.PI / 2);
+  slabGeo.computeBoundingBox();
+  const slabMaxY = slabGeo.boundingBox!.max.y;
+  slabGeo.translate(0, -slabMaxY, 0);
+  ctx.boardGeometries.push(slabGeo);
+  const slabMesh = new THREE.Mesh(slabGeo, ctx.boardMaterial);
   ctx.board.add(slabMesh);
-  ctx.board.add(createContactShadowBlob(extent * 2));
-  drawHexLines(ctx, spacing);
+  const span = outline.reduce((m, p) => Math.max(m, Math.abs(p.x), Math.abs(p.y)), 0) * 2;
+  ctx.board.add(createContactShadowBlob(span, thin));
+  drawYinshGridSegments(ctx, spacing);
 }
 
 export interface YinshTopologyOptions {
@@ -112,63 +178,76 @@ export interface YinshTopologyOptions {
 
 export function createYinshTopology(options: YinshTopologyOptions = {}): Topology {
   const spacing = options.spacing ?? YINSH.SPACING;
-  const coords = allYinshCoords();
-  const indexByKey = new Map(coords.map((c, i) => [yinshCoordKey(c), i]));
+  const indexByKey = new Map(YINSH_COORDS.map((c, i) => [yinshCoordKey(c), i]));
 
   return {
     cellPosition(index, _snapshot) {
-      const coord = coords[index];
+      const coord = YINSH_COORDS[index];
       return coord ? yinshWorldPoint(coord, spacing) : new THREE.Vector3();
     },
     cellAtWorld(x, z, _snapshot) {
       const { coord, distSq } = nearestCoord(x, z, spacing);
-      const pickRadius = spacing * 0.42;
+      const pickRadius = spacing * 0.38;
       if (distSq > pickRadius * pickRadius) return null;
       return indexByKey.get(yinshCoordKey(coord)) ?? null;
     },
     projectCell(index, _snapshot) {
-      const coord = coords[index];
+      const coord = YINSH_COORDS[index];
       return coord ? yinshWorldPoint(coord, spacing) : new THREE.Vector3();
     },
     buildBoard(ctx) {
       buildYinshBoardSurface(ctx, spacing);
       return true;
     },
-    frameCorners(_snapshot: BoardSnapshot) {
+    frameCorners(snapshot: BoardSnapshot) {
       const points: THREE.Vector3[] = [];
-      const margin = spacing * 0.55;
-      for (const coord of coords) {
-        const p = yinshWorldPoint(coord, spacing);
-        points.push(new THREE.Vector3(p.x - margin, 0, p.z - margin));
-        points.push(new THREE.Vector3(p.x + margin, 0, p.z + margin));
+      const margin = YINSH.RING_OUTER + spacing * 0.08;
+      for (const p of boardOutlinePolygon(spacing)) {
+        points.push(new THREE.Vector3(p.x, 0, p.y));
       }
-      const rackX = extentRackX(spacing);
-      for (const side of [-1, 1]) {
-        for (let slot = 0; slot < 3; slot++) {
-          const z = spacing * (slot - 1) * 0.85;
-          points.push(new THREE.Vector3(side * rackX, 0, z));
-        }
+      for (const coord of YINSH_COORDS) {
+        const c = yinshWorldPoint(coord, spacing);
+        points.push(new THREE.Vector3(c.x, 0, c.z));
+      }
+      for (const slot of snapshot.reserves ?? []) {
+        if (slot.count <= 0) continue;
+        const { x, z } = slot.position;
+        const pad = margin * 1.35;
+        points.push(
+          new THREE.Vector3(x - pad, 0, z - pad),
+          new THREE.Vector3(x + pad, 0, z + pad),
+          new THREE.Vector3(x, YINSH.RING_HEIGHT, z),
+        );
       }
       return points;
     },
   };
 }
 
-function extentRackX(spacing: number): number {
-  const coords = allYinshCoords();
-  let maxX = 0;
-  for (const c of coords) maxX = Math.max(maxX, Math.abs(yinshWorldPoint(c, spacing).x));
-  return maxX + spacing * 1.15;
+export function yinshBoardExtents(spacing: number = YINSH.SPACING): { minX: number; maxX: number; minZ: number; maxZ: number } {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const c of YINSH_COORDS) {
+    const p = yinshWorldPoint(c, spacing);
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minZ = Math.min(minZ, p.z);
+    maxZ = Math.max(maxZ, p.z);
+  }
+  return { minX, maxX, minZ, maxZ };
 }
 
-/** Side rack slot for scored rings (three per player), matching Bevy Yinsh GUI layout. */
+/** Side rack slot for scored rings (three per player). */
 export function yinshRackPosition(player: 'A' | 'B', slot: number, spacing: number = YINSH.SPACING): { x: number; z: number } {
-  const rackX = extentRackX(spacing);
-  const step = spacing * 0.85;
-  const side = player === 'A' ? -1 : 1;
-  return { x: side * rackX, z: (slot - 1) * step };
+  const { minX, maxX } = yinshBoardExtents(spacing);
+  const gap = YINSH.RING_OUTER * 1.35;
+  const step = spacing * 0.82;
+  const x = player === 'A' ? minX - gap : maxX + gap;
+  return { x, z: (slot - 1) * step };
 }
 
 export function yinshIndex(coord: YinshCoord): number {
-  return allYinshCoords().findIndex(c => c.x === coord.x && c.y === coord.y);
+  return YINSH_COORDS.findIndex(c => c.x === coord.x && c.y === coord.y);
 }

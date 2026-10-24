@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { BOARD } from '../constants';
 
 /** Baked elliptical contact blob under the board (no shadow maps). */
-export function createContactShadowBlob(scale: number): THREE.Mesh {
+export function createContactShadowBlob(scale: number, slabThickness: number = BOARD.SLAB): THREE.Mesh {
   const size = 512;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
@@ -23,7 +23,7 @@ export function createContactShadowBlob(scale: number): THREE.Mesh {
   });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
   mesh.rotation.x = -Math.PI / 2;
-  mesh.position.y = -BOARD.SLAB / 2 - 0.002;
+  mesh.position.y = -slabThickness / 2 - 0.002;
   mesh.scale.setScalar(scale * BOARD.CONTACT_BLOB_SOFT_SCALE);
   mesh.renderOrder = 0;
   return mesh;

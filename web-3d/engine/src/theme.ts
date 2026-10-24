@@ -49,6 +49,20 @@ export function readStoredTheme(): ThemeId {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+export function bindThemeToggle(button: HTMLElement, apply: (theme: ThemeId) => void): () => void {
+  let theme = readStoredTheme();
+  apply(theme);
+  document.documentElement.dataset.theme = theme;
+  const onClick = () => {
+    theme = theme === 'light' ? 'dark' : 'light';
+    storeTheme(theme);
+    apply(theme);
+    document.documentElement.dataset.theme = theme;
+  };
+  button.addEventListener('click', onClick);
+  return () => button.removeEventListener('click', onClick);
+}
+
 export function storeTheme(id: ThemeId): void {
   try {
     localStorage.setItem(THEME_STORAGE_KEY, id);

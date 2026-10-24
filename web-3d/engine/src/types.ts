@@ -60,8 +60,14 @@ export interface PieceGeometrySet {
   geometry(piece: EnginePiece): THREE.BufferGeometry;
   /** Stable yaw for visual variety. */
   yaw(id: string): number;
+  /** EdgesGeometry threshold angle (degrees). */
+  edgeThreshold?: number;
   /** Optional stack Y tweak (e.g. marker seated inside a ring). */
   verticalOffset?(piece: EnginePiece, stackIndex: number, stack: EnginePiece[]): number;
+  /** When false, skip inverted-hull outline (e.g. solid Yinsh markers). */
+  useOutline?(piece: EnginePiece): boolean;
+  /** Override fill material(s); return null to use theme player color. */
+  materialFor?(piece: EnginePiece, tokens: ThemeTokens, selected?: boolean): THREE.Material | THREE.Material[] | null;
 }
 
 export interface YinshCoord {
@@ -86,7 +92,7 @@ export interface Topology {
   projectCell(index: number, snapshot: BoardSnapshot): THREE.Vector3;
   /** Custom board mesh/lines; return true to skip the default square slab grid. */
   buildBoard?(ctx: BoardBuildContext): boolean;
-  /** Extra world points for camera framing (e.g. hex boards and side racks). */
+  /** Extra world points for camera framing (e.g. hex boards, exterior piles, side racks). */
   frameCorners?(snapshot: BoardSnapshot): THREE.Vector3[];
 }
 
@@ -121,7 +127,7 @@ export interface SceneApi {
   cellScreen(index: number): Point;
   /** Queue AI / remote moves through the same animation path. */
   enqueueAnimation(task: () => Promise<void>): void;
-  /** Rotate a marker (or other flippable piece) 180° about X with a mid-flip owner swap. */
+  /** Animate a flippable piece (Yinsh marker, Tak flat/standing stone). */
   flipPiece(pieceId: string): Promise<void>;
   flipPieces(pieceIds: string[], staggerMs?: number): Promise<void>;
   dispose(): void;

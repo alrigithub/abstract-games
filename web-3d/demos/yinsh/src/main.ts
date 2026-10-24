@@ -1,5 +1,5 @@
 import {
-  allYinshCoords,
+  YINSH_COORDS,
   createBoardScene,
   createYinshMarkerGeometry,
   createYinshRingGeometry,
@@ -14,8 +14,7 @@ import {
   type ThemeId,
 } from '@abstract/three-engine';
 
-const coords = allYinshCoords();
-const cellCount = coords.length;
+const cellCount = YINSH_COORDS.length;
 const topology = createYinshTopology();
 
 const ringGeo = createYinshRingGeometry();
@@ -34,25 +33,25 @@ function at(x: number, y: number): number {
 
 const cells: EnginePiece[][] = Array.from({ length: cellCount }, () => []);
 
-cells[at(0, 0)] = cell(
-  { id: 'ring-w', player: 'A', shape: 'ring' },
+cells[at(-2, 1)] = cell(
+  { id: 'ring-w0', player: 'A', shape: 'ring' },
   { id: 'marker-center', player: 'A', shape: 'marker' },
 );
-cells[at(1, 0)] = cell({ id: 'ring-b1', player: 'B', shape: 'ring' });
-cells[at(2, 0)] = cell(
-  { id: 'ring-w2', player: 'A', shape: 'ring' },
+cells[at(-1, 1)] = cell({ id: 'ring-b0', player: 'B', shape: 'ring' });
+cells[at(0, 1)] = cell(
+  { id: 'ring-w1', player: 'A', shape: 'ring' },
   { id: 'marker-flip-a', player: 'A', shape: 'marker' },
 );
-cells[at(3, 0)] = cell(
-  { id: 'ring-b2', player: 'B', shape: 'ring' },
+cells[at(1, 1)] = cell(
+  { id: 'ring-b1', player: 'B', shape: 'ring' },
   { id: 'marker-flip-b', player: 'B', shape: 'marker' },
 );
-cells[at(4, 0)] = cell(
-  { id: 'ring-w3', player: 'A', shape: 'ring' },
+cells[at(2, 1)] = cell(
+  { id: 'ring-w2', player: 'A', shape: 'ring' },
   { id: 'marker-flip-c', player: 'A', shape: 'marker' },
 );
-cells[at(0, 1)] = cell({ id: 'ring-move', player: 'A', shape: 'ring' });
-cells[at(-1, -1)] = cell({ id: 'ring-far', player: 'B', shape: 'ring' });
+cells[at(0, 0)] = cell({ id: 'ring-solo', player: 'B', shape: 'ring' });
+cells[at(-1, 0)] = cell({ id: 'ring-a-solo', player: 'A', shape: 'ring' });
 
 const reserves: BoardSnapshot['reserves'] = [];
 for (const player of ['A', 'B'] as const) {

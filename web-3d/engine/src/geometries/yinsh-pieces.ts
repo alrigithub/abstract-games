@@ -1,23 +1,20 @@
 import * as THREE from 'three';
 import { BOARD } from '../constants';
-import type { EnginePiece, PieceGeometrySet } from '../types';
+import type { EnginePiece, PieceGeometrySet, ThemeTokens } from '../types';
+import { anchorGeometryBaseToY0 } from './anchor';
 
 /** Physical set ratios from `yinsh_gui` (annulus 20–25 mm, marker Ø32 mm). */
 export const YINSH = {
-  /** Distance between hex intersection centers (world units). */
   SPACING: 1,
-  /** Ring outer radius (25/80 of legacy spacing). */
+  /** Outer radius 25 mm at 80 mm spacing. */
   RING_OUTER: 0.3125,
-  /** Ring inner radius (hole for marker). */
-  RING_INNER: 0.25,
-  /** Marker disc radius. */
-  MARKER_RADIUS: 0.2,
-  /** Flat ring thickness (~8% of outer diameter). */
-  RING_HEIGHT: 0.05,
-  /** Two-sided marker disc thickness (~6% of marker diameter). */
-  MARKER_HEIGHT: 0.012,
-  /** Crease edges on the low ring profile. */
-  EDGE_THRESHOLD: 12,
+  /** Inner hole 20 mm — wide enough for a marker with clearance. */
+  RING_INNER: 0.22,
+  /** Marker radius 16 mm — solid disc inside the ring hole. */
+  MARKER_RADIUS: 0.16,
+  RING_HEIGHT: 0.056,
+  MARKER_HEIGHT: 0.014,
+  EDGE_THRESHOLD: 18,
 } as const;
 
 function flatAnnulus(inner: number, outer: number, depth: number): THREE.BufferGeometry {
@@ -28,10 +25,7 @@ function flatAnnulus(inner: number, outer: number, depth: number): THREE.BufferG
   shape.holes.push(hole);
   const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: BOARD.RADIAL_SEGMENTS });
   geo.rotateX(-Math.PI / 2);
-  geo.translate(0, depth / 2, 0);
-  geo.computeBoundingBox();
-  geo.computeBoundingSphere();
-  return geo;
+  return anchorGeometryBaseToY0(geo);
 }
 
 export function createYinshRingGeometry(): THREE.BufferGeometry {
@@ -47,9 +41,20 @@ export function createYinshMarkerGeometry(): THREE.BufferGeometry {
     1,
     false,
   );
-  geo.computeBoundingBox();
-  geo.computeBoundingSphere();
-  return geo;
+  return anchorGeometryBaseToY0(geo);
+}
+
+export function yinshMarkerMaterials(player: string, tokens: ThemeTokens): THREE.Material[] {
+  const white = tokens.piece.A!.fill;
+  const black = tokens.piece.B!.fill;
+  const edge = tokens.lines;
+  const topColor = player === 'A' ? white : black;
+  const bottomColor = player === 'A' ? black : white;
+  return [
+    new THREE.MeshBasicMaterial({ color: topColor, toneMapped: false }),
+    new THREE.MeshBasicMaterial({ color: bottomColor, toneMapped: false }),
+    new THREE.MeshBasicMaterial({ color: edge, toneMapped: false }),
+  ];
 }
 
 export function yinshPieceGeometrySet(ring: THREE.BufferGeometry, marker: THREE.BufferGeometry): PieceGeometrySet {
@@ -64,17 +69,25 @@ export function yinshPieceGeometrySet(ring: THREE.BufferGeometry, marker: THREE.
     height(piece: EnginePiece) {
       return piece.shape === 'marker' ? markerHeight : ringHeight;
     },
+    edgeThreshold: YINSH.EDGE_THRESHOLD,
+    useOutline(piece: EnginePiece) {
+      return piece.shape === 'ring';
+    },
+    materialFor(piece: EnginePiece, tokens: ThemeTokens) {
+      if (piece.shape !== 'marker') return null;
+      return yinshMarkerMaterials(piece.player, tokens);
+    },
     verticalOffset(piece: EnginePiece, stackIndex: number, stack: EnginePiece[]) {
       if (piece.shape !== 'marker' || stackIndex === 0) return 0;
       const hasRingBelow = stack.slice(0, stackIndex).some(p => p.shape === 'ring');
       if (!hasRingBelow) return 0;
-      return -(ringHeight - markerHeight * 0.5);
+      return -ringHeight;
     },
     yaw(id: string) {
       if (!id.startsWith('ring')) return 0;
       let hash = 0;
       for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
-      return ((hash >>> 0) % 1000) / 1000 * (Math.PI / 10);
+      return ((hash >>> 0) % 1000) / 1000 * (Math.PI / 12);
     },
   };
 }

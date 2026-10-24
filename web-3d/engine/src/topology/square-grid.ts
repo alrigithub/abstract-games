@@ -1,5 +1,21 @@
 import * as THREE from 'three';
-import type { BoardSnapshot, Topology } from '../types';
+import type { BoardSnapshot, EnginePiece, Topology } from '../types';
+
+/** Conservative stack heights for camera framing (matches Tak / Go piece scales). */
+const FRAME_PIECE_HEIGHT: Record<string, number> = {
+  flat: 0.18,
+  standing: 0.68,
+  capstone: 0.78,
+  stone: 0.22,
+  ring: 0.05,
+  marker: 0.012,
+  cat: 0.35,
+  kitten: 0.28,
+};
+
+function stackTopHeight(stack: EnginePiece[]): number {
+  return stack.reduce((sum, piece) => sum + (FRAME_PIECE_HEIGHT[piece.shape] ?? 0.25), 0);
+}
 
 export interface SquareGridOptions {
   /** Playable board width/height in cells. */
@@ -48,5 +64,20 @@ export function createSquareTopology(options: SquareGridOptions): Topology {
       return cellIndex(size, row, col, outsideRows);
     },
     projectCell: (index, _snapshot) => cell(index),
+    frameCorners(snapshot: BoardSnapshot) {
+      const points: THREE.Vector3[] = [];
+      const pad = 0.55;
+      snapshot.cells.forEach((stack, index) => {
+        if (!stack.length) return;
+        const pos = cell(index);
+        const top = stackTopHeight(stack) + 0.08;
+        for (const dx of [-pad, pad]) {
+          for (const dz of [-pad, pad]) {
+            points.push(new THREE.Vector3(pos.x + dx, 0, pos.z + dz), new THREE.Vector3(pos.x + dx, top, pos.z + dz));
+          }
+        }
+      });
+      return points;
+    },
   };
 }

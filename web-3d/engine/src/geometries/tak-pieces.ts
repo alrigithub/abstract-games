@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BOARD } from '../constants';
 import type { PieceGeometrySet } from '../types';
+import { anchorGeometryBaseToY0 } from './anchor';
 
 /** Tak silhouettes from IMPLEMENTED.md (Alex sketch override): boxes + truncated pyramid capstone. */
 function createTruncatedPyramid(base: number, top: number, height: number): THREE.BufferGeometry {
@@ -27,10 +28,8 @@ export function createTakPieceGeometries(): {
   standing: THREE.BufferGeometry;
   capstone: THREE.BufferGeometry;
 } {
-  const flat = new THREE.BoxGeometry(0.68, 0.18, 0.68);
-  flat.computeBoundingBox();
-  const standing = new THREE.BoxGeometry(0.68, 0.68, 0.18);
-  standing.computeBoundingBox();
+  const flat = anchorGeometryBaseToY0(new THREE.BoxGeometry(0.68, 0.18, 0.68));
+  const standing = anchorGeometryBaseToY0(new THREE.BoxGeometry(0.68, 0.68, 0.18));
   const capstone = createTruncatedPyramid(0.56, 0.28, 0.78);
   return { flat, standing, capstone };
 }
@@ -50,6 +49,7 @@ export function takPieceGeometrySet(geos: ReturnType<typeof createTakPieceGeomet
       const box = geo.boundingBox!;
       return box.max.y - box.min.y;
     },
+    edgeThreshold: BOARD.EDGE_THRESHOLD_TAK,
     yaw(id: string) {
       let hash = 2166136261;
       for (let i = 0; i < id.length; i++) hash = Math.imul(hash ^ id.charCodeAt(i), 16777619);
