@@ -145,6 +145,9 @@ export interface SceneApi {
   cellScreen(index: number): Point;
   /** Queue AI / remote moves through the same animation path. */
   enqueueAnimation(task: () => Promise<void>): void;
+  /** True while {@link enqueueAnimation} tasks or tweens are still running. */
+  animationsBusy(): boolean;
+  drainAnimations(): Promise<void>;
   /** Animate a flippable piece (Yinsh marker, Tak flat/standing stone). */
   flipPiece(pieceId: string): Promise<void>;
   flipPieces(pieceIds: string[], staggerMs?: number): Promise<void>;

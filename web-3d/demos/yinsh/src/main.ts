@@ -27,6 +27,7 @@ import { movesInclude, possibleMoves } from './game/moves';
 import { phaseLabel, statusLine } from './game/phase';
 import { markerIdsOnRingMove, moveNeedsFlip } from './game/visual';
 import { coordToIndex, indexToCoord } from './game/cells';
+import { chooseAiMove } from './game/ai';
 import type { Move } from './game/state';
 import type { Player } from './game/player';
 
@@ -175,12 +176,21 @@ async function runAiTurn(): Promise<void> {
     if (event.data.id !== gen || gen !== aiGeneration) return;
     aiWorker?.terminate();
     aiWorker = null;
-    aiPending = false;
     const move = event.data.move;
     void scene.enqueueAnimation(async () => {
-      if (move) await performMove(move);
+      const applied =
+        move ??
+        (() => {
+          try {
+            return chooseAiMove(game, 2);
+          } catch {
+            return null;
+          }
+        })();
+      if (applied) await performMove(applied);
       renderStatus();
-      if (!game.winner() && game.activePlayer === aiPlayer) await runAiTurn();
+      aiPending = false;
+      maybeAiTurn();
     });
   };
   aiWorker.postMessage({ id: gen, state: serializeForWorker(game), maxDepth: depth });
@@ -318,19 +328,13 @@ if (urlParams.get('shot') === 'ring-closeup') {
   startGame('A');
 }
 
-function waitForSettled(timeoutMs = 20_000): Promise<void> {
+async function waitForSettled(timeoutMs = 20_000): Promise<void> {
   const start = performance.now();
-  return new Promise((resolve, reject) => {
-    const tick = () => {
-      if (aiPending) {
-        if (performance.now() - start > timeoutMs) reject(new Error('AI timeout'));
-        else requestAnimationFrame(tick);
-        return;
-      }
-      resolve();
-    };
-    tick();
-  });
+  while (aiPending) {
+    if (performance.now() - start > timeoutMs) throw new Error('AI timeout');
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  }
+  await scene.drainAnimations();
 }
 
 function pickPriorityMove(moves: Move[]): Move | null {

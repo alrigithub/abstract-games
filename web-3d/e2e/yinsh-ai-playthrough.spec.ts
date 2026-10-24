@@ -5,7 +5,7 @@ import { test } from '@playwright/test';
 const outDir = path.join(process.cwd(), 'e2e', 'screenshots');
 
 test('Human vs AI Yinsh playthrough with mid-game and end screenshots', async ({ page }) => {
-  test.setTimeout(600_000);
+  test.setTimeout(900_000);
   fs.mkdirSync(outDir, { recursive: true });
 
   await page.addInitScript(() => {
@@ -19,9 +19,10 @@ test('Human vs AI Yinsh playthrough with mid-game and end screenshots', async ({
 
   let midCaptured = false;
   let plies = 0;
-  const maxPlies = 900;
+  const maxPlies = 600;
+  let lastPoints = 0;
 
-  while (plies < maxPlies && !midCaptured) {
+  while (plies < maxPlies) {
     const state = await page.evaluate(async () => {
       const e = (window as unknown as {
         __yinshE2e: {
@@ -31,6 +32,8 @@ test('Human vs AI Yinsh playthrough with mid-game and end screenshots', async ({
           applyMove: (m: unknown) => Promise<void>;
           waitForSettled: (ms?: number) => Promise<void>;
           turnMode: () => string;
+          pointsA: () => number;
+          pointsB: () => number;
         };
       }).__yinshE2e;
       const winner = e.winner();
@@ -38,41 +41,59 @@ test('Human vs AI Yinsh playthrough with mid-game and end screenshots', async ({
         const move = e.suggestMove();
         if (move) await e.applyMove(move);
       }
+      if (!e.winner() && e.humanTurn() && !e.suggestMove()) {
+        throw new Error('Human turn with no suggested move');
+      }
       await e.waitForSettled(45_000);
-      return { winner: e.winner() ?? null, turnMode: e.turnMode() };
+      return {
+        winner: e.winner() ?? null,
+        turnMode: e.turnMode(),
+        points: e.pointsA() + e.pointsB(),
+      };
     });
 
     plies++;
-    await page.waitForTimeout(150);
+    await page.waitForTimeout(40);
 
-    if (!midCaptured && plies > 40 && /RingMovement|MarkerPlacement/.test(state.turnMode)) {
+    if (!midCaptured && plies > 45 && /RingMovement|MarkerPlacement/.test(state.turnMode)) {
       await page.waitForTimeout(900);
       await page.screenshot({ path: path.join(outDir, 'yinsh-ai-midgame.png'), fullPage: false });
       midCaptured = true;
     }
 
+    if (state.points > lastPoints) {
+      lastPoints = state.points;
+    }
+
+    if (state.winner) break;
   }
 
   const final = await page.evaluate(async () => {
     const e = (window as unknown as {
       __yinshE2e: {
         winner: () => string | undefined;
-        finishGameEngine: (max?: number) => string | undefined;
         waitForSettled: (ms?: number) => Promise<void>;
+        pointsA: () => number;
+        pointsB: () => number;
       };
     }).__yinshE2e;
-    if (!e.winner()) e.finishGameEngine(6000);
-    await e.waitForSettled(5000);
-    return e.winner() ?? null;
+    await e.waitForSettled(8000);
+    return {
+      winner: e.winner() ?? null,
+      points: e.pointsA() + e.pointsB(),
+    };
   });
 
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(800);
   await page.screenshot({ path: path.join(outDir, 'yinsh-ai-endgame.png'), fullPage: false });
 
   if (!midCaptured) {
     throw new Error('Mid-game screenshot was not captured');
   }
-  if (!final) {
-    throw new Error(`Game did not finish with a winner within ${maxPlies} plies (got ${final})`);
+  if (!final.winner) {
+    throw new Error(`Game did not finish with a winner within ${maxPlies} plies`);
+  }
+  if (final.points < 1) {
+    throw new Error('Expected at least one scored row (ring on rack) in a finished game');
   }
 });

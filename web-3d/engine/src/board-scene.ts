@@ -253,6 +253,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   let ghostKey = '';
   const objects = new Map<string, PieceObject>();
   const animQueue = new AnimationQueue();
+
+  /** Avoid deadlock when flip/move tasks call each other through the same queue. */
+  function scheduleAnimation(task: () => Promise<void>): Promise<void> {
+    if (animQueue.busy) return task();
+    return animQueue.enqueue(task);
+  }
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -936,6 +942,12 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     enqueueAnimation(task) {
       void animQueue.enqueue(task);
     },
+    animationsBusy() {
+      return animQueue.busy;
+    },
+    drainAnimations() {
+      return animQueue.drain();
+    },
     reframe() {
       fit(true);
     },
@@ -960,22 +972,16 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       requestRender();
     },
     flipPiece(pieceId) {
-      return new Promise<void>(resolve => {
-        void animQueue.enqueue(async () => {
-          await runFlipPiece(pieceId);
-          resolve();
-        });
+      return scheduleAnimation(async () => {
+        await runFlipPiece(pieceId);
       });
     },
     flipPieces(pieceIds, staggerMs = 80) {
-      return new Promise<void>(resolve => {
-        void animQueue.enqueue(async () => {
-          for (let i = 0; i < pieceIds.length; i++) {
-            if (i > 0 && staggerMs > 0) await new Promise(r => setTimeout(r, staggerMs));
-            await runFlipPiece(pieceIds[i]!);
-          }
-          resolve();
-        });
+      return scheduleAnimation(async () => {
+        for (let i = 0; i < pieceIds.length; i++) {
+          if (i > 0 && staggerMs > 0) await new Promise(r => setTimeout(r, staggerMs));
+          await runFlipPiece(pieceIds[i]!);
+        }
       });
     },
     dispose() {

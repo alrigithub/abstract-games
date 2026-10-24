@@ -1,4 +1,5 @@
 import { chooseAiMove } from './ai';
+import { possibleMoves } from './moves';
 import { GameState } from './state';
 import type { Move } from './state';
 import type { Player } from './player';
@@ -47,6 +48,13 @@ self.onmessage = (event: MessageEvent<AiRequest>) => {
     const move = chooseAiMove(game, maxDepth);
     self.postMessage({ id, move } satisfies AiResponse);
   } catch {
-    self.postMessage({ id, move: null } satisfies AiResponse);
+    try {
+      const game = deserialize(state);
+      const moves = possibleMoves(game).filter(m => m.tag !== 'Wait');
+      const pool = moves.length ? moves : possibleMoves(game);
+      self.postMessage({ id, move: pool[0] ?? null } satisfies AiResponse);
+    } catch {
+      self.postMessage({ id, move: null } satisfies AiResponse);
+    }
   }
 };

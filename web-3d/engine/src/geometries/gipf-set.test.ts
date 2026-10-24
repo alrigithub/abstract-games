@@ -7,7 +7,9 @@ import {
   gipfNeighborPairs,
   gipfWorldPoint,
   tzaarLayout,
+  isYinshPlayfieldAxial,
   yinshLayout,
+  yinshLayoutEdgePoints,
 } from './gipf-set';
 
 describe('gipf layouts', () => {
@@ -26,6 +28,17 @@ describe('gipf layouts', () => {
         expect(a.world.distanceTo(b.world)).toBeCloseTo(layout.spacing, 5);
       }
     }
+  });
+
+  it('matches the official 85-point Yinsh playfield filter', () => {
+    let count = 0;
+    for (let q = -5; q <= 5; q++) {
+      for (let r = -5; r <= 5; r++) {
+        if (isYinshPlayfieldAxial(q, r)) count++;
+      }
+    }
+    expect(count).toBe(85);
+    expect(yinshLayoutEdgePoints(yinshLayout()).length).toBe(30);
   });
 
   it('uses one world helper for layout points', () => {

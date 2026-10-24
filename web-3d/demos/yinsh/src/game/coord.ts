@@ -1,5 +1,4 @@
-/** All Yinsh coordinates lie on a hexagonal grid within a circle of radius 4.6. */
-const BOARD_RADIUS_SQUARED = 4.6 * 4.6;
+import { YINSH_COORDS, isYinshPlayfieldCoord, type YinshCoord } from '@abstract/three-engine';
 
 export interface Coord {
   x: number;
@@ -19,10 +18,7 @@ export function coordNew(x: number, y: number): Coord {
 }
 
 export function isInsideBoard(coord: Coord): boolean {
-  const sqrt3 = Math.sqrt(3);
-  const x = coord.x;
-  const y = coord.y;
-  return (0.5 * sqrt3 * x) ** 2 + (0.5 * x - y) ** 2 <= BOARD_RADIUS_SQUARED;
+  return isYinshPlayfieldCoord(coord as YinshCoord);
 }
 
 export function isOnSameLineAs(a: Coord, b: Coord): boolean {
@@ -64,16 +60,7 @@ export function coordNorm(c: Coord): number {
 }
 
 export function allCoords(): Coord[] {
-  const coords: Coord[] = [];
-  for (let x = -5; x <= 5; x++) {
-    for (let y = -5; y <= 5; y++) {
-      const coord = coordNew(x, y);
-      if (isInsideBoard(coord)) {
-        coords.push(coord);
-      }
-    }
-  }
-  return coords;
+  return YINSH_COORDS.map(c => coordNew(c.x, c.y));
 }
 
 export enum Direction {

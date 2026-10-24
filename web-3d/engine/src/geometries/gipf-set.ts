@@ -33,6 +33,23 @@ export const GIPF_SPACING = 1;
 const SQRT3_2 = Math.sqrt(3) / 2;
 const YINSH_RADIUS_SQ = 4.6 * 4.6;
 
+/** All six axial neighbours on the triangular lattice (matches Yinsh rules). */
+export const YINSH_AXIAL_NEIGHBORS = [
+  [1, 0],
+  [0, 1],
+  [1, 1],
+  [-1, 0],
+  [0, -1],
+  [-1, -1],
+] as const;
+
+/** Official Yinsh playfield test in layout/world space (hex side 5, corners clipped at R=4.6). */
+export function isYinshPlayfieldAxial(q: number, r: number): boolean {
+  const x = SQRT3_2 * q;
+  const z = 0.5 * q - r;
+  return x * x + z * z <= YINSH_RADIUS_SQ + 1e-9;
+}
+
 /** Axial steps that are true neighbours of {@link gipfWorldPoint}. */
 export const GIPF_AXIAL_STEPS = [
   [1, 0],
@@ -56,7 +73,10 @@ export interface GipfHexLayout {
   emptyCentre: boolean;
 }
 
-/** Pointy-top triangular lattice. Shared by Tzaar and Yinsh points + pieces. */
+/**
+ * Pointy-top triangular lattice. Single world-space mapping for Yinsh/Tzaar boards and pieces.
+ * Axial `(q,r)` matches rules coords `(x,y)`.
+ */
 export function gipfWorldPoint(q: number, r: number, spacing: number = GIPF_SPACING): THREE.Vector3 {
   return new THREE.Vector3(spacing * SQRT3_2 * q, BOARD.PLAYFIELD_SURFACE_Y, spacing * (0.5 * q - r));
 }
@@ -91,9 +111,7 @@ export function yinshLayout(spacing: number = GIPF_SPACING): GipfHexLayout {
   const points: GipfPoint[] = [];
   for (let q = -5; q <= 5; q++) {
     for (let r = -5; r <= 5; r++) {
-      const x = SQRT3_2 * q;
-      const z = 0.5 * q - r;
-      if (x * x + z * z > YINSH_RADIUS_SQ) continue;
+      if (!isYinshPlayfieldAxial(q, r)) continue;
       points.push(pointAt(q, r, spacing));
     }
   }
@@ -110,6 +128,20 @@ export function yinshLayout(spacing: number = GIPF_SPACING): GipfHexLayout {
 
 export function gipfPointKey(q: number, r: number): string {
   return `${q},${r}`;
+}
+
+/** Intersections on the outer rim (line segments end here on the official 85-point board). */
+export function yinshLayoutEdgePoints(layout: GipfHexLayout): GipfPoint[] {
+  if (layout.id !== 'yinsh') {
+    return layout.points;
+  }
+  const inside = new Set(layout.points.map(p => gipfPointKey(p.q, p.r)));
+  return layout.points.filter(p => {
+    for (const [dq, dr] of YINSH_AXIAL_NEIGHBORS) {
+      if (!inside.has(gipfPointKey(p.q + dq, p.r + dr))) return true;
+    }
+    return false;
+  });
 }
 
 export function gipfNeighborPairs(layout: GipfHexLayout): [GipfPoint, GipfPoint][] {
@@ -325,10 +357,11 @@ export function createGipfHexBoard(layout: GipfHexLayout, tokens: ThemeTokens): 
     fieldGeo = createSquareSlab(extent - 2 * rimW, slab);
     fieldGeo.translate(0, 0.001, 0);
   } else {
-    const hull = expandFromOrigin(
-      convexHullXZ(layout.points.map(p => ({ x: p.world.x, z: p.world.z }))),
-      layout.margin,
-    );
+    const rimSource =
+      layout.id === 'yinsh'
+        ? yinshLayoutEdgePoints(layout).map(p => ({ x: p.world.x, z: p.world.z }))
+        : layout.points.map(p => ({ x: p.world.x, z: p.world.z }));
+    const hull = expandFromOrigin(convexHullXZ(rimSource), layout.margin);
     const inner = expandFromOrigin(hull, -rimW);
     rimGeo = extrudeOutline(hull, slab);
     fieldGeo = extrudeOutline(inner.length ? inner : hull, slab);

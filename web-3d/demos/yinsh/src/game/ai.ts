@@ -33,13 +33,15 @@ function negamax(state: GameState, depth: number, alpha: number, beta: number): 
 }
 
 export function chooseAiMove(state: GameState, maxDepth: number): Move {
-  const moves = possibleMoves(state);
-  if (moves.length === 0) throw new Error('no legal moves');
-  if (moves.length === 1) return moves[0]!;
+  const all = possibleMoves(state);
+  const moves = all.filter(m => m.tag !== 'Wait');
+  const pool = moves.length ? moves : all;
+  if (pool.length === 0) throw new Error('no legal moves');
+  if (pool.length === 1) return pool[0]!;
 
-  let bestMove = moves[0]!;
+  let bestMove = pool[0]!;
   let bestScore = -Infinity;
-  for (const move of moves) {
+  for (const move of pool) {
     const score = -negamax(apply(state, move), maxDepth - 1, -Infinity, Infinity);
     if (score > bestScore) {
       bestScore = score;

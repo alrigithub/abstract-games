@@ -7,8 +7,8 @@ describe('yinsh pieces vs GIPF chip', () => {
     expect(YINSH.RING_INNER).toBeGreaterThan(GIPF_CHIP.RADIUS);
   });
 
-  it('ring wall is about as wide as it is tall', () => {
-    expect(YINSH.RING_WALL).toBeCloseTo(YINSH.RING_HEIGHT, 5);
+  it('ring is clearly taller than a marker with a thick wall', () => {
+    expect(YINSH.RING_HEIGHT).toBeGreaterThan(GIPF_CHIP.HEIGHT * 1.35);
     expect(YINSH.RING_OUTER - YINSH.RING_INNER).toBeCloseTo(YINSH.RING_WALL, 5);
   });
 

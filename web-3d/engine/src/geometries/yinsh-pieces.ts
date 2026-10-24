@@ -9,16 +9,16 @@ import {
 } from './gipf-set';
 import { decoratePieceMesh } from './piece-outlines';
 const HOLE_CLEARANCE = 0.026;
-const RING_WALL = 0.088;
+const RING_WALL = 0.102;
 
-/** Physical ring: hole clears the GIPF marker; wall thickness ≈ ring height. */
+/** Physical ring: taller than a GIPF marker, rounded wall (lathe profile). */
 export const YINSH = {
   SPACING: 1,
   HOLE_CLEARANCE,
   RING_WALL,
   RING_INNER: GIPF_CHIP.RADIUS + HOLE_CLEARANCE,
   RING_OUTER: GIPF_CHIP.RADIUS + HOLE_CLEARANCE + RING_WALL,
-  RING_HEIGHT: RING_WALL,
+  RING_HEIGHT: 0.21,
   CORNER_RATIO: 0.22,
   /** Match Tzaar emblem / extrude curve density. */
   LATHE_SEGMENTS: GIPF_CHIP.SEGMENTS * 2,

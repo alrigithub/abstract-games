@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { GIPF_AXIAL_STEPS } from '../geometries/gipf-set';
-import { YINSH_COORDS, isYinshCoordInside, yinshCoordKey } from './yinsh-hex-grid';
+import { GIPF_AXIAL_STEPS, gipfWorldPoint, yinshLayout, yinshLayoutEdgePoints } from '../geometries/gipf-set';
+import type { BoardSnapshot } from '../types';
+import {
+  YINSH_COORDS,
+  createYinshTopology,
+  isYinshCoordInside,
+  yinshCoordKey,
+  yinshWorldPoint,
+} from './yinsh-hex-grid';
 
 describe('yinsh hex grid', () => {
   it('has 85 playable intersections', () => {
@@ -30,6 +37,49 @@ describe('yinsh hex grid', () => {
       { x: 0, y: 0 },
     ]) {
       expect(isYinshCoordInside(c)).toBe(true);
+    }
+  });
+
+  it('maps every cell index to the same world point as the printed layout', () => {
+    const layout = yinshLayout();
+    const topology = createYinshTopology();
+    const snapshot: BoardSnapshot = {
+      playableCells: 85,
+      cellCount: 85,
+      cells: Array.from({ length: 85 }, () => []),
+    };
+    for (let i = 0; i < YINSH_COORDS.length; i++) {
+      const coord = YINSH_COORDS[i]!;
+      const fromLayout = layout.points[i]!.world;
+      const fromTopology = topology.cellPosition(i, snapshot);
+      const fromHelper = yinshWorldPoint(coord);
+      const fromGipf = gipfWorldPoint(coord.x, coord.y);
+      expect(fromTopology.x).toBeCloseTo(fromLayout.x, 8);
+      expect(fromTopology.z).toBeCloseTo(fromLayout.z, 8);
+      expect(fromHelper.x).toBeCloseTo(fromGipf.x, 8);
+      expect(fromHelper.z).toBeCloseTo(fromGipf.z, 8);
+    }
+  });
+
+  it('has rim points where grid lines meet the board edge', () => {
+    const layout = yinshLayout();
+    const edge = yinshLayoutEdgePoints(layout);
+    expect(edge.length).toBe(30);
+    const edgeKeys = new Set(edge.map(p => `${p.q},${p.r}`));
+    for (const p of edge) {
+      let open = 0;
+      for (const [dq, dr] of [
+        [1, 0],
+        [0, 1],
+        [1, 1],
+        [-1, 0],
+        [0, -1],
+        [-1, -1],
+      ] as const) {
+        if (!layout.points.some(q => q.q === p.q + dq && q.r === p.r + dr)) open++;
+      }
+      expect(open).toBeGreaterThan(0);
+      expect(edgeKeys.has(`${p.q},${p.r}`)).toBe(true);
     }
   });
 });
