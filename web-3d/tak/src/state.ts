@@ -1,7 +1,8 @@
+import { INTERACTION } from '@abstract/three-engine';
 import type { BoardState, Color, Piece, PieceKind, Reserve, Selection } from './types';
 
-export const HOLD_INTERVAL = 400;
-export const RESERVE_STACK_SIZE = 7;
+export const HOLD_INTERVAL = INTERACTION.HOLD_INTERVAL;
+export const RESERVE_STACK_SIZE = INTERACTION.RESERVE_STACK_SIZE;
 export const OUTSIDE_ROWS = 6;
 
 /** Board indices stay first; exterior cells follow in padded row-major order. */

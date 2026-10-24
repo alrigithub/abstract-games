@@ -92,6 +92,13 @@ export function createInteraction(options: InteractionOptions): InteractionApi {
     return Number.isInteger(index) && index >= 0 && index < snap.cellCount;
   };
 
+  const pickHeight = (source: number, snap: ReturnType<InteractionOptions['getSnapshot']>) => {
+    const stack = snap.cells[source] ?? [];
+    if (!stack.length) return 0;
+    const capped = options.getPickHeight?.(source, snap);
+    return capped !== undefined ? Math.max(0, Math.min(stack.length, Math.floor(capped))) : stack.length;
+  };
+
   const begin = (event: PointerEvent, reserve?: ReservePick) => {
     if (disposed || press || event.button !== 0 || event.isPrimary === false || element.dataset.cameraGesture === 'true') return;
     if (!canInteract()) return;
@@ -109,7 +116,8 @@ export function createInteraction(options: InteractionOptions): InteractionApi {
       selection = { source: reserve, count: 1 };
       holding = height > 1;
     } else if (cell !== null && validCell(cell)) {
-      height = options.getSnapshot().cells[cell]!.length;
+      const snap = options.getSnapshot();
+      height = pickHeight(cell, snap);
       if (!height) return;
       selection = { source: cell, count: 1 };
       holding = height > 1;
@@ -208,10 +216,11 @@ export function createInteraction(options: InteractionOptions): InteractionApi {
     },
     selectCount(count) {
       if (!view.selection || !Number.isFinite(count)) return;
+      const snap = options.getSnapshot();
       const height =
         typeof view.selection.source === 'number'
-          ? options.getSnapshot().cells[view.selection.source]?.length ?? 0
-          : options.getSnapshot().reserves?.find(s => s.id === (view.selection!.source as ReservePick).slotId)?.count ?? 0;
+          ? pickHeight(view.selection.source, snap)
+          : snap.reserves?.find(s => s.id === (view.selection!.source as ReservePick).slotId)?.count ?? 0;
       if (!height) {
         cancel();
         return;
