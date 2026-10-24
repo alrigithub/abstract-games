@@ -2,7 +2,13 @@ import type { BoardSnapshot, EnginePiece } from '@abstract/three-engine';
 import { cellIndex } from '@abstract/three-engine';
 import { BOOP_GRID, BOOP_OUTSIDE } from './boop-grid';
 import { defaultRestingCell, resolveRestingCell } from './boop-resting-slot';
-import { poolOccupiedCells, poolSlots, type PoolColumn } from './boop-pool-layout';
+import {
+  handSlotStartIndex,
+  poolOccupiedCells,
+  poolSlots,
+  HAND_COLUMN,
+  type PoolCounts,
+} from './boop-pool-layout';
 import type { GameView, PieceKind, PlayerId } from './types';
 
 interface RestingPiece {
@@ -27,7 +33,6 @@ export class PieceTracker {
     A: { kitten: [], cat: [] },
     B: { kitten: [], cat: [] },
   };
-  private reserveStacks: Record<PlayerId, string[]> = { A: [], B: [] };
   private resting: RestingPiece[] = [];
   private seq = 0;
   private lastView?: GameView;
@@ -48,7 +53,6 @@ export class PieceTracker {
     this.board.clear();
     this.resting = [];
     this.poolStacks = { A: { kitten: [], cat: [] }, B: { kitten: [], cat: [] } };
-    this.reserveStacks = { A: [], B: [] };
     for (const player of ['A', 'B'] as const) {
       for (let i = 0; i < 8; i++) this.poolStacks[player].kitten.push(this.mint(`pool-${player}-k`));
     }
@@ -152,8 +156,6 @@ export class PieceTracker {
       const pool = view.pools[player === 'A' ? 0 : 1]!;
       this.resizePool(player, 'kitten', pool.kittens_in_hand);
       this.resizePool(player, 'cat', pool.cats_in_hand);
-      // Big vases in reserve are tracked in rules state only until earned into hand.
-      this.resizeReserve(player, 0);
     }
   }
 
@@ -162,12 +164,6 @@ export class PieceTracker {
     const visible = Math.max(0, inHand - this.restingCountFor(player, kind));
     while (stack.length < visible) stack.push(this.mint(`pool-${player}-${kind}`));
     while (stack.length > visible) stack.pop();
-  }
-
-  private resizeReserve(player: PlayerId, inReserve: number) {
-    const stack = this.reserveStacks[player];
-    while (stack.length < inReserve) stack.push(this.mint(`pool-${player}-c-reserve`));
-    while (stack.length > inReserve) stack.pop();
   }
 
   moveBoardId(from: { x: number; y: number }, to: { x: number; y: number }) {
@@ -199,20 +195,27 @@ export class PieceTracker {
     return id;
   }
 
-  private pushPoolPieces(
+  private pushHandPoolPieces(
     cells: EnginePiece[][],
     player: PlayerId,
-    column: PoolColumn,
-    ids: string[],
-    shape: PieceKind,
+    pool: PoolCounts,
   ) {
-    const slots = poolSlots(player, column);
-    ids.forEach((id, i) => {
-      const slot = slots[i];
+    const slots = poolSlots(player, HAND_COLUMN);
+    const catStart = handSlotStartIndex('cat', pool);
+    const kittenStart = handSlotStartIndex('kitten', pool);
+    this.poolStacks[player].cat.forEach((id, i) => {
+      const slot = slots[catStart + i];
       if (!slot) return;
       const idx = cellIndex(BOOP_GRID, slot.row, slot.col, BOOP_OUTSIDE);
       if (idx === null) return;
-      cells[idx]!.push({ id, player, shape });
+      cells[idx]!.push({ id, player, shape: 'cat' });
+    });
+    this.poolStacks[player].kitten.forEach((id, i) => {
+      const slot = slots[kittenStart + i];
+      if (!slot) return;
+      const idx = cellIndex(BOOP_GRID, slot.row, slot.col, BOOP_OUTSIDE);
+      if (idx === null) return;
+      cells[idx]!.push({ id, player, shape: 'kitten' });
     });
   }
 
@@ -233,9 +236,8 @@ export class PieceTracker {
     }
 
     for (const player of ['A', 'B'] as const) {
-      this.pushPoolPieces(cells, player, 'kitten', this.poolStacks[player].kitten, 'kitten');
-      this.pushPoolPieces(cells, player, 'cat_hand', this.poolStacks[player].cat, 'cat');
-      this.pushPoolPieces(cells, player, 'cat_reserve', this.reserveStacks[player], 'cat');
+      const pool = view.pools[player === 'A' ? 0 : 1]!;
+      this.pushHandPoolPieces(cells, player, pool);
     }
 
     const restGroups = new Map<string, RestingPiece[]>();

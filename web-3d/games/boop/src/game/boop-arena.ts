@@ -176,7 +176,7 @@ export function createBoopTopology(options: SquareGridOptions, arenaTemplate: TH
 function computeArenaFramePoints(arenaTemplate: THREE.Group): THREE.Vector3[] {
   _frameBox.setFromObject(arenaTemplate);
   if (_frameBox.isEmpty()) return [];
-  const pad = 0.35;
+  const pad = 0.48;
   const y = 0;
   const points: THREE.Vector3[] = [];
   for (const x of [_frameBox.min.x - pad, _frameBox.max.x + pad]) {
