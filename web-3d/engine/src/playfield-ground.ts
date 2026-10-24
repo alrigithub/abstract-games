@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BOARD } from './constants';
+import { tagExcludeFromBounds } from './playfield-bounds';
 
 export const PLAYFIELD_GROUND_USER_DATA = 'playfieldGround' as const;
 
@@ -15,6 +16,7 @@ export function createPlayfieldGroundGeometry(): THREE.PlaneGeometry {
 export function createPlayfieldGroundMesh(material: THREE.Material): THREE.Mesh {
   const mesh = new THREE.Mesh(createPlayfieldGroundGeometry(), material);
   mesh.userData[PLAYFIELD_GROUND_USER_DATA] = true;
+  tagExcludeFromBounds(mesh);
   mesh.position.y = BOARD.PLAYFIELD_SURFACE_Y;
   mesh.receiveShadow = true;
   mesh.castShadow = false;

@@ -41,6 +41,7 @@ const placementGhost = new DomPlacementGhost(board, {
 
 const scene = await createBoardScene(board, {
   gridSize: size,
+  outsideRows: OUTSIDE_ROWS,
   topology,
   pieces,
   initialTheme: theme,

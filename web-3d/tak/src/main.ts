@@ -38,6 +38,7 @@ let lastView: InteractionView | null = null;
 
 const scene = await createBoardScene(board, {
   gridSize: boardSize,
+  outsideRows: 6,
   topology,
   pieces,
   initialTheme: theme,
