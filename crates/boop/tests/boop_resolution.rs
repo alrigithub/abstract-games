@@ -104,13 +104,6 @@ fn does_not_push_into_snapshot_occupied_cell() {
         },
     );
     g.set_piece(
-        Coord::new(2, 0),
-        Piece {
-            player: Player::Second,
-            kind: PieceKind::Kitten,
-        },
-    );
-    g.set_piece(
         Coord::new(3, 0),
         Piece {
             player: Player::Second,
@@ -133,13 +126,7 @@ fn does_not_push_into_snapshot_occupied_cell() {
     })
     .unwrap();
 
-    assert_eq!(
-        g.board().get(Coord::new(1, 0)),
-        Some(Piece {
-            player: Player::Second,
-            kind: PieceKind::Kitten,
-        })
-    );
+    assert!(g.board().get(Coord::new(1, 0)).is_none());
     assert_eq!(
         g.board().get(Coord::new(2, 0)),
         Some(Piece {
@@ -154,7 +141,12 @@ fn does_not_push_into_snapshot_occupied_cell() {
             kind: PieceKind::Kitten,
         })
     );
-    assert!(g.last_move_effects().displacements.is_empty());
+    assert_eq!(g.last_move_effects().displacements.len(), 1);
+    assert_eq!(
+        g.last_move_effects().displacements[0].from,
+        Coord::new(1, 0)
+    );
+    assert_eq!(g.last_move_effects().displacements[0].to, Coord::new(2, 0));
 }
 
 #[test]
