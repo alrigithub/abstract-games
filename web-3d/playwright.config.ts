@@ -33,6 +33,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
     {
+      name: 'tap-placement',
+      testMatch: '**/tap-placement.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
       name: 'unified-lighting-screenshots',
       testMatch: '**/unified-lighting-screenshots.spec.ts',
       use: { ...devices['Desktop Chrome'] },

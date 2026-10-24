@@ -6,6 +6,7 @@ import {
   createGameButtons,
   createSquareTopology,
   BOOP_AI_STRENGTH_STORAGE_KEY,
+  DEFAULT_AI_STRENGTH_LEVELS,
   levelToSearchOptions,
   readInitialTheme,
   storeTheme,
@@ -51,13 +52,47 @@ const cameraViews = scene.createCameraViews();
 
 let controller!: BoopController;
 let interaction!: BoopInteractionHandle;
+let gameButtons!: ReturnType<typeof createGameButtons>;
 
-const gameButtons = createGameButtons({
+controller = new BoopController({
+  scene,
+  setStatus: t => gameButtons?.setStatus(t),
+  getAiSearchOptions: () => {
+    const ai = gameButtons?.aiStrength;
+    return ai ? levelToSearchOptions(ai.getLevel()) : levelToSearchOptions(DEFAULT_AI_STRENGTH_LEVELS[1]!);
+  },
+  onReady: () => {
+    board.dataset.ready = 'true';
+  },
+  aiPlaceTap: (from, to) => interaction.tapPlaceOnBed(from, to, { ai: true }),
+});
+
+interaction = wireBoopInteraction(stage as HTMLElement, board, scene, () => controller);
+
+gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
   cameraViews,
   applyTheme,
   aiStrengthStorageKey: BOOP_AI_STRENGTH_STORAGE_KEY,
-  onAiStrengthChange: () => controller?.renderStatus(),
+  gameActions: [
+    {
+      testId: 'boop-size-kitten',
+      label: 'Small',
+      title: 'Place kittens (small pieces)',
+      ariaLabel: 'Select kitten for placement',
+      className: 'game-action-button',
+      onClick: () => interaction.setStickyKind('kitten'),
+    },
+    {
+      testId: 'boop-size-cat',
+      label: 'Big',
+      title: 'Place cats (big pieces)',
+      ariaLabel: 'Select cat for placement',
+      className: 'game-action-button',
+      onClick: () => interaction.setStickyKind('cat'),
+    },
+  ],
+  onAiStrengthChange: () => controller.renderStatus(),
   onNewGameReset: () => {
     interaction.cancel();
     controller.newGame();
@@ -68,21 +103,7 @@ const gameButtons = createGameButtons({
   },
 });
 
-controller = new BoopController({
-  scene,
-  setStatus: t => gameButtons.setStatus(t),
-  getAiDepth: () => {
-    const ai = gameButtons.aiStrength;
-    return ai ? levelToSearchOptions(ai.getLevel()).maxDepth : 4;
-  },
-  onReady: () => {
-    board.dataset.ready = 'true';
-  },
-  aiPlaceDrag: (from, to) => interaction.dragCellToCell(from, to, { ai: true }),
-});
-
-interaction = wireBoopInteraction(stage as HTMLElement, board, scene, () => controller);
-
+window.__boopController = controller;
 await controller.init();
 
 declare global {
@@ -99,9 +120,8 @@ declare global {
 }
 
 window.__boopScene = scene;
-window.__boopController = controller;
 window.__boopSmokePickAndPlace = async () => {
-  await interaction.dragCellToCell(poolCellIndex(), cellAt(2, 2));
+  await interaction.tapPlaceOnBed(poolCellIndex(), cellAt(2, 2));
   await new Promise(r => setTimeout(r, BOOP_ANIM.MOVE_MS + BOOP_ANIM.STEP_GAP_MS + 120));
 };
 
@@ -155,6 +175,12 @@ function injectBoopUiStyles() {
     [data-testid="board"][data-win-line] {
       transition: filter 0.45s ease-in-out;
       filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.45));
+    }
+    [data-testid='boop-size-kitten'][data-selected='true'],
+    [data-testid='boop-size-cat'][data-selected='true'] {
+      outline: 2px solid #3b82f6;
+      outline-offset: 2px;
+      background: color-mix(in srgb, var(--game-button-bg, #fff) 85%, #3b82f6);
     }
   `;
   document.head.append(style);

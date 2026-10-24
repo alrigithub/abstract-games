@@ -173,6 +173,36 @@ describe('Tak 5×5 rules', () => {
     expect(game.result?.reason).toBe('flats');
   });
 
+  it('place moves honor explicit reserve source and piece id', () => {
+    let game = finishOpening(createGame(5));
+    const reserveStart = game.board.size ** 2;
+    const ivoryStacks = game.board.cells.filter((_, i) => i >= reserveStart && game.board.cells[i]!.some(p => p.color === 'ivory'));
+    expect(ivoryStacks.length).toBeGreaterThan(1);
+    const source = game.board.cells.findIndex(
+      (stack, index) => index >= reserveStart && stack.at(-1)?.color === 'ivory' && stack.at(-1)?.kind === 'stone',
+    );
+    const pieceId = game.board.cells[source]!.at(-1)!.id;
+    const altSource = game.board.cells.findIndex(
+      (stack, index) =>
+        index >= reserveStart &&
+        index !== source &&
+        stack.some(piece => piece.color === 'ivory' && piece.kind === 'stone'),
+    );
+    expect(altSource).toBeGreaterThanOrEqual(reserveStart);
+
+    const fromPreferred = applyMove(game, {
+      type: 'place',
+      to: 7,
+      kind: 'stone',
+      orientation: 'flat',
+      source,
+      pieceId,
+    });
+    const placedId = fromPreferred.board.cells[7]!.at(-1)!.id;
+    expect(placedId).toBe(pieceId);
+    expect(fromPreferred.board.cells[source]!.some(p => p.id === pieceId)).toBe(false);
+  });
+
   it('AI only returns legal moves and respects finished draws', () => {
     let game = finishOpening(createGame(5));
     for (let i = 0; i < 40; i++) {

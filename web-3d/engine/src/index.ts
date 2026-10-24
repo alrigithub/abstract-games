@@ -5,6 +5,7 @@ export * from './board-scene';
 export * from './camera-views';
 export * from './constants';
 export * from './interaction';
+export * from './tap-interaction';
 export * from './stack';
 export * from './stack-layout';
 export * from './theme';

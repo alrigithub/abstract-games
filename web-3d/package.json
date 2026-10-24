@@ -11,7 +11,7 @@
     "demos/tzaar"
   ],
   "scripts": {
-    "test": "npm run test -w @abstract/three-engine && npm run test -w yinsh-3d-demo",
+    "test": "npm run test -w @abstract/three-engine && npm run test -w yinsh-3d-demo && npm run test -w boop-3d-demo && npm run test -w tzaar-3d-demo",
     "test:e2e": "playwright test",
     "build": "npm run build -w @abstract/three-engine && npm run build -w tak-3d && npm run build -w gomoku-3d-demo && npm run build -w boop-3d-demo && npm run build -w yinsh-3d-demo && npm run build -w tzaar-3d-demo"
   },

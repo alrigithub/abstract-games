@@ -27,8 +27,8 @@ export const GIPF_CHIP = {
 /** Shared printed-hex board treatment for the GIPF set. */
 export const GIPF_BOARD = {
   SLAB: BOARD.SLAB,
-  /** Printed line weight (geometry base; screen width via {@link boardGridLineScreenScale}). */
-  LINE_W: 0.022,
+  /** Printed line weight (geometry base; Yinsh/Tzaar merged lines skip screen scale). */
+  LINE_W: BOARD.LINE_W,
   RIM_W: 0.09,
   /** Yinsh hull pad. Tzaar uses {@link GIPF_BOARD.HEX_MARGIN} on a regular hex. */
   MARGIN: 1.4,
@@ -270,8 +270,8 @@ export function gipfPrintColors(tokens: ThemeTokens): { field: string; rim: stri
   return {
     field: tokens.board,
     rim: dark ? '#07080a' : '#141210',
-    lines: dark ? '#d4d8e0' : '#141210',
-    centre: dark ? '#2a2e36' : '#d2cdc4',
+    lines: tokens.lines,
+    centre: dark ? '#2a2e36' : tokens.lines,
   };
 }
 
@@ -497,9 +497,9 @@ export function createGipfHexBoard(layout: GipfHexLayout, tokens: ThemeTokens): 
     field = flatBoardFromOutline(hull, boardColor);
   }
 
-  const lines = new THREE.Mesh(createGipfLineGeometry(layout), basic(print.lines));
+  const lines = new THREE.Mesh(createGipfLineGeometry(layout, GIPF_BOARD.LINE_W), basic(print.lines));
   lines.renderOrder = 2;
-  tagBoardGridLine(lines);
+  tagBoardGridLine(lines, { screenScale: false });
   group.add(field, lines);
 
   if (layout.centreMotif) {
@@ -509,8 +509,8 @@ export function createGipfHexBoard(layout: GipfHexLayout, tokens: ThemeTokens): 
       createCenterRingGeometry(GIPF_BOARD.CENTER_HEX_INNER, GIPF_BOARD.LINE_W * 0.85),
       basic(print.lines),
     );
-    tagBoardGridLine(ring);
-    tagBoardGridLine(inner);
+    tagBoardGridLine(ring, { screenScale: false });
+    tagBoardGridLine(inner, { screenScale: false });
     fill.renderOrder = 1;
     ring.renderOrder = 2;
     inner.renderOrder = 2;

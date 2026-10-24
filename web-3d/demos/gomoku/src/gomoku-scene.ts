@@ -98,12 +98,12 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
   let viewportW = 1;
   let viewportH = 1;
 
-  function lineMesh(w: number, d: number): THREE.Mesh {
+  function lineMesh(w: number, d: number, thicknessAxis: 'x' | 'z'): THREE.Mesh {
     const geo = new THREE.PlaneGeometry(w, d);
     disposables.push(geo);
     const mesh = new THREE.Mesh(geo, materials.line);
     mesh.rotation.x = -Math.PI / 2;
-    tagBoardGridLine(mesh);
+    tagBoardGridLine(mesh, { thicknessAxis });
     return mesh;
   }
 
@@ -124,10 +124,10 @@ export function createGomokuScene(container: HTMLElement, options: GomokuSceneOp
     const yLine = BOARD.LINE_Y + 0.001;
     for (let i = 0; i < size; i++) {
       const offset = i - span / 2;
-      const h = lineMesh(GOMOKU_DIMS.LINE_W, span);
+      const h = lineMesh(GOMOKU_DIMS.LINE_W, span, 'x');
       h.position.set(offset, yLine, 0);
       boardGroup.add(h);
-      const v = lineMesh(span, GOMOKU_DIMS.LINE_W);
+      const v = lineMesh(span, GOMOKU_DIMS.LINE_W, 'z');
       v.position.set(0, yLine, offset);
       boardGroup.add(v);
     }
