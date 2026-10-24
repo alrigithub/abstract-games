@@ -2,3 +2,5 @@ node_modules/
 dist/
 e2e-artifacts/
 public/wasm/
+test-results/
+playwright-report/
