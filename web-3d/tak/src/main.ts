@@ -2,19 +2,25 @@ import '../style.css';
 import {
   BOARD,
   createBoardScene,
+  createGameButtons,
   createInteraction,
   createSquareTopology,
   createTakPieceGeometries,
+  DEFAULT_LOBBY_HREF,
+  INTERACTION,
+  levelToSearchOptions,
   readStoredTheme,
-  storeTheme,
+  TAK_AI_STRENGTH_STORAGE_KEY,
   takPieceGeometrySet,
+  THEME_STORAGE_KEY,
   type InteractionView,
   type ThemeId,
 } from '@abstract/three-engine';
 import { toEngineSnapshot, toTakSelection } from './bridge';
 import { createGameUi } from './game-ui';
+import { stackPickLimit } from './pick-height';
 import { createSandboxState, moveSelection, rotateSelection } from './state';
-import type { BoardState } from './types';
+import type { BoardState, Color } from './types';
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 const selectionInfo = document.querySelector<HTMLDivElement>('#selection-info')!;
@@ -43,6 +49,41 @@ const scene = await createBoardScene(board, {
 });
 const stage = board.querySelector('canvas') ?? board;
 
+function applyTheme(id: ThemeId) {
+  theme = id;
+  document.documentElement.dataset.theme = id;
+  scene.setTheme(id);
+}
+
+const gameButtons = createGameButtons({
+  mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  lobbyHref: DEFAULT_LOBBY_HREF,
+  aiStrengthStorageKey: TAK_AI_STRENGTH_STORAGE_KEY,
+  applyTheme,
+  firstPlayer: {
+    title: 'Who goes first?',
+    description: 'You vs AI — pick your color.',
+    choices: [
+      { label: 'You · White', id: 'ivory', testId: 'first-ivory' },
+      { label: 'You · Black', id: 'charcoal', testId: 'first-charcoal' },
+    ],
+    onSelect: id => startAiGame(id as Color),
+  },
+  onAiStrengthChange: () => gameUi.refresh(),
+});
+
+try {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    try {
+      if (localStorage.getItem(THEME_STORAGE_KEY) === null) applyTheme(readStoredTheme());
+    } catch {
+      /* ignore */
+    }
+  });
+} catch {
+  /* ignore */
+}
+
 function refresh() {
   scene.setSnapshot(toEngineSnapshot(state));
 }
@@ -53,7 +94,6 @@ function canEditSandbox() {
 
 const gameUi = createGameUi({
   scene,
-  board,
   onActive: active => {
     sandbox = !active;
     document.querySelector<HTMLButtonElement>('#reset')!.disabled = active;
@@ -62,13 +102,31 @@ const gameUi = createGameUi({
     state = game.board;
     refresh();
   },
+  setStatus: text => gameButtons.setStatus(text),
+  getAiSearchOptions: () => levelToSearchOptions(gameButtons.aiStrength!.getLevel()),
+  aiStrengthLabel: () => gameButtons.aiStrength!.getLevel().label,
 });
+
+function canUseBoardInteraction() {
+  return canEditSandbox() || (gameUi.isActive() && gameUi.humanTurn());
+}
 
 const controller = createInteraction({
   element: stage as HTMLElement,
   getSnapshot: () => toEngineSnapshot(state),
-  canInteract: () => canEditSandbox(),
-  hitTest: (x, y) => (canEditSandbox() ? scene.hitTest(x, y) : null),
+  canInteract: () => canUseBoardInteraction(),
+  getHoldInterval: () => INTERACTION.HOLD_INTERVAL,
+  getPickHeight(cell) {
+    const stack = state.cells[cell] ?? [];
+    if (!stack.length) return 0;
+    const playable = boardSize * boardSize;
+    if (canEditSandbox()) return stack.length;
+    if (cell >= playable) return 1;
+    if (!gameUi.isActive() || !gameUi.humanTurn()) return stack.length;
+    const mover: Color = gameUi.getGame().toMove;
+    return stackPickLimit(stack, mover, true, boardSize);
+  },
+  hitTest: (x, y) => (canUseBoardInteraction() ? scene.hitTest(x, y) : null),
   hitReserve: (x, y) => (canEditSandbox() ? scene.hitReserve(x, y) : null),
   onView: view => {
     lastView = view;
@@ -78,7 +136,7 @@ const controller = createInteraction({
     if (view.selection) {
       label.textContent = String(view.selection.count);
       document.querySelector<HTMLElement>('#hold-ring')!.style.setProperty('--progress', `${view.progress * 360}deg`);
-      pieceActions.hidden = false;
+      pieceActions.hidden = !canEditSandbox();
       const source = view.selection.source;
       const top =
         typeof source === 'number'
@@ -90,6 +148,10 @@ const controller = createInteraction({
     }
   },
   onCommit: (selection, target) => {
+    if (gameUi.isActive()) {
+      gameUi.commitDrag(toTakSelection(selection), target);
+      return;
+    }
     const next = moveSelection(state, toTakSelection(selection), target);
     if (next !== state) commit(next);
   },
@@ -110,34 +172,44 @@ function cancel() {
   controller.cancel();
 }
 
-document.querySelector('#theme-toggle')!.addEventListener('click', () => {
-  theme = theme === 'light' ? 'dark' : 'light';
-  storeTheme(theme);
-  scene.setTheme(theme);
-  document.documentElement.dataset.theme = theme;
-});
+function forcedHumanColor(): Color | null {
+  const forced = new URLSearchParams(location.search).get('human');
+  return forced === 'ivory' || forced === 'charcoal' ? forced : null;
+}
 
-document.querySelector('#menu-toggle')!.addEventListener('click', () => menu.showModal());
-menu.querySelector('[data-testid="mode-sandbox"]')!.addEventListener('click', () => {
+function startAiGame(human: Color) {
+  cancel();
+  history.length = 0;
+  gameUi.startAi(human, boardSize);
+  menu.close();
+}
+
+function startSandbox() {
   gameUi.stop();
   cancel();
   history.length = 0;
   state = createSandboxState(boardSize);
+  gameButtons.setStatus('Sandbox');
   menu.close();
   refresh();
-});
+}
+
+document.querySelector('#menu-toggle')!.addEventListener('click', () => menu.showModal());
+menu.querySelector('[data-testid="mode-sandbox"]')!.addEventListener('click', () => startSandbox());
 menu.querySelector('[data-testid="mode-ai"]')!.addEventListener('click', () => {
-  cancel();
-  history.length = 0;
-  gameUi.start('ai', boardSize);
-  menu.close();
+  const human = forcedHumanColor() ?? 'ivory';
+  startAiGame(human);
 });
 sizeSelect.addEventListener('change', () => {
   boardSize = Number(sizeSelect.value);
   topology = createSquareTopology({ size: boardSize, outsideRows: 6 });
   cancel();
   history.length = 0;
+  if (gameUi.isActive()) {
+    gameUi.stop();
+  }
   state = createSandboxState(boardSize);
+  gameButtons.setStatus('Sandbox');
   refresh();
 });
 
@@ -191,12 +263,19 @@ document.querySelector('#camera-mode')!.addEventListener('click', () => {
   (document.querySelector('#camera-mode') as HTMLButtonElement).textContent = cameraMode === 'pan' ? 'Pan' : 'Orbit';
 });
 
-document.documentElement.dataset.theme = theme;
+applyTheme(theme);
 refresh();
+gameButtons.setStatus('Sandbox');
 menu.showModal();
 
 if (location.search.includes('human=ivory')) {
-  (window as unknown as { __takE2e?: { pilePoint(): { x: number; y: number }; centerPoint(): { x: number; y: number } } }).__takE2e = {
+  (window as unknown as {
+    __takE2e?: {
+      pilePoint(): { x: number; y: number };
+      centerPoint(): { x: number; y: number };
+      openingReservePoint(): { x: number; y: number };
+    };
+  }).__takE2e = {
     pilePoint() {
       let index = 0;
       let height = 0;
@@ -211,6 +290,21 @@ if (location.search.includes('human=ivory')) {
     centerPoint() {
       const mid = Math.floor((boardSize * boardSize) / 2);
       return scene.cellScreen(mid);
+    },
+    openingReservePoint() {
+      const playable = boardSize * boardSize;
+      let index = playable;
+      let height = 0;
+      state.cells.forEach((stack, i) => {
+        if (i < playable || !stack.length) return;
+        const top = stack.at(-1);
+        if (top?.color !== 'charcoal' || top.kind !== 'stone') return;
+        if (stack.length >= height) {
+          height = stack.length;
+          index = i;
+        }
+      });
+      return scene.cellScreen(index);
     },
   };
 }

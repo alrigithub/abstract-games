@@ -139,6 +139,8 @@ export interface InteractionOptions {
   hitTest(x: number, y: number): number | null;
   hitReserve?(x: number, y: number): ReservePick | null;
   getHoldInterval?(): number;
+  /** Max stack suffix that press-and-hold may grow (defaults to full stack / reserve count). */
+  getPickHeight?(cell: number, snapshot: BoardSnapshot): number;
   onView(view: InteractionView): void;
   onCommit(selection: Selection, target: number): void;
   onReserveCommit?(selection: Selection, target: ReservePick): void;

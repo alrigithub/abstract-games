@@ -4,7 +4,7 @@ import {
   type AiStrengthLevel,
   DEFAULT_AI_STRENGTH_LEVELS,
 } from './ai-strength';
-import { readStoredTheme, storeTheme, type ThemeId } from '../theme';
+import { bindThemeToggle, type ThemeId } from '../theme';
 
 /** Hub lobby when serving the monorepo `web/` tree from the site root. */
 export const DEFAULT_LOBBY_HREF = '/web/index.html';
@@ -138,6 +138,12 @@ function ensureGameButtonStyles(): void {
   document.head.append(style);
 }
 
+export interface FirstPlayerChoice {
+  label: string;
+  id: string;
+  testId: string;
+}
+
 export interface CreateGameButtonsOptions {
   mount?: HTMLElement;
   lobbyHref?: string;
@@ -145,12 +151,21 @@ export interface CreateGameButtonsOptions {
   aiStrengthStorageKey?: string;
   aiStrengthLevels?: AiStrengthLevel[];
   onAiStrengthChange?: (level: AiStrengthLevel) => void;
-  /** Adds ◐ theme toggle (`data-testid="theme-toggle"`). */
-  onThemeChange?: (theme: ThemeId) => void;
-  /** Human first-player color after New game popover (vs AI). */
+  /** Gomoku default: human black or white after New game. */
   onFirstPlayerSelected?: (color: 'black' | 'white') => void;
+  /** Override popover copy, choices, and handler (e.g. Tak ivory/charcoal). */
+  firstPlayer?: {
+    title?: string;
+    description?: string;
+    choices: FirstPlayerChoice[];
+    onSelect: (id: string) => void;
+  };
   /** Demo/sandbox: New game resets immediately (no first-player popover). */
   onNewGameReset?: () => void;
+  /** When set, adds a theme toggle button using {@link bindThemeToggle}. */
+  applyTheme?: (theme: ThemeId) => void;
+  /** Alias for {@link applyTheme}. */
+  onThemeChange?: (theme: ThemeId) => void;
   fullscreenElement?: HTMLElement;
 }
 
@@ -166,6 +181,8 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   ensureGameButtonStyles();
   const mount = options.mount ?? document.body;
   const fullscreenEl = options.fullscreenElement ?? document.documentElement;
+  const themeApply = options.applyTheme ?? options.onThemeChange;
+  const usesFirstPlayerPopover = !options.onNewGameReset && (options.firstPlayer != null || options.onFirstPlayerSelected != null);
 
   const root = document.createElement('div');
   root.className = 'game-button-bar';
@@ -180,23 +197,17 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   fullscreenBtn.setAttribute('aria-label', 'Toggle full screen');
   fullscreenBtn.textContent = 'Full screen';
 
-  let themeBtn: HTMLButtonElement | null = null;
-  if (options.onThemeChange) {
-    themeBtn = document.createElement('button');
-    themeBtn.type = 'button';
-    themeBtn.className = 'game-button-icon';
-    themeBtn.id = 'theme-toggle';
-    themeBtn.dataset.testid = 'theme-toggle';
-    themeBtn.setAttribute('aria-label', 'Toggle theme');
-    themeBtn.title = 'Toggle theme';
-    themeBtn.textContent = '◐';
-    let theme = readStoredTheme();
-    themeBtn.addEventListener('click', () => {
-      theme = theme === 'light' ? 'dark' : 'light';
-      storeTheme(theme);
-      document.documentElement.dataset.theme = theme;
-      options.onThemeChange!(theme);
-    });
+  let unbindTheme: (() => void) | undefined;
+  const themeBtn = document.createElement('button');
+  themeBtn.type = 'button';
+  themeBtn.className = 'game-button-icon';
+  themeBtn.id = 'theme-toggle';
+  themeBtn.dataset.testid = 'theme-toggle';
+  themeBtn.setAttribute('aria-label', 'Toggle theme');
+  themeBtn.title = 'Toggle theme';
+  themeBtn.textContent = '◐';
+  if (themeApply) {
+    unbindTheme = bindThemeToggle(themeBtn, themeApply);
   }
 
   const newGameBtn = document.createElement('button');
@@ -214,7 +225,7 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   lobby.dataset.testid = 'back-to-lobby';
   lobby.textContent = 'Back to Lobby';
 
-  row.append(fullscreenBtn, ...(themeBtn ? [themeBtn] : []), newGameBtn, aiSlot, lobby);
+  row.append(fullscreenBtn, ...(themeApply ? [themeBtn] : []), newGameBtn, aiSlot, lobby);
 
   const status = document.createElement('p');
   status.className = 'game-button-status';
@@ -240,21 +251,29 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   popover.className = 'game-button-popover';
   popover.dataset.testid = 'first-player-popover';
   popover.hidden = true;
-  if (options.onFirstPlayerSelected) {
-    popover.innerHTML = `<h2>Who goes first?</h2><p>You vs AI — pick your color.</p><div class="game-button-popover-actions"></div>`;
+  if (usesFirstPlayerPopover) {
+    const firstTitle = options.firstPlayer?.title ?? 'Who goes first?';
+    const firstDescription = options.firstPlayer?.description ?? 'You vs AI — pick your color.';
+    popover.innerHTML = `<h2></h2><p></p><div class="game-button-popover-actions"></div>`;
+    popover.querySelector('h2')!.textContent = firstTitle;
+    popover.querySelector('p')!.textContent = firstDescription;
     const actions = popover.querySelector('.game-button-popover-actions')!;
-    for (const [label, color] of [
-      ['You · Black', 'black'],
-      ['You · White', 'white'],
-    ] as const) {
+    const choices =
+      options.firstPlayer?.choices ??
+      ([
+        { label: 'You · Black', id: 'black', testId: 'first-black' },
+        { label: 'You · White', id: 'white', testId: 'first-white' },
+      ] satisfies FirstPlayerChoice[]);
+    for (const choice of choices) {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.textContent = label;
-      btn.dataset.first = color;
-      btn.dataset.testid = color === 'black' ? 'first-black' : 'first-white';
+      btn.textContent = choice.label;
+      btn.dataset.first = choice.id;
+      btn.dataset.testid = choice.testId;
       btn.addEventListener('click', () => {
         popover.hidden = true;
-        options.onFirstPlayerSelected!(color);
+        if (options.firstPlayer) options.firstPlayer.onSelect(choice.id);
+        else options.onFirstPlayerSelected?.(choice.id as 'black' | 'white');
       });
       actions.append(btn);
     }
@@ -279,7 +298,7 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   syncFullscreenLabel();
 
   const openNewGamePopover = () => {
-    if (options.onFirstPlayerSelected) popover.hidden = false;
+    if (usesFirstPlayerPopover) popover.hidden = false;
   };
 
   if (options.onNewGameReset) {
@@ -289,7 +308,7 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   }
 
   const onDocClick = (event: MouseEvent) => {
-    if (!options.onFirstPlayerSelected || popover.hidden) return;
+    if (!usesFirstPlayerPopover || popover.hidden) return;
     const target = event.target as Node;
     if (!popover.contains(target) && target !== newGameBtn) popover.hidden = true;
   };
@@ -305,6 +324,7 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
     destroy() {
       document.removeEventListener('fullscreenchange', syncFullscreenLabel);
       document.removeEventListener('click', onDocClick);
+      unbindTheme?.();
       aiStrength?.destroy();
       root.remove();
     },

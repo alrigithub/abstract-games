@@ -34,7 +34,7 @@ const gameButtons = createGameButtons({
   lobbyHref: DEFAULT_LOBBY_HREF,
   aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
   onAiStrengthChange: level => renderStatus(undefined, level.label),
-  onThemeChange: applyTheme,
+  applyTheme,
   onFirstPlayerSelected: color => startGame(color),
 });
 
@@ -83,7 +83,7 @@ function winLineCells(): { row: number; col: number }[] | null {
 
 function renderStatus(extra?: string, strengthLabel?: string) {
   const human = humanColor === 'black' ? 'Black' : 'White';
-  const strength = strengthLabel ?? gameButtons.aiStrength.getLevel().label;
+  const strength = strengthLabel ?? gameButtons.aiStrength!.getLevel().label;
   let detail = extra;
   if (!detail) {
     if (game.winner) detail = `${game.winner === 'black' ? 'Black' : 'White'} wins`;
@@ -113,7 +113,7 @@ function maybeAiTurn() {
   scene.setInputEnabled(false);
   renderStatus();
   const gen = ++aiGeneration;
-  const search = levelToSearchOptions(gameButtons.aiStrength.getLevel());
+  const search = levelToSearchOptions(gameButtons.aiStrength!.getLevel());
   document.body.dataset.lastAiDepth = String(search.maxDepth);
   document.body.dataset.lastAiMaxNodes = String(search.maxNodes);
   aiWorker = new Worker(new URL('./game/ai.worker.ts', import.meta.url), { type: 'module' });

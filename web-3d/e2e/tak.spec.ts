@@ -91,9 +91,17 @@ test.describe('Tak 3D', () => {
     await waitBoard(page, false);
     await page.locator('[data-testid="mode-ai"]').click();
     await expect(page.locator('[data-testid="game-status"]')).toBeVisible();
-    const { box } = await boardBox(page);
-    const center = screenPoint(box, { x: box.width * 0.52, y: box.height * 0.52 });
-    await page.mouse.click(center.x, center.y);
+    const reserve = await page.evaluate(() =>
+      (window as unknown as { __takE2e: { openingReservePoint(): { x: number; y: number } } }).__takE2e.openingReservePoint(),
+    );
+    const center = await page.evaluate(() =>
+      (window as unknown as { __takE2e: { centerPoint(): { x: number; y: number } } }).__takE2e.centerPoint(),
+    );
+    await page.mouse.move(reserve.x, reserve.y);
+    await page.mouse.down();
+    await page.mouse.move(center.x, center.y, { steps: 14 });
+    await page.waitForTimeout(80);
+    await page.mouse.up();
     await expect(page.locator('[data-testid="end-turn"]')).toBeEnabled({ timeout: 10_000 });
     await page.click('[data-testid="end-turn"]');
     await expect(page.locator('[data-testid="game-status"]')).toContainText(/thinking|to move|wins/i, { timeout: 20_000 });

@@ -113,7 +113,7 @@ function renderStatus(extra?: string) {
 const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
   lobbyHref: '/web/index.html',
-  onThemeChange: applyTheme,
+  applyTheme,
   onNewGameReset: () => {
     snapshot = buildDemoSnapshot();
     scene.setSnapshot(snapshot);
