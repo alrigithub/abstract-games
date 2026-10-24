@@ -1,52 +1,59 @@
 # Abstract Games
 
-A Rust Cargo **monorepo** of abstract board games with human-vs-AI play (offline). The first game is [Yinsh](http://en.wikipedia.org/wiki/Yinsh), imported from [sharkdp/yinsh](https://github.com/sharkdp/yinsh); [Gomoku](https://en.wikipedia.org/wiki/Gomoku) and [Boop](https://boardgamegeek.com/boardgame/318084/boop) are planned next.
+Five abstract board games you can play against AI in the browser. Built with TypeScript, Vite, and three.js in the `web-3d` npm workspace.
 
-**Stack:** Bevy 0.17 desktop and WASM builds, async minimax AI, piece tweens — same feel as upstream Yinsh.
+Yinsh rules and AI approach trace to [sharkdp/yinsh](https://github.com/sharkdp/yinsh). Gomoku, Boop, Tak, and Tzaar share the same engine and hosting layout.
 
-Agent and contributor guidance: [AGENTS.md](./AGENTS.md).
+Coding agents: see [AGENTS.md](./AGENTS.md) (canonical). Claude: [CLAUDE.md](./CLAUDE.md).
 
 ## Games
 
-| Game | Status | Crates |
-|------|--------|--------|
-| Yinsh | playable | `yinsh`, `yinsh_ai`, `yinsh_gui`, `yinsh_ai_eval` |
-| Gomoku | planned | `crates/gomoku*` |
-| Boop | planned | `crates/boop*` |
+| Game | Package | Dev port |
+|------|---------|----------|
+| Yinsh | `@abstract/yinsh` | 5196 |
+| Gomoku | `@abstract/gomoku` | 5192 |
+| Boop | `@abstract/boop` | 5194 |
+| Tak | `@abstract/tak` | 5190 |
+| Tzaar | `@abstract/tzaar` | 5199 |
 
-## Yinsh
-
-Implementation of Yinsh with a strong AI. Rules: [Wikipedia — Yinsh](http://en.wikipedia.org/wiki/Yinsh#Rules).
-
-[**Play in your browser**](http://david-peter.de/yinsh) (upstream deployment; rebuild locally with `deploy.sh`).
-
-<img width="1103" height="1104" alt="Yinsh screenshot" src="https://github.com/user-attachments/assets/fc02bf84-5266-4a90-987a-95c71fac28e2" />
-
-### Desktop
+## Quick start
 
 ```bash
-cargo run -p yinsh_gui
+cd web-3d
+npm ci
+npm run dev -w @abstract/tak   # pick any game package
+npm test
+npm run build
+npm run test:e2e
 ```
 
-### Key bindings (Yinsh)
+## 3D assets (GLB)
 
-| Key | Action | Web | Desktop |
-|-----|--------|:---:|:-------:|
-| `U` / `Ctrl+Z` | Undo | ✓ | ✓ |
-| `Ctrl+R` | Reset game | ✓ | ✓ |
-| `PageDown` / `PageUp` | Decrease / Increase AI strength | ✓ | ✓ |
-| `Ctrl+S` | Save game state | | ✓ |
-| `Ctrl+L` | Load game state | | ✓ |
-| `Escape` / `Q` | Quit | | ✓ |
+Never run `compress-glb` unless Alex explicitly asks for it. Commit GLBs exactly as provided.
 
-## Development
+## Repository layout
+
+```
+web-3d/
+  engine/           @abstract/three-engine
+  games/<game>/     @abstract/<game> — rules, worker AI, Vite entry
+  hub/              lobby page linked from staging root
+  e2e/              Playwright smoke tests (one spec per game)
+  scripts/          optional manual GLB tools (never auto-run compress-glb)
+scripts/
+  stage_web3d_hosting.sh
+```
+
+## Deploy
+
+Build and assemble a static tree:
 
 ```bash
-cargo test
-cargo clippy --workspace
-cargo fmt --check
+./scripts/stage_web3d_hosting.sh
 ```
 
-## Attribution
+Upload **`hosting-staging/`** as a whole directory to Firebase Hosting site **bimsavage-games** (`/` → hub, `/tak`, `/gomoku`, … → each game’s `dist`).
 
-Yinsh game logic, AI, and GUI are derived from [sharkdp/yinsh](https://github.com/sharkdp/yinsh) by David Peter and contributors. See [NOTICE](./NOTICE). Licensed under **MIT OR Apache-2.0** ([LICENSE-MIT](./LICENSE-MIT), [LICENSE-APACHE](./LICENSE-APACHE)).
+## License
+
+**MIT OR Apache-2.0** — [LICENSE-MIT](./LICENSE-MIT), [LICENSE-APACHE](./LICENSE-APACHE). Third-party notes: [NOTICE](./NOTICE).

@@ -1,3 +1,4 @@
+import { CLAY } from './constants';
 import type { BoardBuildContext, ThemeId, ThemeTokens } from './types';
 
 export type { ThemeId, ThemeTokens };
@@ -13,15 +14,15 @@ const PIECE_LIGHT = {
 } as const;
 
 /** Canonical light palette; dark theme is always derived via {@link invertThemeTokens}. */
-/** Neutral light-grey arena tiles in light mode (matches table; avoids yellow PBR albedo). */
+/** Neutral light-grey for clay-retinted arenas (Gomoku sage keeps authored albedo). */
 export const LIGHT_ARENA_SURFACE = '#f0f0f0';
 
-/** Warm mid-grey slate for dark-mode arena (not colour-inverted white). */
-export const DARK_ARENA_SURFACE = '#5a5652';
+/** Cool mid-grey for dark-mode environment (matches {@link CLAY.ENV_DARK}). */
+export const DARK_ARENA_SURFACE = CLAY.ENV_DARK;
 
 export const LIGHT_THEME_TOKENS: ThemeTokens = {
-  table: '#ffffff',
-  board: '#ffffff',
+  table: CLAY.ENV,
+  board: CLAY.ENV,
   lines: '#5c564c',
   arenaSurface: LIGHT_ARENA_SURFACE,
   win: WIN_ACCENT,
@@ -36,7 +37,8 @@ export const LIGHT_THEME_TOKENS: ThemeTokens = {
 
 /** GIPF-style printed boards built from live board materials (Tzaar topology, Yinsh hex grid). */
 export function themeTokensFromBoardContext(ctx: BoardBuildContext): ThemeTokens {
-  const board = `#${ctx.boardMaterial.color.getHexString()}`;
+  void ctx;
+  const board = CLAY.ENV;
   const lines = `#${ctx.gridMaterial.color.getHexString()}`;
   return {
     table: board,

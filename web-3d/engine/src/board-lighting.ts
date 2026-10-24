@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BOARD } from './constants';
+import { BOARD, CLAY } from './constants';
 import { expandBoxByPlayfieldContent, tagExcludeFromBounds } from './playfield-bounds';
 import { PLAYFIELD_GROUND_USER_DATA } from './playfield-ground';
 import { themeTokens, type ThemeId } from './theme';
@@ -32,15 +32,25 @@ const PLAYFIELD_CATCHER_NAME = '__playfieldShadowCatcher';
 const SCENE_SHADOW_CATCHER_NAME = '__sceneShadowCatcher';
 const playfieldBounds = new THREE.Box3();
 
+function boardShadowMapType(): THREE.ShadowMapType {
+  return CLAY.SHADOW_MAP_TYPE === 'vsm' ? THREE.VSMShadowMap : THREE.PCFSoftShadowMap;
+}
+
 function chooseShadowMapSize(): number {
-  return 2048;
+  return CLAY.SHADOW_MAP_SIZE;
 }
 
 function applyShadowMapSettings(light: THREE.DirectionalLight, size: number) {
   light.shadow.mapSize.set(size, size);
-  light.shadow.bias = -0.00015;
-  light.shadow.normalBias = 0.004;
-  light.shadow.radius = 1.25;
+  light.shadow.bias = CLAY.SHADOW_BIAS;
+  light.shadow.normalBias = CLAY.SHADOW_NORMAL_BIAS;
+  light.shadow.radius = 2;
+  light.shadow.blurSamples = CLAY.SHADOW_BLUR_SAMPLES;
+}
+
+export function configureBoardShadowMap(renderer: THREE.WebGLRenderer): void {
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = boardShadowMapType();
 }
 
 function fillBoxCorners(box: THREE.Box3, out: THREE.Vector3[]) {
@@ -92,11 +102,10 @@ export function applyBoardLighting(
   renderer: THREE.WebGLRenderer,
   options: BoardLightingOptions = {},
 ): BoardLightingHandle {
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  configureBoardShadowMap(renderer);
 
   const pieceHeightMargin = options.pieceHeightMargin ?? 1.35;
-  const light = new THREE.DirectionalLight(0xffffff, 1.05);
+  const light = new THREE.DirectionalLight(CLAY.KEY_LIGHT_COLOR, CLAY.KEY_LIGHT_INTENSITY);
   light.position.set(7, 11, -8);
   light.castShadow = true;
   applyShadowMapSettings(light, chooseShadowMapSize());
@@ -119,18 +128,17 @@ export function applyBoardLighting(
     if (!hemisphere) return;
     const tokens = themeTokens(themeId);
     if (themeId === 'light') {
-      // Neutral fill from page/table white — do not re-tint from arenaSurface albedo.
-      hemisphere.color.set(tokens.table);
+      // Neutral fill — avoids warm double-tint on authored sage PBR tiles.
+      hemisphere.color.set('#ffffff');
       hemisphere.groundColor.set('#dcdcdc');
       hemisphere.intensity = 0.34;
       return;
     }
-    const surface = new THREE.Color(tokens.arenaSurface);
-    const sky = surface.clone().lerp(new THREE.Color(tokens.table), 0.55);
-    const ground = surface.clone().multiplyScalar(0.62);
+    const sky = new THREE.Color(CLAY.ENV_DARK);
+    const ground = new THREE.Color(CLAY.BACKDROP);
     hemisphere.color.copy(sky);
     hemisphere.groundColor.copy(ground);
-    hemisphere.intensity = 0.26;
+    hemisphere.intensity = 0.36;
   }
   syncThemeAmbientFill('light');
 
@@ -141,7 +149,7 @@ export function applyBoardLighting(
     }
     tmpBox.min.y = Math.min(tmpBox.min.y, BOARD.PLAYFIELD_SURFACE_Y);
     tmpBox.max.y = Math.max(tmpBox.max.y, BOARD.PLAYFIELD_SURFACE_Y + pieceHeightMargin);
-    tmpBox.expandByScalar(0.35);
+    tmpBox.expandByScalar(CLAY.SHADOW_FRUSTUM_EXPAND);
 
     const center = tmpBox.getCenter(new THREE.Vector3());
     const size = tmpBox.getSize(new THREE.Vector3());
@@ -150,7 +158,10 @@ export function applyBoardLighting(
     target.position.copy(center);
     light.position.copy(center).addScaledVector(LIGHT_DIR, lightDistance);
 
-    const pad = Math.max(0.2, Math.max(size.x, size.z) * 0.04);
+    const pad = Math.max(
+      CLAY.SHADOW_FRUSTUM_PAD_MIN,
+      Math.max(size.x, size.z) * CLAY.SHADOW_FRUSTUM_PAD_XZ_RATIO,
+    );
     fitShadowCameraToBox(light, tmpBox, pad);
   }
 
@@ -201,7 +212,7 @@ export function setMeshShadowFlags(
 }
 
 /** Drop-shadow strength on unlit (MeshBasic) boards. */
-export const PIECE_DROP_SHADOW_OPACITY = 0.35;
+export const PIECE_DROP_SHADOW_OPACITY = 0.28;
 
 function createPlayfieldShadowCatcher(): THREE.Mesh {
   const catcher = new THREE.Mesh(
@@ -262,6 +273,15 @@ export function fitPlayfieldShadowCatcher(boardRoot: THREE.Object3D, worldBounds
 
 /** Full-scene shadow receiver (covers reserves / margins outside the board group). */
 export function syncSceneShadowCatcher(scene: THREE.Scene, worldBounds: THREE.Box3, pad = 0.5) {
+  if (!CLAY.USE_SCENE_SHADOW_CATCHER) {
+    const existing = scene.getObjectByName(SCENE_SHADOW_CATCHER_NAME) as THREE.Mesh | undefined;
+    if (existing) {
+      scene.remove(existing);
+      existing.geometry.dispose();
+      (existing.material as THREE.Material).dispose();
+    }
+    return;
+  }
   let catcher = scene.getObjectByName(SCENE_SHADOW_CATCHER_NAME) as THREE.Mesh | undefined;
   if (!catcher) {
     catcher = createPlayfieldShadowCatcher();

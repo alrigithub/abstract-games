@@ -1,7 +1,15 @@
 import * as THREE from 'three';
-import { themeTokens, type ThemeId } from './theme';
+import { applyClayEnvMaterials } from './clay-materials';
+import type { ThemeId } from './theme';
 
 const ARENA_ROUGHNESS = 0.82;
+
+function assignMeshMaterial(mesh: THREE.Mesh, next: THREE.Material | THREE.Material[]) {
+  const prev = mesh.material;
+  mesh.material = next;
+  if (Array.isArray(prev)) prev.forEach(m => m.dispose());
+  else if (prev instanceof THREE.Material) prev.dispose();
+}
 
 function matteArenaStandardMaterial(source: THREE.Material, color?: THREE.Color): THREE.Material {
   if (source instanceof THREE.MeshStandardMaterial || source instanceof THREE.MeshPhysicalMaterial) {
@@ -35,41 +43,29 @@ function matteArenaStandardMaterial(source: THREE.Material, color?: THREE.Color)
   return source.clone();
 }
 
-function retintStandardMaterial(source: THREE.Material, color: THREE.Color): THREE.Material {
-  return matteArenaStandardMaterial(source, color);
-}
-
-function assignMeshMaterial(mesh: THREE.Mesh, next: THREE.Material | THREE.Material[]) {
-  const prev = mesh.material;
-  mesh.material = next;
-  if (Array.isArray(prev)) prev.forEach(m => m.dispose());
-  else if (prev instanceof THREE.Material) prev.dispose();
-}
-
-/** Arena GLB tiles, rubble, and columns cast and receive directional shadows. */
+/** Arena GLB: receive piece shadows; env geometry does not cast (avoids acne / dark bands on tiles). */
 export function tagArenaGlbForShadows(root: THREE.Object3D): void {
   root.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;
-    node.castShadow = true;
+    node.castShadow = false;
     node.receiveShadow = true;
   });
 }
 
-/** Theme-tinted matte PBR for authored arena meshes (keeps normal/ao maps when present). */
-export function applyArenaGlbThemeMaterials(root: THREE.Object3D, themeId: ThemeId): void {
-  const color = new THREE.Color(themeTokens(themeId).arenaSurface);
-  root.traverse(node => {
-    if (!(node instanceof THREE.Mesh)) return;
-    const mesh = node;
-    if (Array.isArray(mesh.material)) {
-      assignMeshMaterial(
-        mesh,
-        mesh.material.map(mat => retintStandardMaterial(mat, color)),
-      );
-    } else {
-      assignMeshMaterial(mesh, retintStandardMaterial(mesh.material, color));
-    }
-  });
+export interface ApplyArenaGlbThemeMaterialsOptions {
+  /** When true, keep authored GLB materials (colours, textures) instead of shared clay ENV. */
+  keepGlbMaterials?: boolean;
+}
+
+/** Shared clay ENV material for authored arena / environment GLBs. */
+export function applyArenaGlbThemeMaterials(
+  root: THREE.Object3D,
+  _themeId: ThemeId,
+  options: ApplyArenaGlbThemeMaterialsOptions = {},
+): void {
+  void _themeId;
+  if (options.keepGlbMaterials) return;
+  applyClayEnvMaterials(root);
 }
 
 /** Matte PBR for arena GLBs that keep authored albedo (strips baked maps that tint under scene lighting). */

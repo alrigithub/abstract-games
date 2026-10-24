@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { BOARD } from '../constants';
+import { clayEnvMaterial, clayMaterialForPlayer } from '../clay-materials';
 import { themeTokens } from '../theme';
 import { anchorGeometryBaseToY0 } from './anchor';
 import type { PieceGeometrySet, ThemeId } from '../types';
 
-/** Canonical sizes — see `web-3d/demos/gomoku/IMPLEMENTED.md`. */
+/** Canonical sizes — see `web-3d/games/gomoku/IMPLEMENTED.md`. */
 export const GOMOKU_DIMS = {
   GRID: 15,
   SLAB: 0,
@@ -68,24 +69,22 @@ export function gomokuStoneCenterY(): number {
 
 export interface GomokuThemeMaterials {
   table: THREE.Color;
-  board: THREE.MeshBasicMaterial;
+  board: THREE.MeshStandardMaterial;
   line: THREE.MeshBasicMaterial;
   star: THREE.MeshBasicMaterial;
-  stoneA: THREE.MeshBasicMaterial;
-  stoneB: THREE.MeshBasicMaterial;
+  stoneA: THREE.MeshStandardMaterial;
+  stoneB: THREE.MeshStandardMaterial;
 }
 
 export function gomokuThemeMaterials(theme: ThemeId): GomokuThemeMaterials {
   const tokens = themeTokens(theme);
-  const pieceA = tokens.piece.A!;
-  const pieceB = tokens.piece.B!;
   return {
     table: new THREE.Color(tokens.table),
-    board: new THREE.MeshBasicMaterial({ color: tokens.board, side: THREE.DoubleSide, depthWrite: false }),
+    board: clayEnvMaterial(),
     line: new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.DoubleSide, depthWrite: false }),
     star: new THREE.MeshBasicMaterial({ color: tokens.lines, side: THREE.DoubleSide, depthWrite: false }),
-    stoneA: new THREE.MeshBasicMaterial({ color: pieceA.fill, toneMapped: false }),
-    stoneB: new THREE.MeshBasicMaterial({ color: pieceB.fill, toneMapped: false }),
+    stoneA: clayMaterialForPlayer('A'),
+    stoneB: clayMaterialForPlayer('B'),
   };
 }
 

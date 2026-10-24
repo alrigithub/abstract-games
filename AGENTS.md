@@ -4,90 +4,58 @@ Guidance for coding agents working in this repository.
 
 ## Product
 
-Rust Cargo **monorepo** of abstract board games. Human vs AI, offline.
-Feel target: [sharkdp/yinsh](https://github.com/sharkdp/yinsh) — Bevy GUI, WASM web build, async minimax, tweens.
-Not the BimSavage Next/Pixi shell. Not the abandoned Vite+Canvas2D hub.
+**TypeScript + three.js only** — browser games, human vs AI, offline. No Rust, Bevy, or WASM game shells.
 
-## Games (priority)
+Polished 3D boards, minimax AI in **Web Workers**, smooth piece motion via the shared engine.
 
-1. Yinsh — `crates/yinsh*`
-2. Gomoku — `crates/gomoku*`
-3. Boop — `crates/boop*`
-4. Tak — `crates/tak*` (5×5 v1)
+## Layout
 
-Later: Tzaar (out of scope until asked)
-
-## Workspace layout
-
-Each game is three crates (four if eval exists):
-
-| Crate | Role |
-|-------|------|
-| `{game}` | Pure rules + state machine. No Bevy. |
-| `{game}_ai` | `minimax` crate adapter + heuristics |
-| `{game}_gui` | Bevy 0.17 app bin; async AI; tweens |
-| `{game}_ai_eval` | Optional AI tournament binary |
+| Path | Package / role |
+|------|----------------|
+| `web-3d/engine` | `@abstract/three-engine` — scene, camera, picking, lighting, themes, GLB loading |
+| `web-3d/games/<g>` | `@abstract/<g>` — rules, AI worker, Vite app (`yinsh`, `gomoku`, `boop`, `tak`, `tzaar`) |
+| `web-3d/hub` | Static lobby (`index.html`, rules TL;DR SVGs) |
+| `web-3d/e2e` | One Playwright smoke spec per game |
+| `web-3d/scripts` | `compress-glb.mjs` (manual, Alex-only) and workspace utilities |
+| `scripts/stage_web3d_hosting.sh` | Build all games + copy hub into `hosting-staging/` |
 
 ## Commands
 
-```bash
-cargo test --workspace
-cargo clippy --workspace
-cargo fmt --check
-cargo run -p yinsh_gui          # desktop binary: yinsh
-cargo run -p gomoku_gui         # desktop binary: gomoku
-cargo run -p boop_gui           # desktop binary: boop
-cargo run -p tak_gui            # desktop binary: tak
-cargo run -p yinsh_ai_eval --release
-```
-
-## Web / WASM
-
-Hub: `web/index.html` → `web/yinsh/`, `web/gomoku/`, `web/boop/`, `web/tak/`.
-
-**Prerequisites:** `rustup target add wasm32-unknown-unknown`, and `wasm-bindgen-cli` **0.2.106** (must match `Cargo.lock`).
+From `web-3d`:
 
 ```bash
-# One-shot (recommended)
-./scripts/build_web.sh
-# or
-./deploy.sh
-
-# Manual equivalent
-export RUSTFLAGS='--cfg getrandom_backend="wasm_js"'
-cargo build --profile wasm-release --target wasm32-unknown-unknown \
-  -p yinsh_gui -p gomoku_gui -p boop_gui -p tak_gui
-wasm-bindgen --out-dir web/yinsh --target web --no-typescript \
-  target/wasm32-unknown-unknown/wasm-release/yinsh.wasm
-wasm-bindgen --out-dir web/gomoku --target web --no-typescript \
-  target/wasm32-unknown-unknown/wasm-release/gomoku.wasm
-wasm-bindgen --out-dir web/boop --target web --no-typescript \
-  target/wasm32-unknown-unknown/wasm-release/boop.wasm
-wasm-bindgen --out-dir web/tak --target web --no-typescript \
-  target/wasm32-unknown-unknown/wasm-release/tak.wasm
-# Optional: wasm-opt -Os web/{game}/{game}_bg.wasm -o web/{game}/{game}_bg.wasm
+npm ci
+npm run dev -w @abstract/tak    # example; each game has its own Vite port
+npm test
+npm run build
+npm run test:e2e
 ```
 
-Serve locally:
+Stage for hosting:
 
 ```bash
-python3 -m http.server 8080 --directory web
-# open http://localhost:8080/
+./scripts/stage_web3d_hosting.sh
 ```
 
-Generated artifacts (`*_bg.wasm`, `*.js` in game folders) are gitignored; CI compiles WASM but does not commit bundles.
+Deploy the **entire** `hosting-staging/` tree to Firebase Hosting site **bimsavage-games** (atomic upload so hashed assets stay in sync with `index.html`).
 
-## Patterns to copy (from yinsh)
+## Patterns
 
-- `TurnMode` / `Move` state machine in `{game}`
-- `InteractionState` separate from `GameState` in GUI
-- AI via `bevy_async_task` (never block the render loop)
-- `bevy_tweening` ~500ms piece motion
-- YAML fixtures for AI / midgame tests where useful
+- **Rules** live in each game’s `src/game/` (pure TypeScript; no three.js in rule modules when possible).
+- **Game state** (authoritative rules) stays separate from **interaction state** (selection, drag, drafts, UI) — e.g. `GameState` / `snapshot` vs `game-ui`, bridge, or engine `BoardSnapshot`.
+- **AI** only in `*.worker.ts`; never block the render loop.
+- **Tests:** Vitest for rules/engine per package; Playwright smoke in `web-3d/e2e/` (`data-testid="board"`). No committed screenshot baselines — Playwright may capture on failure only.
+- **GLBs:** Never run `compress-glb` unless Alex explicitly asks for it. Commit GLBs exactly as provided. At runtime, load with the engine meshopt-capable loader (`ensureMeshoptDecoderReady`, `loadGltfAsync` / `createMeshoptGltfLoader` in `@abstract/three-engine`) so meshopt-compressed assets still work when present.
+- **Lighting:** Shared sun direction `LIGHT_DIR = normalize(1, √2, -1)` in `board-lighting.ts`; directional light with **real drop shadows** on every piece (shadow map fitted to playfield).
+- **Look:** Line-drawn boards on a large white playfield ground; **dark theme** is a full token inversion of the light palette (`invertThemeTokens`), not a separate art pass.
 
 ## Do not
 
 - Add online multiplayer in v1
-- Port games to JS/Canvas2D engines
-- Break `cargo test -p yinsh` / `cargo test -p yinsh_ai`
-- Commit secrets or large binary assets without need
+- Reintroduce Rust/Bevy/WASM shells or old `crates/` / `web/` hub layouts
+- Commit secrets
+- Run `npm run compress-glb` or wire it into install/build/CI/hooks unless Alex explicitly requests it
+
+## Attribution
+
+Yinsh logic traces to [sharkdp/yinsh](https://github.com/sharkdp/yinsh). See [NOTICE](./NOTICE).

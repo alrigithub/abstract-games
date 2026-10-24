@@ -17,14 +17,14 @@ describe('resolveDefaultLobbyHref', () => {
     expect(DEFAULT_LOBBY_HREF).toBe('../index.html');
   });
 
-  it('resolves to web/index.html from a published game path', () => {
+  it('resolves to the hub index from a published game path', () => {
     vi.stubGlobal('document', {
-      location: { href: 'https://example.github.io/abstract-games/web/tak/index.html' },
+      location: { href: 'https://example.github.io/abstract-games/tak/index.html' },
     });
-    expect(resolveDefaultLobbyHref()).toBe('https://example.github.io/abstract-games/web/index.html');
+    expect(resolveDefaultLobbyHref()).toBe('https://example.github.io/abstract-games/index.html');
   });
 
-  it('resolves from Firebase-style /tak/ deploy when web/ is the host root', () => {
+  it('resolves from Firebase-style /tak/ deploy when the hub is the host root', () => {
     vi.stubGlobal('document', {
       location: { href: 'https://my-game.web.app/tak/index.html' },
     });

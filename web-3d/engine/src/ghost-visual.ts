@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { rebindClayMaterialsFromUserData } from './clay-materials';
 
 /** Deep-clone mesh materials so instances do not share GLB template materials. */
 export function cloneMeshMaterials(root: THREE.Object3D): void {
@@ -24,10 +25,10 @@ export function ensureOpaquePieceMaterials(root: THREE.Object3D): void {
   });
 }
 
-/** Clone template hierarchy and give every mesh its own material instances. */
+/** Clone template hierarchy; clay GLBs keep shared materials via userData roles. */
 export function clonePieceVisualTemplate(template: THREE.Object3D): THREE.Object3D {
   const root = template.clone(true);
-  cloneMeshMaterials(root);
+  rebindClayMaterialsFromUserData(root);
   ensureOpaquePieceMaterials(root);
   return root;
 }

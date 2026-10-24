@@ -9,11 +9,11 @@ const web3dRoot = path.resolve(engineDir, '../..');
 
 /** Demo entrypoints and custom scenes must not add their own Three.js lighting or renderer tone mapping. */
 const DEMO_SOURCE_ROOTS = [
-  path.join(web3dRoot, 'demos/boop/src'),
-  path.join(web3dRoot, 'demos/yinsh/src'),
-  path.join(web3dRoot, 'demos/tzaar/src'),
-  path.join(web3dRoot, 'demos/gomoku/src'),
-  path.join(web3dRoot, 'tak/src'),
+  path.join(web3dRoot, 'games/boop/src'),
+  path.join(web3dRoot, 'games/yinsh/src'),
+  path.join(web3dRoot, 'games/tzaar/src'),
+  path.join(web3dRoot, 'games/gomoku/src'),
+  path.join(web3dRoot, 'games/tak/src'),
 ];
 
 const SOURCE_EXT = new Set(['.ts', '.tsx']);
@@ -76,8 +76,11 @@ describe('demo lighting guard', () => {
     const rendererSrc = readFileSync(path.join(engineDir, 'board-renderer.ts'), 'utf8');
     const sceneSrc = readFileSync(path.join(engineDir, 'board-scene.ts'), 'utf8');
     const lightingSrc = readFileSync(path.join(engineDir, 'board-lighting.ts'), 'utf8');
-    expect(rendererSrc).toMatch(/shadowMap\.enabled = true/);
-    expect(rendererSrc).toMatch(/PCFSoftShadowMap/);
+    expect(rendererSrc).toMatch(/configureBoardShadowMap/);
+    expect(lightingSrc).toMatch(/shadowMap\.enabled = true/);
+    expect(lightingSrc).toMatch(/VSMShadowMap|PCFSoftShadowMap/);
+    expect(rendererSrc).toMatch(/AgXToneMapping/);
+    expect(rendererSrc).toMatch(/toneMappingExposure/);
     expect(rendererSrc).toMatch(/export function applyBoardEnvironment/);
     expect(rendererSrc).toMatch(/new RoomEnvironment/);
     expect(rendererSrc).toMatch(/new THREE\.PMREMGenerator/);
@@ -87,7 +90,7 @@ describe('demo lighting guard', () => {
     expect(lightingSrc).toMatch(/HemisphereLight/);
     expect(lightingSrc).toMatch(/Math\.SQRT2/);
     expect(sceneSrc).toMatch(/applyBoardEnvironment\(scene, renderer\)/);
-    expect(sceneSrc).toMatch(/applyBoardLighting\(scene, renderer\)/);
+    expect(sceneSrc).toMatch(/applyBoardLighting\(scene, renderer/);
     expect(sceneSrc).toMatch(/disposeEnvironment\(\)/);
     expect(BOARD.ENVIRONMENT_INTENSITY).toBeGreaterThan(0);
     expect(BOARD.ENVIRONMENT_INTENSITY).toBeLessThanOrEqual(2);

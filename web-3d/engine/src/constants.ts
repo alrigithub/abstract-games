@@ -14,7 +14,7 @@ export const ANIMATION = {
   HORIZONTAL_DURATION: 60,
   /** Out cubic ease: `1 - (1 - t) ** 3` */
   easeOutCubic: (t: number) => 1 - (1 - t) ** 3,
-  /** Marker / stone flip duration (ms), matched to Bevy Yinsh GUI and Tak studio. */
+  /** Marker / stone flip duration (ms), matched to legacy Yinsh GUI timing. */
   FLIP_DURATION: 500,
 } as const;
 
@@ -29,8 +29,8 @@ export const BOARD = {
   /** World units per side of the shared infinite-style playfield plane. */
   PLAYFIELD_GROUND_SIZE: 8192,
   /** Linear fog matches {@link applyPlayfieldBackdrop} / scene background. */
-  PLAYFIELD_FOG_NEAR: 28,
-  PLAYFIELD_FOG_FAR: 140,
+  PLAYFIELD_FOG_NEAR: 42,
+  PLAYFIELD_FOG_FAR: 165,
   /** Board thickness (0 = flat playfield plane at {@link PLAYFIELD_SURFACE_Y}). */
   SLAB: 0,
   /** Tak board thickness (same flat plane as other games). */
@@ -56,9 +56,49 @@ export const BOARD = {
    * Shared IBL strength for PBR GLBs ({@link applyBoardEnvironment}).
    * MeshBasic board/piece materials ignore this.
    */
-  ENVIRONMENT_INTENSITY: 0.72,
+  ENVIRONMENT_INTENSITY: 0.78,
   /** Decal under pieces (complements shadow maps). */
   PIECE_CONTACT_SHADOW_OPACITY: 0.24,
+} as const;
+
+/** Central tuning for the shared clay / maquette look (tone map, AO, key light). */
+export const CLAY = {
+  TONE_MAPPING_EXPOSURE: 0.98,
+  AO_ENABLED: true,
+  /** Low: stable on laptops; Performance is noisier. */
+  AO_QUALITY: 'Low' as const,
+  AO_HALF_RES: true,
+  AO_INTENSITY: 2.35,
+  /** World-space contact radius (~board is ~10u); avoids edge-halo AO. */
+  AO_RADIUS: 1.55,
+  AO_DISTANCE_FALLOFF: 0.72,
+  KEY_LIGHT_INTENSITY: 0.82,
+  /** VSM gives softer penumbra than PCFSoft on directional lights (laptop-friendly blur). */
+  SHADOW_MAP_TYPE: 'vsm' as const,
+  SHADOW_MAP_SIZE: 2048,
+  SHADOW_BIAS: -0.00004,
+  SHADOW_NORMAL_BIAS: 0.0014,
+  /** VSM blur passes (ignored for PCFSoft). */
+  SHADOW_BLUR_SAMPLES: 6,
+  /** Tight ortho fit → more texels on playfield, less blocky penumbra. */
+  SHADOW_FRUSTUM_EXPAND: 0.26,
+  SHADOW_FRUSTUM_PAD_MIN: 0.42,
+  SHADOW_FRUSTUM_PAD_XZ_RATIO: 0.085,
+  /** Soft cool daylight (not warm studio). */
+  KEY_LIGHT_COLOR: 0xf4f6f3,
+  /** Playfield / board / arena GLB albedo (light airy grey-green). */
+  ENV: '#d0d0cc',
+  /** Fog + scene background (subtle vignette, still grey-green). */
+  BACKDROP: '#cbcac7',
+  /** Dark-theme environment albedo. */
+  ENV_DARK: '#72716e',
+  PIECE_LIGHT: '#e8e4dc',
+  PIECE_DARK: '#4a4a48',
+  MATERIAL_ROUGHNESS: 0.88,
+  /** Slightly rougher ENV clay to avoid hot specular edges on large arena GLBs. */
+  ENV_MATERIAL_ROUGHNESS: 0.93,
+  /** Full-scene ShadowMaterial plane (PBR arenas use mesh receiveShadow instead). */
+  USE_SCENE_SHADOW_CATCHER: false,
 } as const;
 
 export const CAMERA = {
