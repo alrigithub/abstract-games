@@ -55,7 +55,7 @@ export class GomokuWinGlowLayer {
     return n;
   }
 
-  setWorldCells(cells: readonly { x: number; z: number }[]) {
+  setWorldCells(cells: readonly { x: number; z: number; y?: number }[]) {
     for (const mesh of this.pool) mesh.visible = false;
     this.pulseActive = cells.length > 0;
     for (let i = 0; i < cells.length; i++) {
@@ -86,7 +86,7 @@ export class GomokuWinGlowLayer {
       }
       mesh.userData.runHaloBaseOpacity = HALO_BASE_OPACITY;
       mesh.scale.set(this.haloRadius, this.haloRadius, 1);
-      mesh.position.set(cell.x, HALO_Y, cell.z);
+      mesh.position.set(cell.x, cell.y ?? HALO_Y, cell.z);
     }
   }
 
