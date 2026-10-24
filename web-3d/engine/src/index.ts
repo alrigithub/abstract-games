@@ -3,6 +3,7 @@ export * from './board-scene';
 export * from './constants';
 export * from './interaction';
 export * from './stack';
+export * from './stack-layout';
 export * from './theme';
 export * from './types';
 export * from './topology/square-grid';

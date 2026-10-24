@@ -1,5 +1,6 @@
 import '../style.css';
 import {
+  BOARD,
   createBoardScene,
   createInteraction,
   createSquareTopology,
@@ -33,7 +34,13 @@ const history: BoardState[] = [];
 let sandbox = true;
 let lastView: InteractionView | null = null;
 
-const scene = await createBoardScene(board, { gridSize: boardSize, topology, pieces, initialTheme: theme });
+const scene = await createBoardScene(board, {
+  gridSize: boardSize,
+  topology,
+  pieces,
+  initialTheme: theme,
+  boardSlab: BOARD.TAK_SLAB,
+});
 const stage = board.querySelector('canvas') ?? board;
 
 function refresh() {
