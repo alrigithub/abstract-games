@@ -47,6 +47,11 @@ export default defineConfig({
       testMatch: '**/five-games-preview-smoke.spec.ts',
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      name: 'ai-worker-reliability',
+      testMatch: '**/ai-worker-reliability.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
   webServer: [
     {

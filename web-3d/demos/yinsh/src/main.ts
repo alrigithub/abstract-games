@@ -6,8 +6,10 @@ import {
   createYinshTopology,
   TAP_MOVE_THRESHOLD,
   DEFAULT_LOBBY_HREF,
+  AiWorkerSession,
   levelToSearchOptions,
   readInitialTheme,
+  recordAiThinkMetrics,
   THEME_STORAGE_KEY,
   YINSH_AI_STRENGTH_STORAGE_KEY,
   yinshWorldPoint,
@@ -23,7 +25,7 @@ import { movesInclude, possibleMoves } from './game/moves';
 import { statusLine } from './game/phase';
 import { markerIdsOnRingMove, moveNeedsFlip } from './game/visual';
 import { coordToIndex, indexToCoord } from './game/cells';
-import { chooseAiMove } from './game/ai';
+import { quickLegalMove } from './game/ai';
 import type { Move } from './game/state';
 import type { Player } from './game/player';
 import { loadYinshPieceGeometrySet, YINSH_RING_TARGET_OUTER_DIAMETER } from './yinsh-piece-models';
@@ -59,7 +61,7 @@ let aiPlayer: Player = 'B';
 let game = GameState.initial();
 let aiPending = false;
 let aiGeneration = 0;
-let aiWorker: Worker | null = null;
+const aiSession = new AiWorkerSession();
 let ringMoveFrom: ReturnType<typeof indexToCoord> | null = null;
 let pendingTap: { x: number; y: number } | null = null;
 
@@ -136,8 +138,7 @@ function humanTurn() {
 
 function stopAi() {
   aiGeneration++;
-  aiWorker?.terminate();
-  aiWorker = null;
+  aiSession.cancel();
   aiPending = false;
 }
 
@@ -165,36 +166,41 @@ async function drainAutoWaits(): Promise<void> {
 }
 
 async function runAiTurn(): Promise<void> {
-  if (game.winner() || game.activePlayer !== aiPlayer) return;
+  if (game.winner() || game.activePlayer !== aiPlayer || aiPending) return;
   aiPending = true;
   renderStatus();
   const gen = ++aiGeneration;
-  const depth = levelToSearchOptions(gameButtons.aiStrength!.getLevel()).maxDepth;
-  document.body.dataset.yinshAiDepth = String(depth);
+  const search = levelToSearchOptions(gameButtons.aiStrength!.getLevel());
+  document.body.dataset.yinshAiDepth = String(search.maxDepth);
 
-  aiWorker = new Worker(new URL('./game/ai.worker.ts', import.meta.url), { type: 'module' });
-  aiWorker.onmessage = (event: MessageEvent<AiResponse>) => {
-    if (event.data.id !== gen || gen !== aiGeneration) return;
-    aiWorker?.terminate();
-    aiWorker = null;
-    const move = event.data.move;
-    void scene.enqueueAnimation(async () => {
-      const applied =
-        move ??
-        (() => {
-          try {
-            return chooseAiMove(game, 2);
-          } catch {
-            return null;
-          }
-        })();
-      if (applied) await performMove(applied);
-      renderStatus();
-      aiPending = false;
-      maybeAiTurn();
-    });
-  };
-  aiWorker.postMessage({ id: gen, state: serializeForWorker(game), maxDepth: depth });
+  const t0 = performance.now();
+  const move = await aiSession.request<Move | null>({
+    createWorker: () => new Worker(new URL('./game/ai.worker.ts', import.meta.url), { type: 'module' }),
+    postMessage: (worker, id) =>
+      worker.postMessage({
+        id,
+        state: serializeForWorker(game),
+        maxDepth: search.maxDepth,
+        maxNodes: search.maxNodes,
+        timeBudgetMs: search.maxTimeMs,
+      }),
+    parseMessage: (event, id) => {
+      const data = event.data as AiResponse;
+      if (data.id !== id) return undefined;
+      return data.move;
+    },
+    timeBudgetMs: search.maxTimeMs,
+  });
+  recordAiThinkMetrics(performance.now() - t0);
+  if (gen !== aiGeneration) return;
+
+  void scene.enqueueAnimation(async () => {
+    const applied = move ?? quickLegalMove(game);
+    if (applied) await performMove(applied);
+    renderStatus(applied ? undefined : 'AI could not move');
+    aiPending = false;
+    maybeAiTurn();
+  });
 }
 
 function maybeAiTurn() {

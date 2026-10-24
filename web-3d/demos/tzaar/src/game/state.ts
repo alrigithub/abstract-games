@@ -82,6 +82,10 @@ export class Stack {
   mergeOnTop(other: Stack) {
     this.pieces.push(...other.pieces);
   }
+
+  clone(): Stack {
+    return new Stack(this.pieces.map(p => ({ ...p })));
+  }
 }
 
 export class Board {
@@ -166,6 +170,12 @@ export class Board {
     }
     return present;
   }
+
+  clone(): Board {
+    const b = new Board();
+    b.stacks = this.stacks.map(s => (s ? s.clone() : null));
+    return b;
+  }
 }
 
 export class GameState {
@@ -213,6 +223,15 @@ export class GameState {
     }
     moves.push({ tag: 'PassSecond' });
     return moves;
+  }
+
+  clone(): GameState {
+    const next = new GameState();
+    next.board = this.board.clone();
+    next.toMove = this.toMove;
+    next.phase = this.phase;
+    next.winner = this.winner;
+    return next;
   }
 
   apply(move: Move): boolean {

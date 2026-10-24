@@ -1,4 +1,4 @@
-import { chooseAiMove } from './ai';
+import { chooseAiMove, quickLegalMove, type YinshAiOptions } from './ai';
 import { possibleMoves } from './moves';
 import { GameState } from './state';
 import type { Move } from './state';
@@ -25,34 +25,26 @@ function deserialize(data: SerializedState): GameState {
   return new GameState(data.activePlayer, data.turnMode, board, data.pointsA, data.pointsB);
 }
 
-function serialize(state: GameState): SerializedState {
-  return {
-    activePlayer: state.activePlayer,
-    turnMode: state.turnMode,
-    pointsA: state.pointsA,
-    pointsB: state.pointsB,
-    ringsA: [...state.board.ringCoords('A')],
-    ringsB: [...state.board.ringCoords('B')],
-    markersA: [...state.board.markerCoords('A')],
-    markersB: [...state.board.markerCoords('B')],
-  };
-}
-
-export type AiRequest = { id: number; state: SerializedState; maxDepth: number };
+export type AiRequest = {
+  id: number;
+  state: SerializedState;
+  maxDepth: number;
+  maxNodes: number;
+  timeBudgetMs: number;
+};
 export type AiResponse = { id: number; move: Move | null };
 
 self.onmessage = (event: MessageEvent<AiRequest>) => {
-  const { id, state, maxDepth } = event.data;
+  const { id, state, maxDepth, maxNodes, timeBudgetMs } = event.data;
+  const options: YinshAiOptions = { maxDepth, maxNodes, maxTimeMs: timeBudgetMs };
   try {
     const game = deserialize(state);
-    const move = chooseAiMove(game, maxDepth);
+    const move = chooseAiMove(game, options) ?? quickLegalMove(game);
     self.postMessage({ id, move } satisfies AiResponse);
   } catch {
     try {
       const game = deserialize(state);
-      const moves = possibleMoves(game).filter(m => m.tag !== 'Wait');
-      const pool = moves.length ? moves : possibleMoves(game);
-      self.postMessage({ id, move: pool[0] ?? null } satisfies AiResponse);
+      self.postMessage({ id, move: quickLegalMove(game) } satisfies AiResponse);
     } catch {
       self.postMessage({ id, move: null } satisfies AiResponse);
     }

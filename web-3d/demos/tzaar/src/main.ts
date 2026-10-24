@@ -1,4 +1,6 @@
 import {
+  AiWorkerSession,
+  aiWatchdogMs,
   createBoardScene,
   createGameButtons,
   createTapInteraction,
@@ -6,11 +8,12 @@ import {
   DEFAULT_LOBBY_HREF,
   levelToSearchOptions,
   readInitialTheme,
+  recordAiThinkMetrics,
   TZAAR_AI_STRENGTH_STORAGE_KEY,
   type ThemeId,
 } from '@abstract/three-engine';
 import { loadTzaarPieceGeometrySet } from './tzaar-piece-models';
-import { chooseAiMove } from './game/ai';
+import { quickLegalMove } from './game/ai';
 import { gameToSnapshot, indexToCoord } from './game/snapshot';
 import { GameState, type Coord, type Move, type Player } from './game/state';
 
@@ -22,6 +25,8 @@ let humanPlayer: Player = 'A';
 let aiPlayer: Player = 'B';
 let game = new GameState();
 let aiPending = false;
+let aiGeneration = 0;
+const aiSession = new AiWorkerSession();
 
 const pieces = await loadTzaarPieceGeometrySet();
 const topology = createTzaarHexTopology();
@@ -89,11 +94,17 @@ const gameButtons = createGameButtons({
   },
 });
 
+function stopAi() {
+  aiGeneration++;
+  aiSession.cancel();
+  aiPending = false;
+}
+
 function startGame(human: Player) {
+  stopAi();
   humanPlayer = human;
   aiPlayer = human === 'A' ? 'B' : 'A';
   game = new GameState();
-  aiPending = false;
   syncSnapshot();
   maybeAiTurn();
 }
@@ -126,15 +137,37 @@ async function humanMove(move: Move) {
 }
 
 async function runAiTurn() {
-  if (game.winner || game.toMove !== aiPlayer) return;
+  if (game.winner || game.toMove !== aiPlayer || aiPending) return;
   aiPending = true;
   renderStatus();
-  await new Promise(r => setTimeout(r, 120));
-  const move = chooseAiMove(game);
+  const gen = ++aiGeneration;
+  const search = levelToSearchOptions(gameButtons.aiStrength!.getLevel());
+  document.body.dataset.lastAiWatchdogMs = String(aiWatchdogMs(search.maxTimeMs));
+  const t0 = performance.now();
+  const move = await aiSession.request<Move | null>({
+    createWorker: () => new Worker(new URL('./game/ai.worker.ts', import.meta.url), { type: 'module' }),
+    postMessage: (worker, id) =>
+      worker.postMessage({
+        id,
+        game,
+        maxDepth: search.maxDepth,
+        maxNodes: search.maxNodes,
+        timeBudgetMs: search.maxTimeMs,
+      }),
+    parseMessage: (event, id) => {
+      const data = event.data as { id: number; move: Move | null };
+      if (data.id !== id) return undefined;
+      return data.move;
+    },
+    timeBudgetMs: search.maxTimeMs,
+  });
+  recordAiThinkMetrics(performance.now() - t0);
+  if (gen !== aiGeneration) return;
+  const resolved = move ?? quickLegalMove(game);
   await scene.enqueueAnimation(async () => {
-    if (move) await performMove(move);
+    if (resolved) await performMove(resolved);
     aiPending = false;
-    renderStatus();
+    renderStatus(resolved ? undefined : 'AI could not move');
     maybeAiTurn();
   });
 }
