@@ -70,6 +70,7 @@ export class BoopController {
   }
 
   effectiveStickyKind(): PieceKind {
+    if (!this.view) return this.stickyKind;
     const hand = this.view.pools[0]!;
     const hasKitten = hand.kittens_in_hand > 0;
     const hasCat = hand.cats_in_hand > 0;
@@ -99,6 +100,22 @@ export class BoopController {
       btn.dataset.selected = active ? 'true' : 'false';
       btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     }
+  }
+
+  trySelectPoolAtCell(cellIndex: number) {
+    if (!this.canInteract() || !this.isPlaceMode()) return false;
+    const { row, col } = cellCoordinates(GRID, cellIndex, OUTSIDE);
+    const kind = poolKindAtCell(HUMAN, row, col);
+    if (!kind) return false;
+    if (kind === 'cat' && !this.poolHasHand(0, 'cat')) return false;
+    if (kind === 'kitten' && !this.poolHasHand(0, 'kitten')) return false;
+    this.setStickyKind(kind);
+    return true;
+  }
+
+  isBedCellEmpty(row: number, col: number) {
+    if (!this.view) return false;
+    return !this.view.board[row]?.[col];
   }
 
   async tapPlaceOnBed(targetIndex: number) {
@@ -167,6 +184,7 @@ export class BoopController {
   }
 
   countOnBed(player: PlayerId): number {
+    if (!this.view) return 0;
     let n = 0;
     for (let y = 0; y < GRID; y++) {
       for (let x = 0; x < GRID; x++) {
@@ -177,7 +195,7 @@ export class BoopController {
   }
 
   pickHeightForCell(cell: number, snap: BoardSnapshot): number {
-    if (!this.allowsPointerInteraction()) return 0;
+    if (!this.view || !this.allowsPointerInteraction()) return 0;
     const { row, col } = cellCoordinates(GRID, cell, OUTSIDE);
     const stack = snap.cells[cell] ?? [];
     if (!stack.length) return 0;
@@ -242,7 +260,7 @@ export class BoopController {
     if (row < 0 || row >= GRID || col < 0 || col >= GRID) return;
     if (this.view.board[row]?.[col]) return;
 
-    const kind = this.inferKindFromSource(selection.source);
+    const kind = humanPlace ? this.effectiveStickyKind() : this.inferKindFromSource(selection.source);
     if (!kind) return;
     const preferredId = this.getSnapshot().cells[selection.source]?.at(-1)?.id;
     const player = this.view.to_move;
@@ -271,6 +289,7 @@ export class BoopController {
   }
 
   renderStatus(detail?: string) {
+    if (!this.view) return;
     if (this.view.winner) {
       const who = this.view.winner === HUMAN ? 'You win!' : 'AI wins.';
       this.setStatus(detail ? `${who} ${detail}` : who);
@@ -288,7 +307,10 @@ export class BoopController {
       this.setStatus(detail ?? 'AI thinking…');
       return;
     }
-    this.setStatus(detail ?? 'Tap an empty bed cell to place · switch kitten/cat in the bar');
+    this.setStatus(
+      detail ??
+        'Click kitten or cat in the pool, then click an empty bed cell (ghost shows where it will land)',
+    );
   }
 
   private highlightWin() {

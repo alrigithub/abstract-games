@@ -18,13 +18,14 @@ import {
   tagPlayfieldForShadows,
 } from './board-lighting';
 import { applyBoardEnvironment, createBoardWebGLRenderer, measureBoardFrameMs } from './board-renderer';
-import { BoardAssistLayer, type BoardAssistState } from './board-assist';
+import { BoardAssistLayer } from './board-assist';
 import { WIN_ACCENT } from './theme';
 
 const FLIP_HALO_NAME = 'flip-preview-halo';
 import { consumeBoopPushLandingSound, initPlaceSfx, playPiecePlaceSound, type PlaceSoundKind } from './sound/place-sfx';
 import { themeTokens, type ThemeId } from './theme';
 import type {
+  BoardAssistState,
   BoardSnapshot,
   EnginePiece,
   InteractionView,

@@ -2,11 +2,14 @@ import {
   cellCoordinates,
   cellIndex,
   createTapInteraction,
+  DomPlacementGhost,
   tapTransfer,
   type InteractionView,
   type SceneApi,
   type Selection,
+  type ThemeId,
 } from '@abstract/three-engine';
+import { boopFootprintWorldUnits } from './boop-placement-footprints';
 import { primaryPoolCellIndex } from './boop-pool-layout';
 import type { BoopController } from './controller';
 import type { PieceKind } from './types';
@@ -14,12 +17,34 @@ import type { PieceKind } from './types';
 const GRID = 6;
 const OUTSIDE = 2;
 
+const EMPTY_VIEW: InteractionView = {
+  selection: null,
+  dragging: false,
+  pointer: null,
+  origin: null,
+  target: null,
+  progress: 0,
+};
+
 export interface BoopInteractionHandle {
   cancel(): void;
   dispose(): void;
   setStickyKind(kind: PieceKind): void;
+  setGhostTheme(theme: ThemeId): void;
   /** Programmatic tap place for AI (pool/resting → bed). */
   tapPlaceOnBed(fromIndex: number, toIndex: number, options?: { ai?: boolean }): Promise<void>;
+  previewGhostAt(cellIndex: number, kind: PieceKind): void;
+  hideGhost(): void;
+}
+
+function isPlayableEmptyBed(
+  index: number,
+  coords: (index: number) => { row: number; col: number },
+  isEmpty: (row: number, col: number) => boolean,
+): boolean {
+  const { row, col } = coords(index);
+  if (row < 0 || row >= GRID || col < 0 || col >= GRID) return false;
+  return isEmpty(row, col);
 }
 
 export function wireBoopInteraction(
@@ -27,37 +52,33 @@ export function wireBoopInteraction(
   boardEl: HTMLElement,
   scene: SceneApi,
   getController: () => BoopController,
+  ghost: DomPlacementGhost,
 ): BoopInteractionHandle {
-  let hoverView: InteractionView = {
-    selection: null,
-    dragging: false,
-    pointer: null,
-    origin: null,
-    target: null,
-    progress: 0,
-  };
+  const cellAt = (row: number, col: number) => cellIndex(GRID, row, col, OUTSIDE)!;
+  const coords = (index: number) => cellCoordinates(GRID, index, OUTSIDE);
 
-  function publishView(view: InteractionView) {
-    hoverView = view;
-    scene.setInteraction(view);
+  function clearEngineCarry() {
+    scene.setInteraction(EMPTY_VIEW);
     boardEl.classList.toggle('is-dragging', false);
-    boardEl.dataset.pickActive = view.selection ? 'true' : 'false';
+    boardEl.dataset.pickActive = 'false';
   }
 
-  function placeHoverView(clientX: number, clientY: number) {
+  function updateGhost(clientX: number, clientY: number) {
     const c = getController();
-    if (!c.canInteract() || !c.isPlaceMode()) return;
-    const target = scene.hitTest(clientX, clientY);
+    if (!c.canInteract() || !c.isPlaceMode()) {
+      ghost.hide();
+      return;
+    }
+    const cell = scene.hitTest(clientX, clientY);
+    if (
+      cell === null ||
+      !isPlayableEmptyBed(cell, coords, (row, col) => c.isBedCellEmpty(row, col))
+    ) {
+      ghost.hide();
+      return;
+    }
     const kind = c.effectiveStickyKind();
-    const source = c.sourceCellForKind(kind);
-    publishView({
-      selection: { source, count: 1 },
-      dragging: false,
-      pointer: { x: clientX, y: clientY },
-      origin: null,
-      target,
-      progress: 0,
-    });
+    ghost.showAt(scene, boardEl, cell, boopFootprintWorldUnits(kind), cellAt);
   }
 
   const interaction = createTapInteraction({
@@ -74,7 +95,9 @@ export function wireBoopInteraction(
     onView(view: InteractionView) {
       const c = getController();
       if (!c.isReady() || c.isPlaceMode()) return;
-      publishView(view);
+      scene.setInteraction(view);
+      boardEl.classList.toggle('is-dragging', false);
+      boardEl.dataset.pickActive = view.selection ? 'true' : 'false';
     },
     onCommit(selection: Selection, target: number) {
       void getController().commitPlacement(selection, target);
@@ -84,7 +107,9 @@ export function wireBoopInteraction(
   stage.addEventListener(
     'pointermove',
     event => {
-      if (getController().isPlaceMode() && getController().canInteract()) placeHoverView(event.clientX, event.clientY);
+      if (getController().isPlaceMode() && getController().canInteract()) {
+        updateGhost(event.clientX, event.clientY);
+      }
     },
     true,
   );
@@ -97,7 +122,13 @@ export function wireBoopInteraction(
       if (!c.canInteract()) return;
       if (c.isPlaceMode()) {
         const cell = scene.hitTest(event.clientX, event.clientY);
-        if (cell !== null) void c.tapPlaceOnBed(cell);
+        if (cell === null) return;
+        if (c.trySelectPoolAtCell(cell)) {
+          updateGhost(event.clientX, event.clientY);
+          return;
+        }
+        void c.tapPlaceOnBed(cell);
+        ghost.hide();
         return;
       }
       if (interaction.getSelection()) return;
@@ -110,28 +141,58 @@ export function wireBoopInteraction(
   stage.addEventListener('contextmenu', event => {
     event.preventDefault();
     interaction.cancel();
-    publishView({ selection: null, dragging: false, pointer: null, origin: null, target: null, progress: 0 });
+    clearEngineCarry();
+    ghost.hide();
   });
+
+  boardEl.addEventListener('camera-change', () => {
+    const c = getController();
+    if (!c.canInteract() || !c.isPlaceMode()) return;
+    const cell = boardEl.dataset.ghostCell;
+    const kind = boardEl.dataset.ghostKind as PieceKind | undefined;
+    if (cell && kind) {
+      ghost.showAt(scene, boardEl, Number(cell), boopFootprintWorldUnits(kind), cellAt);
+    }
+  });
+
+  clearEngineCarry();
 
   async function tapPlaceOnBed(fromIndex: number, toIndex: number, options?: { ai?: boolean }) {
     const controller = getController();
     if (options?.ai) controller.setAiDragMode(true);
     try {
+      ghost.hide();
       await tapTransfer(interaction, fromIndex, toIndex);
       await controller.waitForInflightMove();
     } finally {
       if (options?.ai) controller.setAiDragMode(false);
+      clearEngineCarry();
     }
   }
 
   return {
     cancel: () => {
       interaction.cancel();
-      publishView({ selection: null, dragging: false, pointer: null, origin: null, target: null, progress: 0 });
+      clearEngineCarry();
+      ghost.hide();
     },
-    dispose: () => interaction.dispose(),
+    dispose: () => {
+      interaction.dispose();
+      ghost.hide();
+    },
     setStickyKind: kind => getController().setStickyKind(kind),
+    setGhostTheme: theme => ghost.applyTheme(theme),
     tapPlaceOnBed,
+    previewGhostAt(index, kind) {
+      boardEl.dataset.ghostCell = String(index);
+      boardEl.dataset.ghostKind = kind;
+      ghost.showAt(scene, boardEl, index, boopFootprintWorldUnits(kind), cellAt);
+    },
+    hideGhost() {
+      delete boardEl.dataset.ghostCell;
+      delete boardEl.dataset.ghostKind;
+      ghost.hide();
+    },
   };
 }
 
