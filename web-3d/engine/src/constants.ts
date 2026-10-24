@@ -45,6 +45,11 @@ export const BOARD = {
   SHADOW_Y: 0.001,
   CONTACT_BLOB_SOFT_SCALE: 1.12,
   CONTACT_BLOB_OPACITY: 0.6,
+  /**
+   * Shared IBL strength for PBR GLBs ({@link applyBoardEnvironment}).
+   * MeshBasic board/piece materials ignore this.
+   */
+  ENVIRONMENT_INTENSITY: 0.85,
 } as const;
 
 export const CAMERA = {
