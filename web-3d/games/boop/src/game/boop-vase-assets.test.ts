@@ -7,7 +7,7 @@ import { BOOP_VASE_GLB, boopVaseGlbFor } from './boop-vase-assets';
 const piecesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../lib/pieces');
 
 describe('boop vase assets', () => {
-  it('maps each player and size to the Alex stone-mixed-final GLB filename', () => {
+  it('maps each player and size to the Alex stone vase GLB filename', () => {
     expect(boopVaseGlbFor('A', 'kitten')).toBe('boop-vase-small-white.glb');
     expect(boopVaseGlbFor('A', 'cat')).toBe('boop-vase-large-white.glb');
     expect(boopVaseGlbFor('B', 'kitten')).toBe('boop-vase-small-black.glb');

@@ -1,7 +1,7 @@
 export type BoopVasePlayerId = 'A' | 'B';
 export type BoopVaseVariant = 'cat' | 'kitten';
 
-/** Alex stone-mixed-final vase GLBs (internal root names match filenames). */
+/** Alex stone vase GLBs in web-3d/lib/pieces (embedded 1024px maps; internal root names match filenames). */
 export const BOOP_VASE_GLB: Record<BoopVasePlayerId, Record<BoopVaseVariant, string>> = {
   A: {
     kitten: 'boop-vase-small-white.glb',
