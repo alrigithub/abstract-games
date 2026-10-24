@@ -11,21 +11,28 @@ import { createContactShadowBlob } from './contact-shadow';
  * World units assume spacing = 1.
  */
 export const GIPF_CHIP = {
-  RADIUS: 0.36,
+  /** Diameter = 0.75 × spacing so gaps and printed lines show between neighbours. */
+  RADIUS: 0.375,
   HEIGHT: 0.13,
   CHAMFER: 0.022,
-  RIM_INNER: 0.322,
-  RIM_OUTER: 0.352,
+  RIM_INNER: 0.336,
+  RIM_OUTER: 0.368,
+  EDGE_TUBE: 0.016,
   SEGMENTS: 24,
 } as const;
 
 /** Shared printed-hex board treatment for the GIPF set. */
 export const GIPF_BOARD = {
   SLAB: BOARD.SLAB,
-  LINE_W: 0.02,
+  /** Printed line weight — readable at default ortho zoom on a 1280px viewport. */
+  LINE_W: 0.044,
   RIM_W: 0.09,
+  /** Yinsh hull pad. Tzaar uses {@link GIPF_BOARD.HEX_MARGIN} on a regular hex. */
   MARGIN: 1.4,
-  CENTER_HEX: 0.52,
+  /** Perpendicular margin outside the outer point ring (regular-hex slab). */
+  HEX_MARGIN: 0.6,
+  CENTER_HEX: 0.48,
+  CENTER_HEX_INNER: 0.26,
 } as const;
 
 export const GIPF_SPACING = 1;
@@ -49,10 +56,20 @@ export interface GipfHexLayout {
   id: 'tzaar' | 'yinsh';
   spacing: number;
   points: GipfPoint[];
-  slab: 'square' | 'hex';
+  /** `hex` = convex hull (Yinsh). `regular-hex` = regular hex centred on the point centroid. */
+  slab: 'square' | 'hex' | 'regular-hex';
   margin: number;
   centreMotif: boolean;
   emptyCentre: boolean;
+}
+
+export interface GipfRegularHexSlab {
+  center: { x: number; z: number };
+  pointApothem: number;
+  apothem: number;
+  circumradius: number;
+  margin: number;
+  vertices: { x: number; z: number }[];
 }
 
 /** Pointy-top triangular lattice. Shared by Tzaar and Yinsh points + pieces. */
@@ -78,8 +95,8 @@ export function tzaarLayout(spacing: number = GIPF_SPACING): GipfHexLayout {
     id: 'tzaar',
     spacing,
     points,
-    slab: 'square',
-    margin: GIPF_BOARD.MARGIN * spacing,
+    slab: 'regular-hex',
+    margin: GIPF_BOARD.HEX_MARGIN * spacing,
     centreMotif: true,
     emptyCentre: true,
   };
@@ -123,7 +140,73 @@ export function gipfNeighborPairs(layout: GipfHexLayout): [GipfPoint, GipfPoint]
   return pairs;
 }
 
+export function gipfPointCentroid(layout: GipfHexLayout): { x: number; z: number } {
+  let x = 0;
+  let z = 0;
+  for (const p of layout.points) {
+    x += p.world.x;
+    z += p.world.z;
+  }
+  const n = layout.points.length || 1;
+  return { x: x / n, z: z / n };
+}
+
+/**
+ * Outward unit normals of a pointy-top regular hex (flats at 60° + n·60°).
+ * Matches {@link gipfWorldPoint} corners at 30° + n·60°.
+ */
+export function gipfHexEdgeNormals(): { x: number; z: number }[] {
+  const normals: { x: number; z: number }[] = [];
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 3 + (i * Math.PI) / 3;
+    normals.push({ x: Math.cos(a), z: Math.sin(a) });
+  }
+  return normals;
+}
+
+export function gipfHexDistanceToNearestEdge(
+  x: number,
+  z: number,
+  center: { x: number; z: number },
+  apothem: number,
+): number {
+  const px = x - center.x;
+  const pz = z - center.z;
+  let maxDot = -Infinity;
+  for (const n of gipfHexEdgeNormals()) {
+    maxDot = Math.max(maxDot, px * n.x + pz * n.z);
+  }
+  return apothem - maxDot;
+}
+
+/** Regular hex slab: same orientation as the outer point ring, even perpendicular margin. */
+export function gipfRegularHexSlab(layout: GipfHexLayout): GipfRegularHexSlab {
+  const center = gipfPointCentroid(layout);
+  const normals = gipfHexEdgeNormals();
+  let pointApothem = 0;
+  for (const p of layout.points) {
+    for (const n of normals) {
+      pointApothem = Math.max(pointApothem, (p.world.x - center.x) * n.x + (p.world.z - center.z) * n.z);
+    }
+  }
+  const margin = layout.margin;
+  const apothem = pointApothem + margin;
+  const circumradius = apothem / Math.cos(Math.PI / 6);
+  const vertices: { x: number; z: number }[] = [];
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 6 + (i * Math.PI) / 3;
+    vertices.push({
+      x: center.x + circumradius * Math.cos(a),
+      z: center.z + circumradius * Math.sin(a),
+    });
+  }
+  return { center, pointApothem, apothem, circumradius, margin, vertices };
+}
+
 export function gipfLayoutExtent(layout: GipfHexLayout): number {
+  if (layout.slab === 'regular-hex') {
+    return 2 * gipfRegularHexSlab(layout).circumradius;
+  }
   let maxAbs = 0;
   for (const p of layout.points) {
     maxAbs = Math.max(maxAbs, Math.abs(p.world.x), Math.abs(p.world.z));
@@ -132,6 +215,9 @@ export function gipfLayoutExtent(layout: GipfHexLayout): number {
 }
 
 export function gipfLayoutFrameCorners(layout: GipfHexLayout): THREE.Vector3[] {
+  if (layout.slab === 'regular-hex') {
+    return gipfRegularHexSlab(layout).vertices.map(v => new THREE.Vector3(v.x, 0, v.z));
+  }
   const half = gipfLayoutExtent(layout) / 2;
   return [
     new THREE.Vector3(-half, 0, -half),
@@ -151,9 +237,9 @@ export function gipfPrintColors(tokens: ThemeTokens): { field: string; rim: stri
   const dark = luminance(tokens.board) < 0.45;
   return {
     field: tokens.board,
-    rim: dark ? '#07080a' : '#1b1916',
-    lines: tokens.lines,
-    centre: dark ? '#2c3038' : '#c9c2b6',
+    rim: dark ? '#07080a' : '#141210',
+    lines: dark ? '#d4d8e0' : '#141210',
+    centre: dark ? '#2a2e36' : '#d2cdc4',
   };
 }
 
@@ -208,6 +294,21 @@ export function createGipfChipRimGeometry(): THREE.BufferGeometry {
   return geo;
 }
 
+/** Contrasting torus at a chip lip so stacked layers read as separate discs. */
+export function createGipfChipEdgeRingGeometry(y: number): THREE.BufferGeometry {
+  const geo = new THREE.TorusGeometry(
+    GIPF_CHIP.RADIUS - GIPF_CHIP.EDGE_TUBE * 0.15,
+    GIPF_CHIP.EDGE_TUBE,
+    10,
+    GIPF_CHIP.SEGMENTS,
+  );
+  geo.rotateX(Math.PI / 2);
+  geo.translate(0, y, 0);
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
+  return geo;
+}
+
 function linePlane(from: THREE.Vector3, to: THREE.Vector3, width: number): THREE.BufferGeometry {
   const dx = to.x - from.x;
   const dz = to.z - from.z;
@@ -215,7 +316,7 @@ function linePlane(from: THREE.Vector3, to: THREE.Vector3, width: number): THREE
   const geo = new THREE.PlaneGeometry(width, len + width);
   geo.rotateX(-Math.PI / 2);
   geo.rotateY(Math.atan2(dx, dz));
-  geo.translate((from.x + to.x) / 2, 0.002, (from.z + to.z) / 2);
+  geo.translate((from.x + to.x) / 2, 0.0035, (from.z + to.z) / 2);
   return geo;
 }
 
@@ -270,20 +371,37 @@ function createSquareSlab(side: number, slab: number): THREE.BufferGeometry {
   return geo;
 }
 
+function createRegularHexCylinder(circumradius: number, slab: number, center: { x: number; z: number }): THREE.BufferGeometry {
+  // CylinderGeometry(…, 6) already places vertices at 30°+n·60° (x=r sin θ, z=r cos θ).
+  const geo = new THREE.CylinderGeometry(circumradius, circumradius, slab, 6);
+  geo.translate(center.x, -slab / 2, center.z);
+  geo.computeBoundingBox();
+  return geo;
+}
+
+export function createGipfRegularHexSlabGeometry(layout: GipfHexLayout, slab = GIPF_BOARD.SLAB): THREE.BufferGeometry {
+  const hex = gipfRegularHexSlab(layout);
+  return createRegularHexCylinder(hex.circumradius, slab, hex.center);
+}
+
+function hexRingVerts(radius: number): THREE.Vector3[] {
+  const verts: THREE.Vector3[] = [];
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI / 6 + (i * Math.PI) / 3;
+    verts.push(new THREE.Vector3(Math.cos(a) * radius, 0, Math.sin(a) * radius));
+  }
+  return verts;
+}
+
 function createCenterFillGeometry(): THREE.BufferGeometry {
-  const geo = new THREE.CylinderGeometry(0.42, 0.42, 0.004, 6);
-  geo.rotateY(Math.PI / 6);
+  const geo = new THREE.CylinderGeometry(GIPF_BOARD.CENTER_HEX * 0.88, GIPF_BOARD.CENTER_HEX * 0.88, 0.004, 6);
   geo.translate(0, 0.003, 0);
   geo.computeBoundingBox();
   return geo;
 }
 
-function createCenterRingGeometry(lineW: number): THREE.BufferGeometry {
-  const verts: THREE.Vector3[] = [];
-  for (let i = 0; i < 6; i++) {
-    const a = Math.PI / 2 + (i * Math.PI) / 3;
-    verts.push(new THREE.Vector3(Math.cos(a) * GIPF_BOARD.CENTER_HEX, 0, Math.sin(a) * GIPF_BOARD.CENTER_HEX));
-  }
+function createCenterRingGeometry(radius: number, lineW: number): THREE.BufferGeometry {
+  const verts = hexRingVerts(radius);
   const geos = verts.map((from, i) => linePlane(from, verts[(i + 1) % verts.length]!, lineW));
   const merged = mergeGeometries(geos, false) ?? new THREE.BufferGeometry();
   for (const geo of geos) geo.dispose();
@@ -312,6 +430,13 @@ export function createGipfHexBoard(layout: GipfHexLayout, tokens: ThemeTokens): 
     rimGeo = createSquareSlab(extent, slab);
     fieldGeo = createSquareSlab(extent - 2 * rimW, slab);
     fieldGeo.translate(0, 0.001, 0);
+  } else if (layout.slab === 'regular-hex') {
+    const hex = gipfRegularHexSlab(layout);
+    const innerApothem = Math.max(hex.apothem - rimW, hex.pointApothem * 0.5);
+    const innerR = innerApothem / Math.cos(Math.PI / 6);
+    rimGeo = createRegularHexCylinder(hex.circumradius, slab, hex.center);
+    fieldGeo = createRegularHexCylinder(innerR, slab, hex.center);
+    fieldGeo.translate(0, 0.001, 0);
   } else {
     const hull = expandFromOrigin(
       convexHullXZ(layout.points.map(p => ({ x: p.world.x, z: p.world.z }))),
@@ -332,10 +457,15 @@ export function createGipfHexBoard(layout: GipfHexLayout, tokens: ThemeTokens): 
 
   if (layout.centreMotif) {
     const fill = new THREE.Mesh(createCenterFillGeometry(), basic(print.centre));
-    const ring = new THREE.Mesh(createCenterRingGeometry(GIPF_BOARD.LINE_W), basic(print.lines));
+    const ring = new THREE.Mesh(createCenterRingGeometry(GIPF_BOARD.CENTER_HEX, GIPF_BOARD.LINE_W), basic(print.lines));
+    const inner = new THREE.Mesh(
+      createCenterRingGeometry(GIPF_BOARD.CENTER_HEX_INNER, GIPF_BOARD.LINE_W * 0.85),
+      basic(print.lines),
+    );
     fill.renderOrder = 2;
     ring.renderOrder = 3;
-    group.add(fill, ring);
+    inner.renderOrder = 3;
+    group.add(fill, ring, inner);
   }
 
   group.add(createContactShadowBlob(extent, slab));

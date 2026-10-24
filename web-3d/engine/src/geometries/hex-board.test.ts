@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BOARD } from '../constants';
 import {
-  TZAAR_BOARD_SIDE,
   TZAAR_CENTER,
   TZAAR_GRID,
   TZAAR_LINE_W,
@@ -17,6 +16,7 @@ import {
   tzaarRowCounts,
   tzaarWorldPosition,
 } from './hex-board';
+import { gipfRegularHexSlab, tzaarLayout } from './gipf-set';
 
 const SQRT3_2 = Math.sqrt(3) / 2;
 
@@ -170,16 +170,19 @@ describe('tzaar hex board', () => {
     }
   });
 
-  it('uses a square slab with printed-thin lines', () => {
+  it('uses a regular hex slab with printed high-contrast lines', () => {
+    const hex = gipfRegularHexSlab(tzaarLayout());
     const slab = createTzaarBoardSlabGeometry();
     slab.computeBoundingBox();
     const box = slab.boundingBox!;
-    expect(box.max.x - box.min.x).toBeCloseTo(TZAAR_BOARD_SIDE, 5);
-    expect(box.max.z - box.min.z).toBeCloseTo(TZAAR_BOARD_SIDE, 5);
+    expect(box.max.x - box.min.x).toBeCloseTo(2 * hex.apothem, 4);
+    expect(box.max.z - box.min.z).toBeCloseTo(2 * hex.circumradius, 4);
+    expect((box.max.x + box.min.x) / 2).toBeCloseTo(hex.center.x, 5);
+    expect((box.max.z + box.min.z) / 2).toBeCloseTo(hex.center.z, 5);
     expect(box.max.y).toBeCloseTo(BOARD.PLAYFIELD_SURFACE_Y, 5);
     expect(box.min.y).toBeCloseTo(-BOARD.SLAB, 5);
-    expect(TZAAR_LINE_W).toBeLessThan(0.03);
-    expect(TZAAR_LINE_W).toBeGreaterThan(0.012);
+    expect(TZAAR_LINE_W).toBeGreaterThanOrEqual(0.04);
+    expect(TZAAR_LINE_W).toBeLessThan(0.08);
     slab.dispose();
 
     const geo = createTzaarBoardLineGeometry();

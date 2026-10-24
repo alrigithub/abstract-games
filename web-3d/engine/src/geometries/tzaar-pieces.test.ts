@@ -11,13 +11,13 @@ import {
 
 describe('tzaar discs', () => {
   it('uses the shared GIPF chip for Tzaar discs', () => {
-    expect(TZAAR_DISC_RADIUS).toBeCloseTo(0.36);
+    expect(TZAAR_DISC_RADIUS).toBeCloseTo(0.375);
     expect(TZAAR_DISC_HEIGHT).toBeCloseTo(0.13);
     const disc = createTzaarDiscGeometry();
     disc.computeBoundingBox();
     const box = disc.boundingBox!;
     expect(box.max.y - box.min.y).toBeCloseTo(0.13, 4);
-    expect(box.max.x).toBeCloseTo(0.36, 3);
+    expect(box.max.x).toBeCloseTo(0.375, 3);
     disc.dispose();
   });
 

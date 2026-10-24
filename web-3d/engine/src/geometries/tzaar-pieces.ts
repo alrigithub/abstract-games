@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import type { PieceGeometrySet, ThemeTokens } from '../types';
-import { GIPF_CHIP, createGipfChipGeometry, createGipfChipRimGeometry } from './gipf-set';
+import {
+  GIPF_CHIP,
+  createGipfChipEdgeRingGeometry,
+  createGipfChipGeometry,
+  createGipfChipRimGeometry,
+} from './gipf-set';
 import { decoratePieceMesh } from './piece-outlines';
 import type { TzaarKind } from './hex-board';
 
@@ -13,8 +18,8 @@ const EMBLEM_H = 0.007;
 const RING_INNER = TZAAR_DISC_RADIUS * 0.46;
 const RING_OUTER = TZAAR_DISC_RADIUS * 0.58;
 const DOT_R = TZAAR_DISC_RADIUS * 0.12;
-const SEPARATOR_INNER = TZAAR_DISC_RADIUS * 0.82;
-const SEPARATOR_OUTER = TZAAR_DISC_RADIUS * 1.04;
+const SEPARATOR_INNER = TZAAR_DISC_RADIUS * 0.86;
+const SEPARATOR_OUTER = TZAAR_DISC_RADIUS * 1.01;
 
 export type TzaarEmblem = 'ring' | 'dot';
 
@@ -68,6 +73,8 @@ const chipRimGeo = createGipfChipRimGeometry();
 const ringGeo = createTzaarRingGeometry();
 const dotGeo = createTzaarDotGeometry();
 const separatorGeo = createTzaarSeparatorGeometry();
+const topEdgeRingGeo = createGipfChipEdgeRingGeometry(GIPF_CHIP.HEIGHT / 2 - GIPF_CHIP.CHAMFER);
+const bottomEdgeRingGeo = createGipfChipEdgeRingGeometry(-GIPF_CHIP.HEIGHT / 2 + GIPF_CHIP.CHAMFER);
 
 export function tzaarPieceGeometrySet(): PieceGeometrySet {
   return {
@@ -97,12 +104,19 @@ export function createTzaarPieceMesh(options: {
   const outline = basic(options.tokens.lines, { side: THREE.BackSide });
   const disc = decoratePieceMesh(new THREE.Mesh(discGeo, fill), edge, outline, options.edgeCache);
   const rim = decoratePieceMesh(new THREE.Mesh(chipRimGeo, rimFill), edge, outline, options.edgeCache);
-  group.add(disc, rim);
+  const edgeFill = basic(palette.edge);
+  const topRing = decoratePieceMesh(new THREE.Mesh(topEdgeRingGeo, edgeFill), edge, outline, options.edgeCache);
+  const bottomRing = decoratePieceMesh(
+    new THREE.Mesh(bottomEdgeRingGeo, edgeFill),
+    edge,
+    outline,
+    options.edgeCache,
+  );
+  group.add(disc, rim, topRing, bottomRing);
 
   if (options.showSeparator) {
-    const sepFill = basic(palette.edge);
     const sep = decoratePieceMesh(
-      new THREE.Mesh(separatorGeo, sepFill),
+      new THREE.Mesh(separatorGeo, edgeFill),
       edge,
       outline,
       options.edgeCache,

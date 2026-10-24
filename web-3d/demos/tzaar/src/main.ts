@@ -68,6 +68,10 @@ interface StackLabel {
   world: THREE.Vector3;
 }
 
+const labelScratch = new THREE.Vector3();
+const LABEL_RIM_SAMPLES = 16;
+const LABEL_GAP_PX = 7;
+
 const labels: StackLabel[] = [];
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -92,10 +96,21 @@ function requestRender() {
 }
 function projectLabels() {
   const bounds = boardEl.getBoundingClientRect();
+  const w = bounds.width;
+  const h = bounds.height;
+  const radius = GIPF_CHIP.RADIUS;
   for (const label of labels) {
     const p = label.world.clone().project(camera);
-    label.el.style.left = `${(p.x * 0.5 + 0.5) * bounds.width}px`;
-    label.el.style.top = `${(-p.y * 0.5 + 0.5) * bounds.height}px`;
+    const cx = (p.x * 0.5 + 0.5) * w;
+    let topY = (-p.y * 0.5 + 0.5) * h;
+    for (let i = 0; i < LABEL_RIM_SAMPLES; i++) {
+      const a = (i / LABEL_RIM_SAMPLES) * Math.PI * 2;
+      labelScratch.set(label.world.x + Math.cos(a) * radius, label.world.y, label.world.z + Math.sin(a) * radius);
+      labelScratch.project(camera);
+      topY = Math.min(topY, (-labelScratch.y * 0.5 + 0.5) * h);
+    }
+    label.el.style.left = `${cx}px`;
+    label.el.style.top = `${topY - LABEL_GAP_PX}px`;
   }
 }
 function render() {
@@ -195,7 +210,7 @@ function applyTheme(id: ThemeId) {
       el.textContent = String(height);
       el.dataset.testid = `stack-height-${piece.x}-${piece.y}`;
       boardEl.appendChild(el);
-      labels.push({ el, world: new THREE.Vector3(pos.x, y + 0.02, pos.z) });
+      labels.push({ el, world: new THREE.Vector3(pos.x, y + 0.04, pos.z) });
     }
   }
   requestRender();
