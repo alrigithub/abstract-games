@@ -13,6 +13,12 @@ export interface BoardLightingOptions {
    * Flat MeshBasic boards leave this off (default).
    */
   ambientFill?: boolean;
+  /** Override {@link CLAY.KEY_LIGHT_INTENSITY} for a single demo (e.g. Boop stone vases). */
+  keyLightIntensity?: number;
+  /** Override default hemisphere fill in light theme (default 0.34). */
+  hemisphereIntensityLight?: number;
+  /** Override default hemisphere fill in dark theme (default 0.36). */
+  hemisphereIntensityDark?: number;
 }
 
 export interface BoardLightingHandle {
@@ -106,7 +112,8 @@ export function applyBoardLighting(
   configureBoardShadowMap(renderer);
 
   const pieceHeightMargin = options.pieceHeightMargin ?? 1.35;
-  const light = new THREE.DirectionalLight(CLAY.KEY_LIGHT_COLOR, CLAY.KEY_LIGHT_INTENSITY);
+  const keyIntensity = options.keyLightIntensity ?? CLAY.KEY_LIGHT_INTENSITY;
+  const light = new THREE.DirectionalLight(CLAY.KEY_LIGHT_COLOR, keyIntensity);
   light.position.set(7, 11, -8);
   light.castShadow = true;
   applyShadowMapSettings(light, chooseShadowMapSize());
@@ -118,6 +125,8 @@ export function applyBoardLighting(
   scene.add(light);
 
   let hemisphere: THREE.HemisphereLight | null = null;
+  const hemiLight = options.hemisphereIntensityLight ?? 0.34;
+  const hemiDark = options.hemisphereIntensityDark ?? 0.36;
   if (options.ambientFill) {
     hemisphere = new THREE.HemisphereLight(0xffffff, 0x888880, 0.3);
     scene.add(hemisphere);
@@ -132,14 +141,14 @@ export function applyBoardLighting(
       // Neutral fill — avoids warm double-tint on authored sage PBR tiles.
       hemisphere.color.set('#ffffff');
       hemisphere.groundColor.set('#dcdcdc');
-      hemisphere.intensity = 0.34;
+      hemisphere.intensity = hemiLight;
       return;
     }
     const sky = new THREE.Color(CLAY.ENV_DARK);
     const ground = new THREE.Color(CLAY.BACKDROP);
     hemisphere.color.copy(sky);
     hemisphere.groundColor.copy(ground);
-    hemisphere.intensity = 0.36;
+    hemisphere.intensity = hemiDark;
   }
   syncThemeAmbientFill('light');
 

@@ -9,6 +9,7 @@ import {
   type Selection,
   type ThemeId,
 } from '@abstract/three-engine';
+import { nearestEmptyBedCell } from './boop-bed-snap';
 import { boopFootprintWorldUnits } from './boop-placement-footprints';
 import { BOOP_START_POOL_COUNTS, primaryPoolCellIndex } from './boop-pool-layout';
 import type { BoopController } from './controller';
@@ -55,6 +56,21 @@ export function wireBoopInteraction(
 ): BoopInteractionHandle {
   const cellAt = (row: number, col: number) => cellIndex(GRID, row, col, OUTSIDE)!;
   const coords = (index: number) => cellCoordinates(GRID, index, OUTSIDE);
+  let stickyBedCell: number | null = null;
+
+  function bedCellAtPointer(clientX: number, clientY: number): number | null {
+    const c = getController();
+    const cell = nearestEmptyBedCell(
+      scene,
+      clientX,
+      clientY,
+      cellAt,
+      (row, col) => c.isBedCellEmpty(row, col),
+      { stickyCell: stickyBedCell },
+    );
+    if (cell !== null) stickyBedCell = cell;
+    return cell;
+  }
 
   function clearEngineCarry() {
     scene.setInteraction(EMPTY_VIEW);
@@ -68,11 +84,8 @@ export function wireBoopInteraction(
       ghost.hide();
       return;
     }
-    const cell = scene.hitTest(clientX, clientY);
-    if (
-      cell === null ||
-      !isPlayableEmptyBed(cell, coords, (row, col) => c.isBedCellEmpty(row, col))
-    ) {
+    const cell = bedCellAtPointer(clientX, clientY);
+    if (cell === null || !isPlayableEmptyBed(cell, coords, (row, col) => c.isBedCellEmpty(row, col))) {
       ghost.hide();
       return;
     }
@@ -89,7 +102,9 @@ export function wireBoopInteraction(
     },
     hitTest: (x, y) => {
       const c = getController();
-      return c.allowsPointerInteraction() ? scene.hitTest(x, y) : null;
+      if (!c.allowsPointerInteraction()) return null;
+      if (c.isPlaceMode()) return bedCellAtPointer(x, y);
+      return scene.hitTest(x, y);
     },
     onView(view: InteractionView) {
       const c = getController();
@@ -120,7 +135,7 @@ export function wireBoopInteraction(
       const c = getController();
       if (!c.canInteract()) return;
       if (c.isPlaceMode()) {
-        const cell = scene.hitTest(event.clientX, event.clientY);
+        const cell = bedCellAtPointer(event.clientX, event.clientY);
         if (cell === null) return;
         if (c.trySelectPoolAtCell(cell)) {
           updateGhost(event.clientX, event.clientY);
@@ -173,6 +188,7 @@ export function wireBoopInteraction(
     cancel: () => {
       interaction.cancel();
       clearEngineCarry();
+      stickyBedCell = null;
       ghost.hide();
     },
     dispose: () => {

@@ -10,9 +10,9 @@ test('boop smoke: canvas renders, no console errors, one human move', async ({ p
   });
   await page.waitForFunction(() => window.__boopSmokePickAndPlace != null, null, { timeout: 15_000 });
   await page.evaluate(async () => window.__boopSmokePickAndPlace!());
-  await expect(page.locator('[data-testid="game-status"]')).toContainText(/AI thinking/i, { timeout: 20_000 });
+  await page.waitForFunction(() => !window.__boopController!.canInteract(), null, { timeout: 20_000 });
   await page.waitForFunction(() => window.__boopController!.canInteract(), null, { timeout: 45_000 });
-  await expect(page.locator('[data-testid="game-status"]')).not.toContainText(/AI thinking/i);
+  await expect(page.locator('[data-testid="boop-thumb-control"]')).toBeVisible();
   expect(errors, errors.join('\n')).toEqual([]);
 });
 
