@@ -15,7 +15,7 @@ import { PropertyBinding } from 'three';
 
 /** Documented SHA-256 of the committed arena in `web-3d/lib/maps/go-map.glb`. */
 export const GOMOKU_ARENA_GLB_SHA256 =
-  '7cfd339c4ada7e530c80980dd263e759825579d812574e9a3e73727db37dddf5';
+  '46961529a2514079e43142a9deb30f3c94b3a4cf1e1725a6b24c015749fb53a2';
 export const GOMOKU_ARENA_GLB_FILE = 'go-map.glb';
 
 /** Real-world tile pitch (150 mm) mapped to one world unit per intersection. */
