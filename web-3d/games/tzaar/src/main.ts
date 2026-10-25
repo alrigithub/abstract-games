@@ -13,6 +13,8 @@ import {
   readInitialTheme,
   recordAiThinkMetrics,
   TZAAR_AI_STRENGTH_STORAGE_KEY,
+  createLoadingScreen,
+  setActiveLoadingScreen,
   type InteractionView,
   type ThemeId,
 } from '@abstract/three-engine';
@@ -29,6 +31,9 @@ import { coordToIndex, gameToSnapshot, indexToCoord } from './game/snapshot';
 import { GameState, serializeForAiWorker, type Coord, type Move, type Player } from './game/state';
 import { createStackHeightLabels } from './stack-labels';
 
+const loading = createLoadingScreen({ gameName: 'Tzaar' });
+setActiveLoadingScreen(loading);
+
 const board = document.querySelector<HTMLDivElement>('#board')!;
 const toast = document.querySelector<HTMLDivElement>('#tzaar-toast')!;
 let theme: ThemeId = readInitialTheme();
@@ -44,16 +49,19 @@ const aiSession = new AiWorkerSession();
 let toastTimer = 0;
 let lastAiFromTo: { from: Coord; to: Coord } | null = null;
 
-const pieces = await loadTzaarPieceGeometrySet();
+const pieces = await loading.track(loadTzaarPieceGeometrySet(), 'Loading Tzaar piece models');
 const topology = createTzaarHexTopology();
 
-const scene = await createBoardScene(board, {
-  gridSize: 9,
-  topology,
-  pieces,
-  initialTheme: theme,
-  stackedPiecesReceiveShadow: true,
-});
+const scene = await loading.track(
+  createBoardScene(board, {
+    gridSize: 9,
+    topology,
+    pieces,
+    initialTheme: theme,
+    stackedPiecesReceiveShadow: true,
+  }),
+  'Starting board scene (WebGL + audio)',
+);
 const stage = board.querySelector('canvas') ?? board;
 const stackLabels = createStackHeightLabels(board, scene);
 
@@ -396,6 +404,9 @@ createTapInteraction({
 });
 
 syncSnapshot();
+
+await loading.done();
+setActiveLoadingScreen(null);
 
 if (new URLSearchParams(location.search).has('e2e')) startGame('A');
 

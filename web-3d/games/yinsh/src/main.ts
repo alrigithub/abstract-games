@@ -13,6 +13,8 @@ import {
   THEME_STORAGE_KEY,
   YINSH_AI_STRENGTH_STORAGE_KEY,
   yinshWorldPoint,
+  createLoadingScreen,
+  setActiveLoadingScreen,
   type PieceGeometrySet,
   type ThemeId,
   type Topology,
@@ -46,6 +48,9 @@ import {
 /** Match engine tap vs drag threshold. */
 const TAP_MOVE_THRESHOLD = 8;
 
+const loading = createLoadingScreen({ gameName: 'Yinsh' });
+setActiveLoadingScreen(loading);
+
 const ringCloseupShot = new URLSearchParams(location.search).get('shot') === 'ring-closeup';
 
 function yinshCloseupTopology(base: Topology, pieceSet: PieceGeometrySet): Topology {
@@ -65,9 +70,11 @@ function yinshCloseupTopology(base: Topology, pieceSet: PieceGeometrySet): Topol
   };
 }
 
-const pieces = await loadYinshPieceGeometrySet();
+const pieces = await loading.track(loadYinshPieceGeometrySet(), 'Loading Yinsh ring and marker models');
 let theme: ThemeId = readInitialTheme();
-const yinshArena = ringCloseupShot ? null : await loadYinshArenaTemplate(theme);
+const yinshArena = ringCloseupShot
+  ? null
+  : await loading.track(loadYinshArenaTemplate(theme), 'Loading arena map (yinsh-map.glb)');
 const topology = ringCloseupShot
   ? yinshCloseupTopology(createYinshTopology(), pieces)
   : createYinshArenaTopology(yinshArena!.root);
@@ -86,18 +93,21 @@ let pendingTap: { x: number; y: number } | null = null;
 let hoverCellIndex: number | null = null;
 let lastAiMoveHighlight: AiMoveHighlight | null = null;
 
-const scene = await createBoardScene(board, {
-  gridSize: 11,
-  topology,
-  pieces,
-  initialTheme: theme,
-  playfieldGround: ringCloseupShot
-    ? undefined
-    : {
-        size: YINSH_PLAYFIELD_GROUND.size,
-        surfaceColor: YINSH_PLAYFIELD_GROUND.surfaceColor,
-      },
-});
+const scene = await loading.track(
+  createBoardScene(board, {
+    gridSize: 11,
+    topology,
+    pieces,
+    initialTheme: theme,
+    playfieldGround: ringCloseupShot
+      ? undefined
+      : {
+          size: YINSH_PLAYFIELD_GROUND.size,
+          surfaceColor: YINSH_PLAYFIELD_GROUND.surfaceColor,
+        },
+  }),
+  'Starting board scene (WebGL + audio)',
+);
 const stage = board.querySelector('canvas') ?? board;
 
 function applyTheme(next: ThemeId) {
@@ -381,6 +391,9 @@ const onPointerUp = ((event: PointerEvent) => {
 stage.addEventListener('pointerdown', onPointerDown, true);
 stage.addEventListener('pointermove', onPointerMove, true);
 stage.addEventListener('pointerup', onPointerUp, true);
+
+await loading.done();
+setActiveLoadingScreen(null);
 
 function loadAssistRingPlacementShot() {
   stopAi();

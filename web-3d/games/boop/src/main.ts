@@ -10,6 +10,8 @@ import {
   levelToSearchOptions,
   readInitialTheme,
   storeTheme,
+  createLoadingScreen,
+  setActiveLoadingScreen,
   type SceneApi,
   type ThemeId,
 } from '@abstract/three-engine';
@@ -33,13 +35,25 @@ import { createBoopPrerenderTopology, loadBoopPrerender } from './game/boop-prer
 applyBoopAnimationPacing(ANIMATION);
 initBoopKnockPushSounds();
 
+const loading = createLoadingScreen({ gameName: 'Boop' });
+setActiveLoadingScreen(loading);
+
 const fallbackCat = createBoopCatGeometry();
 const fallbackKitten = createBoopKittenGeometry();
-const prerender = new URLSearchParams(location.search).get('arena') === '3d' ? null : await loadBoopPrerender();
-const pieces = await createBoopPieceGeometrySet(fallbackCat, fallbackKitten, prerender?.shadows);
+const prerender =
+  new URLSearchParams(location.search).get('arena') === '3d'
+    ? null
+    : await loading.track(loadBoopPrerender(), 'Loading Boop prerender plate (textures + columns GLB)');
+const pieces = await loading.track(
+  createBoopPieceGeometrySet(fallbackCat, fallbackKitten, prerender?.shadows),
+  'Loading Boop vase piece models',
+);
 const topology = prerender
   ? createBoopPrerenderTopology({ size, outsideRows: OUTSIDE_ROWS }, prerender.columns)
-  : createBoopTopology({ size, outsideRows: OUTSIDE_ROWS }, await loadBoopArenaTemplate());
+  : createBoopTopology(
+      { size, outsideRows: OUTSIDE_ROWS },
+      await loading.track(loadBoopArenaTemplate(), 'Loading arena map (boop-map.glb)'),
+    );
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 injectBoopUiStyles();
@@ -50,7 +64,8 @@ const placementGhost = new DomPlacementGhost(board, {
   theme,
 });
 
-const scene = await createBoardScene(board, {
+const scene = await loading.track(
+  createBoardScene(board, {
   prerenderedArena: prerender?.plate,
   gridSize: size,
   outsideRows: OUTSIDE_ROWS,
@@ -73,7 +88,9 @@ const scene = await createBoardScene(board, {
     place: BOOP_DEMO_PLACE_SFX_URLS,
     boop: BOOP_DEMO_BOOP_SFX_URLS,
   },
-});
+}),
+  'Starting board scene (WebGL + placement audio)',
+);
 
 mountBoardOverlays(board);
 
@@ -139,10 +156,12 @@ thumbControl = createBoopThumbControl({
   theme,
   onKindChange: kind => controller.setStickyKind(kind),
 });
-await controller.init();
+await loading.track(controller.init(), 'Wiring Boop interaction');
 domContactShadows.start();
 mountBoardOverlays(board);
 interaction = wireBoopInteraction(stage as HTMLElement, board, scene, () => controller, placementGhost);
+await loading.done();
+setActiveLoadingScreen(null);
 controller.setAiPlaceTap((from, to) => interaction.tapPlaceOnBed(from, to, { ai: true }));
 
 window.__boopController = controller;

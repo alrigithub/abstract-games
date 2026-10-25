@@ -11,6 +11,7 @@ export function attachPageErrorCollectors(page: Page): string[] {
 
 export async function waitForBoardCanvas(page: Page, path = '/'): Promise<void> {
   await page.goto(path);
+  await page.waitForSelector('[data-testid="loading-overlay"]', { state: 'detached', timeout: 120_000 });
   await page.waitForSelector('[data-testid="board"] canvas', { timeout: 120_000 });
   await expect(page.locator('[data-testid="board"] canvas')).toBeVisible();
 }

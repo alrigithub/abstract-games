@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { createSquareTopology, loadGltfAsync, tagArenaGlbForShadows, tagExcludeFromBounds, type SquareGridOptions, type Topology, type PrerenderedArena } from '@abstract/three-engine';
+import { createSquareTopology, loadGltfAsync, tagArenaGlbForShadows, tagExcludeFromBounds, trackIfLoading, type SquareGridOptions, type Topology, type PrerenderedArena } from '@abstract/three-engine';
 import manifest from './boop-arena-manifest.json';
 import { loadBoopShadowGeometry } from './boop-stone-cats';
 
@@ -65,8 +65,8 @@ export function batchBoopColumns(columns: THREE.Group): void {
 export async function loadBoopPrerender() {
   const loader = new THREE.TextureLoader();
   const [light, dark, gltf, cat, kitten] = await Promise.all([
-    loader.loadAsync(asset('boop-light.webp')),
-    loader.loadAsync(asset('boop-dark.webp')),
+    trackIfLoading(loader.loadAsync(asset('boop-light.webp')), 'Loading texture boop-light.webp'),
+    trackIfLoading(loader.loadAsync(asset('boop-dark.webp')), 'Loading texture boop-dark.webp'),
     loadGltfAsync(asset('boop-columns.glb')),
     loadBoopShadowGeometry(asset('boop-cat-shadow.glb')),
     loadBoopShadowGeometry(asset('boop-kitten-shadow.glb')),

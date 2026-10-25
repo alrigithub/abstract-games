@@ -8,6 +8,8 @@ import {
   levelToSearchOptions,
   readInitialTheme,
   TAK_AI_STRENGTH_STORAGE_KEY,
+  createLoadingScreen,
+  setActiveLoadingScreen,
   type InteractionApi,
   type InteractionView,
   type ThemeId,
@@ -21,6 +23,9 @@ import { createSandboxState, moveSelection, rotateSelection } from './state';
 import { createTakInteraction } from './tak-interaction';
 import type { BoardState, Color } from './types';
 
+const loading = createLoadingScreen({ gameName: 'Tak' });
+setActiveLoadingScreen(loading);
+
 const board = document.querySelector<HTMLDivElement>('#board')!;
 const selectionInfo = document.querySelector<HTMLDivElement>('#selection-info')!;
 const label = document.querySelector<HTMLSpanElement>('#selection-label')!;
@@ -29,7 +34,7 @@ const pieceActions = document.querySelector<HTMLDivElement>('#piece-actions')!;
 const menu = document.querySelector<HTMLDialogElement>('#menu')!;
 const sizeSelect = document.querySelector<HTMLSelectElement>('#size')!;
 
-const pieces = await loadTakPieceGeometrySet();
+const pieces = await loading.track(loadTakPieceGeometrySet(), 'Loading Tak piece models');
 let boardSize = 5;
 let topology = createSquareTopology({ size: boardSize, outsideRows: 6 });
 let theme: ThemeId = readInitialTheme();
@@ -38,15 +43,18 @@ const history: BoardState[] = [];
 let sandbox = true;
 let lastView: InteractionView | null = null;
 
-const scene = await createBoardScene(board, {
-  gridSize: boardSize,
-  outsideRows: 6,
-  topology,
-  pieces,
-  initialTheme: theme,
-  boardSlab: BOARD.TAK_SLAB,
-  stackedPiecesReceiveShadow: true,
-});
+const scene = await loading.track(
+  createBoardScene(board, {
+    gridSize: boardSize,
+    outsideRows: 6,
+    topology,
+    pieces,
+    initialTheme: theme,
+    boardSlab: BOARD.TAK_SLAB,
+    stackedPiecesReceiveShadow: true,
+  }),
+  'Starting board scene (WebGL + audio)',
+);
 const stage = board.querySelector('canvas') ?? board;
 
 function applyTheme(id: ThemeId) {
@@ -326,6 +334,9 @@ applyTheme(theme);
 refresh();
 gameButtons.setStatus('Sandbox');
 menu.showModal();
+
+await loading.done();
+setActiveLoadingScreen(null);
 
 if (location.search.includes('human=ivory')) {
   (window as unknown as {
