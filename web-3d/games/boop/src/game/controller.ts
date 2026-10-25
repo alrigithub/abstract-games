@@ -56,6 +56,7 @@ export interface BoopControllerOptions {
   onReady?: () => void;
   /** Programmatic tap place for AI place moves (pool/resting → bed). */
   aiPlaceTap?: (fromIndex: number, toIndex: number) => Promise<void>;
+  onStickyKindChange?: (kind: PieceKind) => void;
 }
 
 export class BoopController {
@@ -72,6 +73,7 @@ export class BoopController {
   private pendingPlacementPieceId?: string;
   private readonly aiSession = new AiWorkerSession();
   private readonly onReady?: () => void;
+  private readonly onStickyKindChange?: (kind: PieceKind) => void;
   private aiPlaceTap?: (fromIndex: number, toIndex: number) => Promise<void>;
   private stickyKind: PieceKind = 'kitten';
   private winCelebrationPlayed = false;
@@ -81,6 +83,7 @@ export class BoopController {
     this.setStatus = options.setStatus;
     this.getAiSearchOptions = options.getAiSearchOptions;
     this.onReady = options.onReady;
+    this.onStickyKindChange = options.onStickyKindChange;
     this.aiPlaceTap = options.aiPlaceTap;
   }
 
@@ -125,6 +128,7 @@ export class BoopController {
       btn.dataset.selected = active ? 'true' : 'false';
       btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     }
+    this.onStickyKindChange?.(effective);
   }
 
   trySelectPoolAtCell(cellIndex: number) {
@@ -373,7 +377,7 @@ export class BoopController {
       return;
     }
     if (this.view.to_move === AI) {
-      this.setStatus(detail ?? 'AI thinking…');
+      this.setStatus(detail ?? '');
       return;
     }
     this.setStatus(

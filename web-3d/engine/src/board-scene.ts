@@ -24,6 +24,7 @@ import {
   syncSceneShadowCatcher,
   tagPieceForShadows,
   tagPlayfieldForShadows,
+  type BoardLightingOptions,
 } from './board-lighting';
 import { createBoardRenderPipeline } from './board-render-pipeline';
 import { clayEnvMaterial, clayMaterialForPlayer, syncClayMaterialTheme } from './clay-materials';
@@ -123,6 +124,8 @@ export interface BoardSceneOptions {
    * Backdrop and fog match {@link PlayfieldGroundOptions.surfaceColor} so margins read as one surface.
    */
   playfieldGround?: PlayfieldGroundOptions;
+  /** Optional tuning for shared directional + hemisphere lighting (demo-specific). */
+  boardLighting?: BoardLightingOptions;
 }
 
 export interface PlayfieldGroundOptions {
@@ -152,7 +155,10 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const prerendered = options.prerenderedArena ? createPrerenderedArena(scene, options.prerenderedArena, themeId) : null;
   const renderer = createBoardWebGLRenderer();
   const disposeEnvironment = applyBoardEnvironment(scene, renderer);
-  const boardLighting = applyBoardLighting(scene, renderer, { ambientFill: true });
+  const boardLighting = applyBoardLighting(scene, renderer, {
+    ambientFill: true,
+    ...options.boardLighting,
+  });
   const stackedPiecesReceiveShadow = options.stackedPiecesReceiveShadow ?? false;
   container.appendChild(renderer.domElement);
 
