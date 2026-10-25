@@ -1,3 +1,5 @@
+import { trackIfLoading } from '../ui/loading-screen';
+
 export const PLACE_SFX_STORAGE_KEY = 'abstract-three-place-sound';
 
 const CLIP_COUNT = 6;
@@ -105,10 +107,14 @@ function ensureContext(): AudioContext | null {
 }
 
 async function decodeClip(ctx: AudioContext, url: string): Promise<AudioBuffer> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`sfx fetch failed: ${url}`);
-  const data = await res.arrayBuffer();
-  return ctx.decodeAudioData(data.slice(0));
+  const file = url.split('/').pop()?.split('?')[0] ?? url;
+  const work = (async () => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`sfx fetch failed: ${url}`);
+    const data = await res.arrayBuffer();
+    return ctx.decodeAudioData(data.slice(0));
+  })();
+  return trackIfLoading(work, `Loading audio ${file}`);
 }
 
 async function loadBuffers(): Promise<void> {

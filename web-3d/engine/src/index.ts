@@ -28,6 +28,7 @@ export * from './ai-worker-client';
 export * from './ui/ai-strength';
 export * from './ui/game-buttons';
 export * from './ui/page-styles';
+export * from './ui/loading-screen';
 export * from './types';
 export * from './topology/square-grid';
 export * from './geometries/tak-pieces';
