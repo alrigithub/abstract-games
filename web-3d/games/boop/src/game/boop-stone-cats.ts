@@ -172,25 +172,28 @@ function contactShadowOpacity(theme: ThemeId): number {
   return theme === 'dark' ? 0.38 : 0.26;
 }
 
-function baseFootprintRadius(visual: THREE.Object3D): number {
+/** Vase base radius in the visual's local space (CircleGeometry is not re-scaled by parent). */
+export function baseFootprintRadiusLocal(visual: THREE.Object3D): number {
+  const scale = visual.scale.x || 1;
   visual.updateMatrixWorld(true);
   _box.setFromObject(visual);
   const size = new THREE.Vector3();
   _box.getSize(size);
-  return Math.max(size.x, size.z) * 0.34;
+  return (Math.max(size.x, size.z) * 0.34) / scale;
 }
 
 /** Soft AO blob at the vase base (does not replace directional drop shadows). */
-export function attachContactShadow(visual: THREE.Object3D, radiusWorld: number, theme: ThemeId): void {
+export function attachContactShadow(visual: THREE.Object3D, radiusLocal: number, theme: ThemeId): void {
   const existing = visual.getObjectByName(BOOP_CONTACT_SHADOW_NAME);
   if (existing) existing.parent?.remove(existing);
 
   const mat = contactShadowMaterial.clone();
   mat.opacity = contactShadowOpacity(theme);
-  const disk = new THREE.Mesh(new THREE.CircleGeometry(radiusWorld, 28), mat);
+  const disk = new THREE.Mesh(new THREE.CircleGeometry(radiusLocal, 28), mat);
   disk.name = BOOP_CONTACT_SHADOW_NAME;
   disk.rotation.x = -Math.PI / 2;
-  disk.position.y = 0.003;
+  const scale = visual.scale.x || 1;
+  disk.position.y = 0.003 / scale;
   disk.renderOrder = 2;
   disk.castShadow = false;
   disk.receiveShadow = false;
@@ -238,7 +241,7 @@ function prepareVisualTemplate(scene: THREE.Group, worldScale: number, offlineSh
     ? offlineShadow.clone().scale(worldScale, worldScale, worldScale)
     : simplifyForShadowStandIn(mergeWorldPieceGeometry(visual.clone(true)));
   attachShadowStandIn(visual, shadowGeometry);
-  attachContactShadow(visual, baseFootprintRadius(visual), boopPieceTheme);
+  attachContactShadow(visual, baseFootprintRadiusLocal(visual), boopPieceTheme);
 
   visual.userData[PIECE_OPAQUE_MATERIALS_READY_USER_DATA] = true;
   return { visual, shadowGeometry, height };
