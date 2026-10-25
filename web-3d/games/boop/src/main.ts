@@ -222,111 +222,69 @@ function injectBoopUiStyles() {
       display: none;
     }
     .boop-placement-ghost {
+      --boop-accent: #0d9488;
       position: absolute;
       pointer-events: none;
       transform: translate(-50%, -50%);
       border-radius: 50%;
       box-sizing: border-box;
       z-index: 2;
-      border: 2px solid color-mix(in srgb, var(--theme-ink, #1c1917) 22%, transparent);
-      background:
-        radial-gradient(circle at 50% 62%, color-mix(in srgb, var(--theme-ink, #1c1917) 16%, transparent) 0%, transparent 68%),
-        color-mix(in srgb, var(--theme-surface, #fff) 72%, transparent);
-      box-shadow:
-        0 1px 0 color-mix(in srgb, #fff 40%, transparent) inset,
-        0 4px 14px color-mix(in srgb, var(--theme-ink, #000) 14%, transparent);
+      border: 2.5px solid var(--boop-accent);
+      background: transparent;
     }
     .boop-placement-ghost[data-theme='dark'] {
-      border-color: color-mix(in srgb, var(--theme-ink, #f5f5f4) 28%, transparent);
-      background:
-        radial-gradient(circle at 50% 62%, color-mix(in srgb, #000 24%, transparent) 0%, transparent 68%),
-        color-mix(in srgb, var(--theme-surface, #0c0a09) 55%, transparent);
+      --boop-accent: #5eead4;
     }
     .boop-thumb-control {
       position: absolute;
-      left: max(12px, env(safe-area-inset-left, 0px));
-      bottom: max(12px, env(safe-area-inset-bottom, 0px));
-      width: clamp(112px, 22vw, 136px);
-      height: clamp(112px, 22vw, 136px);
+      left: max(14px, env(safe-area-inset-left, 0px));
+      bottom: max(14px, env(safe-area-inset-bottom, 0px));
+      width: clamp(120px, 24vw, 148px);
+      height: clamp(72px, 14vw, 88px);
       z-index: 4;
       pointer-events: none;
-    }
-    .boop-thumb-control__ring {
-      position: absolute;
-      inset: 18%;
-      border-radius: 50%;
-      pointer-events: none;
-      border: 2px solid color-mix(in srgb, var(--theme-ink, #1c1917) 18%, transparent);
-      background:
-        radial-gradient(circle at 50% 65%, color-mix(in srgb, var(--theme-ink, #1c1917) 12%, transparent), transparent 70%),
-        color-mix(in srgb, var(--theme-surface, #fff) 88%, transparent);
-      box-shadow:
-        0 8px 24px color-mix(in srgb, var(--theme-ink, #000) 12%, transparent),
-        0 1px 0 color-mix(in srgb, #fff 50%, transparent) inset;
-      transform: scale(var(--boop-thumb-footprint, 0.68));
-      transition: transform 160ms ease;
-    }
-    .boop-thumb-control[data-theme='dark'] .boop-thumb-control__ring {
-      border-color: color-mix(in srgb, var(--theme-ink, #fafaf9) 22%, transparent);
-      background:
-        radial-gradient(circle at 50% 65%, color-mix(in srgb, #000 20%, transparent), transparent 70%),
-        color-mix(in srgb, var(--theme-surface, #0c0a09) 78%, transparent);
     }
     .boop-thumb-control__size {
       position: absolute;
       pointer-events: auto;
-      border: none;
+      border: 2.5px solid color-mix(in srgb, var(--theme-ink, #292524) 78%, transparent);
       padding: 0;
       margin: 0;
       border-radius: 50%;
-      background: color-mix(in srgb, var(--theme-surface, #fff) 92%, var(--theme-ink, #000) 8%);
-      box-shadow: 0 2px 10px color-mix(in srgb, var(--theme-ink, #000) 10%, transparent);
+      background: color-mix(in srgb, var(--theme-surface, #fff) 96%, transparent);
+      filter: drop-shadow(0 2px 5px color-mix(in srgb, #000 18%, transparent));
       cursor: pointer;
-      transition: transform 120ms ease, box-shadow 120ms ease;
+      transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+    }
+    .boop-thumb-control[data-theme='dark'] .boop-thumb-control__size {
+      border-color: color-mix(in srgb, var(--theme-ink, #fafaf9) 72%, transparent);
+      background: color-mix(in srgb, var(--theme-surface, #0c0a09) 88%, transparent);
+      filter: drop-shadow(0 2px 6px color-mix(in srgb, #000 45%, transparent));
     }
     .boop-thumb-control__size:active {
       transform: scale(0.96);
     }
     .boop-thumb-control__size--kitten {
-      width: 38%;
-      height: 38%;
-      left: 8%;
+      width: 44px;
+      height: 44px;
+      left: 0;
       top: 50%;
       translate: 0 -50%;
     }
     .boop-thumb-control__size--cat {
-      width: 46%;
-      height: 46%;
-      right: 6%;
+      width: 58px;
+      height: 58px;
+      right: 0;
       top: 50%;
       translate: 0 -50%;
     }
-    .boop-thumb-control__size::after {
-      content: '';
-      position: absolute;
-      inset: 22%;
-      border-radius: 50%;
-      background: linear-gradient(
-        165deg,
-        color-mix(in srgb, var(--theme-ink, #444) 8%, #fff) 0%,
-        color-mix(in srgb, var(--theme-ink, #444) 22%, #d6d3d1) 100%
-      );
-      box-shadow: inset 0 -2px 4px color-mix(in srgb, #000 12%, transparent);
-    }
-    .boop-thumb-control__size--cat::after {
-      inset: 18%;
-    }
-    .boop-thumb-control[data-theme='dark'] .boop-thumb-control__size::after {
-      background: linear-gradient(
-        165deg,
-        color-mix(in srgb, var(--theme-ink, #fafaf9) 12%, #444) 0%,
-        color-mix(in srgb, var(--theme-ink, #fafaf9) 6%, #1c1917) 100%
-      );
-    }
     .boop-thumb-control__size[data-selected='true'] {
-      box-shadow:
-        0 0 0 2px color-mix(in srgb, var(--theme-win, #3b82f6) 70%, transparent),
-        0 4px 16px color-mix(in srgb, var(--theme-ink, #000) 16%, transparent);
+      border-color: #0d9488;
+      box-shadow: 0 0 0 3px color-mix(in srgb, #0d9488 35%, transparent);
+    }
+    .boop-thumb-control[data-theme='dark'] .boop-thumb-control__size[data-selected='true'] {
+      border-color: #5eead4;
+      box-shadow: 0 0 0 3px color-mix(in srgb, #5eead4 32%, transparent);
     }
   `;
   document.head.append(style);

@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SimplifyModifier } from 'three/addons/modifiers/SimplifyModifier.js';
 import { createGroundedBoopPieces } from './boop-grounding';
+import { BOOP_CAT_FOOTPRINT_WORLD, BOOP_KITTEN_FOOTPRINT_WORLD } from './boop-placement-footprints';
 import { boopVaseGlbFor, type BoopVasePlayerId, type BoopVaseVariant } from './boop-vase-assets';
 
 /** Large vase max X/Z on a 1-unit bed cell (~80% of tile × 1.2 boost ≈ 0.96). */
@@ -29,13 +30,55 @@ const BOOP_SHADOW_CASTER_NAME = '__boopShadowCaster';
 const BOOP_CONTACT_SHADOW_NAME = '__boopContactShadow';
 export const BOOP_CONTACT_SHADOW_USER_DATA = 'boopContactShadow';
 
-const contactShadowMaterial = new THREE.MeshBasicMaterial({
-  color: 0x000000,
-  transparent: true,
-  opacity: 0.28,
-  depthWrite: false,
-  toneMapped: false,
-});
+/** World radius of the unit {@link CircleGeometry} before scaling per piece. */
+const CONTACT_SHADOW_UNIT_RADIUS = 1;
+
+let contactShadowMap: THREE.Texture | undefined;
+
+function getContactShadowMap(): THREE.Texture {
+  if (contactShadowMap) return contactShadowMap;
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    gradient.addColorStop(0, 'rgba(0,0,0,0.72)');
+    gradient.addColorStop(0.42, 'rgba(0,0,0,0.38)');
+    gradient.addColorStop(0.68, 'rgba(0,0,0,0.12)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    contactShadowMap = tex;
+    return tex;
+  }
+  const data = new Uint8Array(size * size * 4);
+  const center = (size - 1) / 2;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const t = Math.min(1, Math.hypot(x - center, y - center) / center);
+      const alpha = Math.round((1 - t) ** 1.6 * 220);
+      const i = (y * size + x) * 4;
+      data[i + 3] = alpha;
+    }
+  }
+  const fallback = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  fallback.needsUpdate = true;
+  contactShadowMap = fallback;
+  return fallback;
+}
+
+function contactShadowOpacity(theme: ThemeId): number {
+  return theme === 'dark' ? 0.95 : 0.9;
+}
+
+function contactWorldRadius(variant: StoneCatVariant): number {
+  const footprint = variant === 'kitten' ? BOOP_KITTEN_FOOTPRINT_WORLD : BOOP_CAT_FOOTPRINT_WORLD;
+  return footprint * 0.62;
+}
 
 /** Face +X-authored models toward the default camera in XZ. */
 export const BOOP_STONE_CAT_YAW =
@@ -168,38 +211,31 @@ function simplifyForShadowStandIn(geometry: THREE.BufferGeometry): THREE.BufferG
   return simplified;
 }
 
-function contactShadowOpacity(theme: ThemeId): number {
-  return theme === 'dark' ? 0.38 : 0.26;
-}
-
-/** Vase base radius in the visual's local space (CircleGeometry is not re-scaled by parent). */
-export function baseFootprintRadiusLocal(visual: THREE.Object3D): number {
-  const scale = visual.scale.x || 1;
-  visual.updateMatrixWorld(true);
-  _box.setFromObject(visual);
-  const size = new THREE.Vector3();
-  _box.getSize(size);
-  return (Math.max(size.x, size.z) * 0.34) / scale;
-}
-
-/** Soft AO blob at the vase base (does not replace directional drop shadows). */
-export function attachContactShadow(visual: THREE.Object3D, radiusLocal: number, theme: ThemeId): void {
-  const existing = visual.getObjectByName(BOOP_CONTACT_SHADOW_NAME);
-  if (existing) existing.parent?.remove(existing);
-
-  const mat = contactShadowMaterial.clone();
-  mat.opacity = contactShadowOpacity(theme);
-  const disk = new THREE.Mesh(new THREE.CircleGeometry(radiusLocal, 28), mat);
+/** Soft AO blob at the vase base (sibling under the piece root; keeps directional drop shadows). */
+export function createBoopContactShadowMesh(radiusWorld: number, theme: ThemeId): THREE.Mesh {
+  const material = new THREE.MeshBasicMaterial({
+    map: getContactShadowMap(),
+    transparent: true,
+    opacity: contactShadowOpacity(theme),
+    depthWrite: false,
+    depthTest: true,
+    toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -3,
+    polygonOffsetUnits: -3,
+  });
+  const disk = new THREE.Mesh(new THREE.CircleGeometry(CONTACT_SHADOW_UNIT_RADIUS, 32), material);
   disk.name = BOOP_CONTACT_SHADOW_NAME;
   disk.rotation.x = -Math.PI / 2;
-  const scale = visual.scale.x || 1;
-  disk.position.y = 0.003 / scale;
-  disk.renderOrder = 2;
+  disk.position.y = 0.012;
+  disk.scale.set(radiusWorld, 1, radiusWorld);
+  disk.renderOrder = 1;
   disk.castShadow = false;
   disk.receiveShadow = false;
   disk.userData.excludeFromPicking = true;
   disk.userData[BOOP_CONTACT_SHADOW_USER_DATA] = true;
-  visual.add(disk);
+  disk.userData[PIECE_SKIP_CAST_SHADOW_USER_DATA] = true;
+  return disk;
 }
 
 export function attachShadowStandIn(visual: THREE.Object3D, shadowGeometry: THREE.BufferGeometry): void {
@@ -241,7 +277,6 @@ function prepareVisualTemplate(scene: THREE.Group, worldScale: number, offlineSh
     ? offlineShadow.clone().scale(worldScale, worldScale, worldScale)
     : simplifyForShadowStandIn(mergeWorldPieceGeometry(visual.clone(true)));
   attachShadowStandIn(visual, shadowGeometry);
-  attachContactShadow(visual, baseFootprintRadiusLocal(visual), boopPieceTheme);
 
   visual.userData[PIECE_OPAQUE_MATERIALS_READY_USER_DATA] = true;
   return { visual, shadowGeometry, height };
@@ -301,15 +336,26 @@ function resolveTemplate(
 }
 
 function mountModel(root: THREE.Group, model: THREE.Object3D) {
+  const contact = root.getObjectByName(BOOP_CONTACT_SHADOW_NAME);
   root.clear();
+  if (contact) root.add(contact);
   root.add(model);
   root.rotation.y = BOOP_STONE_CAT_YAW;
 }
 
-function syncContactShadowOnRoot(root: THREE.Object3D) {
-  const disk = root.getObjectByName(BOOP_CONTACT_SHADOW_NAME) as THREE.Mesh | undefined;
-  if (disk?.material instanceof THREE.MeshBasicMaterial) {
+function ensureContactShadowOnRoot(root: THREE.Object3D, piece: EnginePiece) {
+  const variant: StoneCatVariant = piece.shape === 'kitten' ? 'kitten' : 'cat';
+  const radius = contactWorldRadius(variant);
+  let disk = root.getObjectByName(BOOP_CONTACT_SHADOW_NAME) as THREE.Mesh | undefined;
+  if (!disk) {
+    disk = createBoopContactShadowMesh(radius, boopPieceTheme);
+    root.add(disk);
+    return;
+  }
+  disk.scale.set(radius, 1, radius);
+  if (disk.material instanceof THREE.MeshBasicMaterial) {
     disk.material.opacity = contactShadowOpacity(boopPieceTheme);
+    disk.material.needsUpdate = true;
   }
 }
 
@@ -330,13 +376,13 @@ function createStonePieceSet(
     materialFor: () => null,
     createVisual(piece: EnginePiece) {
       const root = new THREE.Group();
+      ensureContactShadowOnRoot(root, piece);
       mountModel(root, clonePieceVisualTemplate(templateFor(piece).visual));
-      syncContactShadowOnRoot(root);
       return root;
     },
     replaceVisual(root: THREE.Object3D, piece: EnginePiece) {
+      ensureContactShadowOnRoot(root, piece);
       mountModel(root as THREE.Group, clonePieceVisualTemplate(templateFor(piece).visual));
-      syncContactShadowOnRoot(root);
     },
     onThemeChange(id) {
       boopPieceTheme = id;

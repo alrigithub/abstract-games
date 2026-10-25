@@ -1,6 +1,5 @@
 import type { ThemeId } from '@abstract/three-engine';
 import type { PieceKind } from './types';
-import { boopFootprintWorldUnits } from './boop-placement-footprints';
 
 export interface BoopThumbControlOptions {
   mount: HTMLElement;
@@ -16,7 +15,7 @@ export interface BoopThumbControlHandle {
   destroy(): void;
 }
 
-/** Bottom-left circular picker: small/big vase + placement footprint preview. */
+/** Bottom-left small/big vase picker (two simple circles). */
 export function createBoopThumbControl(options: BoopThumbControlOptions): BoopThumbControlHandle {
   let kind = options.initialKind;
   let theme = options.theme;
@@ -24,10 +23,6 @@ export function createBoopThumbControl(options: BoopThumbControlOptions): BoopTh
   const root = document.createElement('div');
   root.className = 'boop-thumb-control';
   root.dataset.testid = 'boop-thumb-control';
-
-  const ring = document.createElement('div');
-  ring.className = 'boop-thumb-control__ring';
-  ring.dataset.testid = 'boop-thumb-ring';
 
   const kittenBtn = document.createElement('button');
   kittenBtn.type = 'button';
@@ -43,15 +38,8 @@ export function createBoopThumbControl(options: BoopThumbControlOptions): BoopTh
   catBtn.setAttribute('aria-label', 'Place large vase');
   catBtn.title = 'Large vase';
 
-  root.append(ring, kittenBtn, catBtn);
+  root.append(kittenBtn, catBtn);
   options.mount.append(root);
-
-  function footprintRatio(selected: PieceKind): number {
-    const kitten = boopFootprintWorldUnits('kitten');
-    const cat = boopFootprintWorldUnits('cat');
-    const base = boopFootprintWorldUnits(selected);
-    return base / cat;
-  }
 
   function sync() {
     root.dataset.theme = theme;
@@ -60,7 +48,6 @@ export function createBoopThumbControl(options: BoopThumbControlOptions): BoopTh
     kittenBtn.setAttribute('aria-pressed', kind === 'kitten' ? 'true' : 'false');
     catBtn.dataset.selected = kind === 'cat' ? 'true' : 'false';
     catBtn.setAttribute('aria-pressed', kind === 'cat' ? 'true' : 'false');
-    ring.style.setProperty('--boop-thumb-footprint', String(footprintRatio(kind)));
   }
 
   function pick(next: PieceKind) {
