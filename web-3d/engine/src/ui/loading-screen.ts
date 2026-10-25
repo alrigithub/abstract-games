@@ -1,13 +1,29 @@
 /**
- * Full-screen startup overlay shared by every 3D game. Matches hub lobby typography
- * (system-ui) and dark clay-adjacent palette; shows step labels, progress, and errors.
+ * Full-screen startup overlay shared by every 3D game. Matches the live Firebase lobby
+ * (https://bimsavage-games.web.app/): ui-sans-serif stack + landing-bg2.jpg pile texture.
  */
 
 const OVERLAY_ID = 'abstract-loading-overlay';
 const STYLE_ID = 'abstract-loading-screen-styles';
 const HISTORY_LIMIT = 8;
 
-/** Hub-aligned tokens (see web-3d/hub/index.html). */
+/** Same stack as the deployed lobby (no custom @font-face). */
+export const LOBBY_FONT_FAMILY =
+  'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+
+const LOBBY_BG_COLOR = '#e4e4e2';
+const LOBBY_TEXT = '#2b2b2b';
+const LOBBY_MUTED = '#777777';
+
+/** Resolve landing JPEG like the lobby: sibling img/ on hosted builds, ./img/ in Vite dev. */
+export function resolveLandingBackgroundUrl(): string {
+  if (typeof document === 'undefined') return 'img/landing-bg2.jpg';
+  const path = document.location.pathname;
+  const inGameSubfolder = /\/(tak|gomoku|boop|yinsh|tzaar)(\/|$)/.test(path);
+  const rel = inGameSubfolder ? '../img/landing-bg2.jpg' : 'img/landing-bg2.jpg';
+  return new URL(rel, document.location.href).href;
+}
+
 const LOADING_CSS = `
 #${OVERLAY_ID} {
   position: fixed;
@@ -15,20 +31,18 @@ const LOADING_CSS = `
   z-index: 1000;
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  font-family: system-ui, -apple-system, sans-serif;
-  color: hsl(0, 0%, 88%);
-  background-color: hsl(0, 0%, 5%);
-  background-image:
-    radial-gradient(ellipse 120% 80% at 20% 10%, hsl(80, 8%, 14% / 0.55), transparent 55%),
-    radial-gradient(ellipse 90% 70% at 85% 75%, hsl(40, 6%, 12% / 0.45), transparent 50%),
-    repeating-linear-gradient(
-      118deg,
-      hsl(0, 0%, 7% / 0.35) 0 2px,
-      transparent 2px 7px
-    );
+  justify-content: flex-start;
+  padding: 0 0 0 clamp(28px, 8vw, 120px);
+  font-family: ${LOBBY_FONT_FAMILY};
+  color: ${LOBBY_TEXT};
+  background-color: ${LOBBY_BG_COLOR};
+  background-position: right center;
+  background-size: cover;
+  background-repeat: no-repeat;
   transition: opacity 0.45s ease, visibility 0.45s ease;
+}
+@media (max-aspect-ratio: 1/1) {
+  #${OVERLAY_ID} { background-position: 70% center; }
 }
 #${OVERLAY_ID}[data-fading="true"] {
   opacity: 0;
@@ -37,23 +51,31 @@ const LOADING_CSS = `
 }
 #${OVERLAY_ID} .loading-panel {
   width: min(100%, 28rem);
-  padding: 1.25rem 1.35rem 1.1rem;
-  border-radius: 0.65rem;
-  border: 1px solid hsl(0, 0%, 18%);
-  background: hsl(0, 0%, 9% / 0.92);
-  box-shadow: 0 12px 40px hsl(0, 0%, 0% / 0.45);
+  padding: 0.35rem 0 0;
+  background: transparent;
+  box-shadow: none;
+}
+#${OVERLAY_ID} .loading-kicker {
+  margin: 0 0 12px;
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: ${LOBBY_MUTED};
 }
 #${OVERLAY_ID} .loading-game {
-  margin: 0 0 0.65rem;
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  margin: 0 0 1rem;
+  font-size: clamp(28px, 4vw, 44px);
+  font-weight: 300;
+  line-height: 1.35;
+  letter-spacing: normal;
 }
 #${OVERLAY_ID} .loading-step {
   margin: 0 0 0.75rem;
-  font-size: 0.88rem;
+  font-size: 0.92rem;
   line-height: 1.45;
-  color: hsl(0, 0%, 72%);
+  font-weight: 400;
+  color: ${LOBBY_MUTED};
   word-break: break-word;
 }
 #${OVERLAY_ID} .loading-progress-row {
@@ -63,21 +85,23 @@ const LOADING_CSS = `
   gap: 0.75rem;
   margin-bottom: 0.35rem;
   font-size: 0.78rem;
-  color: hsl(0, 0%, 55%);
+  color: ${LOBBY_MUTED};
 }
 #${OVERLAY_ID} .loading-bar {
   height: 6px;
   border-radius: 999px;
-  background: hsl(0, 0%, 16%);
+  background: rgba(0, 0, 0, 0.08);
   overflow: hidden;
   margin-bottom: 0.85rem;
+  max-width: 20rem;
 }
 #${OVERLAY_ID} .loading-bar > span {
   display: block;
   height: 100%;
   width: 0%;
   border-radius: inherit;
-  background: linear-gradient(90deg, hsl(210, 45%, 42%), hsl(210, 80%, 58%));
+  background: ${LOBBY_TEXT};
+  opacity: 0.55;
   transition: width 0.15s ease;
 }
 #${OVERLAY_ID} .loading-history {
@@ -86,9 +110,10 @@ const LOADING_CSS = `
   list-style: none;
   font-size: 0.76rem;
   line-height: 1.35;
-  color: hsl(0, 0%, 52%);
+  color: ${LOBBY_MUTED};
   max-height: 6.5rem;
   overflow: auto;
+  max-width: 28rem;
 }
 #${OVERLAY_ID} .loading-history li {
   display: flex;
@@ -98,26 +123,27 @@ const LOADING_CSS = `
 }
 #${OVERLAY_ID} .loading-history .ms {
   flex-shrink: 0;
-  color: hsl(0, 0%, 42%);
+  color: #999;
   font-variant-numeric: tabular-nums;
 }
 #${OVERLAY_ID} .loading-elapsed {
   margin: 0.65rem 0 0;
   font-size: 0.74rem;
-  color: hsl(0, 0%, 45%);
+  color: ${LOBBY_MUTED};
   font-variant-numeric: tabular-nums;
 }
 #${OVERLAY_ID} .loading-error {
   margin: 0.75rem 0 0;
   padding: 0.55rem 0.65rem;
   border-radius: 0.4rem;
-  border: 1px solid hsl(0, 65%, 38%);
-  background: hsl(0, 55%, 12% / 0.85);
-  color: hsl(0, 85%, 72%);
+  border: 1px solid #c44;
+  background: rgba(255, 240, 240, 0.92);
+  color: #8b0000;
   font-size: 0.8rem;
   line-height: 1.4;
   white-space: pre-wrap;
   word-break: break-word;
+  max-width: 28rem;
 }
 `;
 
@@ -194,8 +220,14 @@ export function createLoadingScreen(options: { gameName: string }): LoadingScree
   root.setAttribute('aria-live', 'polite');
   root.setAttribute('aria-busy', 'true');
 
+  root.style.backgroundImage = `url("${resolveLandingBackgroundUrl()}")`;
+
   const panel = document.createElement('div');
   panel.className = 'loading-panel';
+
+  const kicker = document.createElement('p');
+  kicker.className = 'loading-kicker';
+  kicker.textContent = 'Loading';
 
   const title = document.createElement('h1');
   title.className = 'loading-game';
@@ -226,7 +258,7 @@ export function createLoadingScreen(options: { gameName: string }): LoadingScree
   errorEl.className = 'loading-error';
   errorEl.hidden = true;
 
-  panel.append(title, stepEl, progressRow, bar, historyEl, elapsedEl, errorEl);
+  panel.append(kicker, title, stepEl, progressRow, bar, historyEl, elapsedEl, errorEl);
   root.append(panel);
   document.body.append(root);
 
