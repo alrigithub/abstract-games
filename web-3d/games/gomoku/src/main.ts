@@ -5,6 +5,8 @@ import {
   playWinSoundAfterPlace,
   readInitialTheme,
   recordAiThinkMetrics,
+  createLoadingScreen,
+  setActiveLoadingScreen,
   type GameButtonsBar,
   type ThemeId,
 } from '@abstract/three-engine';
@@ -21,6 +23,9 @@ import {
   type Move,
   type Player,
 } from './game/engine';
+
+const loading = createLoadingScreen({ gameName: 'Gomoku' });
+setActiveLoadingScreen(loading);
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 
@@ -145,12 +150,15 @@ async function playMove(col: number, row: number, isHuman: boolean) {
   if (!game.winner) maybeAiTurn();
 }
 
-const scene = await createGomokuScene(board, {
-  theme,
-  onCellClick: (row, col) => void playMove(col, row, true),
-  canInteract: () => !aiPending && !game.winner && game.toMove === humanColor,
-  hoverPlayer: () => (game.winner || game.toMove !== humanColor ? null : toScenePlayer(humanColor)),
-});
+const scene = await loading.track(
+  createGomokuScene(board, {
+    theme,
+    onCellClick: (row, col) => void playMove(col, row, true),
+    canInteract: () => !aiPending && !game.winner && game.toMove === humanColor,
+    hoverPlayer: () => (game.winner || game.toMove !== humanColor ? null : toScenePlayer(humanColor)),
+  }),
+  'Starting Gomoku scene (arena GLB + stones + WebGL)',
+);
 
 const cameraViews = scene.createCameraViews();
 
@@ -244,3 +252,6 @@ const demoShot = new URLSearchParams(typeof window !== 'undefined' ? window.loca
 if (!demoShot) {
   startGame('black');
 }
+
+await loading.done();
+setActiveLoadingScreen(null);

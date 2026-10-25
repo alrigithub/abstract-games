@@ -30,6 +30,7 @@ build_and_copy games/tzaar tzaar
 if [[ -f "$WEB3D/hub/index.html" ]]; then
   cp "$WEB3D/hub/index.html" "$OUT/index.html"
   [[ -d "$WEB3D/hub/rules-tldr" ]] && cp -a "$WEB3D/hub/rules-tldr" "$OUT/rules-tldr"
+  [[ -d "$WEB3D/hub/img" ]] && cp -a "$WEB3D/hub/img" "$OUT/img"
 fi
 
 echo "Staged web-3d hosting tree at: $OUT"
