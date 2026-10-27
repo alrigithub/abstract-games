@@ -15,7 +15,7 @@ export function createBoardWebGLRenderer(): THREE.WebGLRenderer {
 
 /**
  * Drawing-buffer size for the shared board pipeline.
- * Live geometry (Boop `?arena=3d`, Gomoku) uses at least {@link CAMERA.minRenderScale}
+ * Live geometry uses at least {@link CAMERA.minRenderScale}
  * and {@link CAMERA.maxBufferPixels}. A pre-rendered plate caps DPR at 1.5 and 1.5e6 pixels.
  */
 export function boardDrawingBufferSize(

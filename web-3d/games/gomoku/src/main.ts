@@ -139,10 +139,7 @@ async function playMove(col: number, row: number, isHuman: boolean) {
   if (!game.winner) maybeAiTurn();
 }
 
-const liveArena = new URLSearchParams(location.search).get('arena') === '3d';
-const prerender = liveArena
-  ? null
-  : await loading.track(loadGomokuPrerender(), 'Loading Gomoku prerender plate');
+const prerender = await loading.track(loadGomokuPrerender(), 'Loading Gomoku prerender plate');
 
 const scene = await loading.track(
   createGomokuScene(board, {
@@ -151,16 +148,13 @@ const scene = await loading.track(
     canInteract: () => !aiPending && !game.winner && game.toMove === humanColor,
     hoverPlayer: () => (game.winner || game.toMove !== humanColor ? null : toScenePlayer(humanColor)),
   }),
-  liveArena ? 'Starting Gomoku scene (arena GLB + stones + WebGL)' : 'Starting Gomoku scene (prerender plate + stones)',
+  'Starting Gomoku scene (prerender plate + stones)',
 );
-
-const cameraViews = prerender ? null : scene.createCameraViews();
 
 let gameButtons: GameButtonsBar | undefined;
 
 gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
-  cameraViews: cameraViews ?? undefined,
   aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
   aiStrengthLevels: [...GOMOKU_AI_STRENGTH_LEVELS],
   onAiStrengthChange: level => renderStatus(undefined, level.label),

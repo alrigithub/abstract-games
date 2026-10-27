@@ -45,6 +45,8 @@ test('Boop pre-render stays registered when resized and ignores camera gestures'
     })).toEqual([]);
   }
   expect(requests.some(url => url.endsWith('boop-columns.glb'))).toBe(true);
-  expect(requests.some(url => url.endsWith('boop-map.glb'))).toBe(false);
+  expect(requests.some(url => url.endsWith('boop-cat-shadow.glb'))).toBe(true);
+  expect(requests.some(url => url.endsWith('boop-kitten-shadow.glb'))).toBe(true);
+  expect(requests.some(url => /\/lib\/maps\//.test(url) || url.endsWith('boop-map.glb') || url.endsWith('go-map.glb'))).toBe(false);
   expect(errors, errors.join('\n')).toEqual([]);
 });
