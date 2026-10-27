@@ -6,17 +6,6 @@ export function boardGridLineWorldY(): number {
   return BOARD.LINE_Y;
 }
 
-/** Authored arena GLB nodes that carry recessed printed grid line geometry. */
-export const AUTHORED_ARENA_BOARD_LINE_NAME = /recessed grid segment/i;
-
-/** Lift baked arena grid lines slightly above the playfield without moving the rest of the arena. */
-export function liftAuthoredArenaBoardLines(root: THREE.Object3D, lift = BOARD.LINE_LIFT): void {
-  root.traverse(obj => {
-    if (!AUTHORED_ARENA_BOARD_LINE_NAME.test(obj.name)) return;
-    obj.position.y += lift;
-  });
-}
-
 /** Target grid line width in screen pixels (constant across orthographic zoom). */
 export const BOARD_GRID_LINE_PX = 1.05;
 
