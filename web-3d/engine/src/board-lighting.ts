@@ -16,6 +16,10 @@ export interface BoardLightingOptions {
   keyLightIntensity?: number;
   /** Override default hemisphere fill (default 0.34). */
   hemisphereIntensityLight?: number;
+  keyLightColor?: THREE.ColorRepresentation;
+  shadowRadius?: number;
+  environmentIntensity?: number;
+  exposure?: number;
 }
 
 /** Sun and fill used by Boop's arena GLB and Gomoku's go-map. */
@@ -27,6 +31,7 @@ export const ARENA_GLB_BOARD_LIGHTING: BoardLightingOptions = {
 
 export interface BoardLightingHandle {
   readonly light: THREE.DirectionalLight;
+  update(options: BoardLightingOptions): void;
   fitToBox(box: THREE.Box3): void;
   fitToPoints(points: THREE.Vector3[]): void;
   refreshMapSize(): void;
@@ -114,8 +119,7 @@ export function applyBoardLighting(
   configureBoardShadowMap(renderer);
 
   const pieceHeightMargin = options.pieceHeightMargin ?? 1.35;
-  const keyIntensity = options.keyLightIntensity ?? CLAY.KEY_LIGHT_INTENSITY;
-  const light = new THREE.DirectionalLight(CLAY.KEY_LIGHT_COLOR, keyIntensity);
+  const light = new THREE.DirectionalLight(CLAY.KEY_LIGHT_COLOR, CLAY.KEY_LIGHT_INTENSITY);
   light.position.set(7, 11, -8);
   light.castShadow = true;
   applyShadowMapSettings(light, chooseShadowMapSize());
@@ -127,11 +131,25 @@ export function applyBoardLighting(
   scene.add(light);
 
   let hemisphere: THREE.HemisphereLight | null = null;
-  const hemiLight = options.hemisphereIntensityLight ?? 0.34;
-  if (options.ambientFill) {
-    hemisphere = new THREE.HemisphereLight(0xffffff, 0xdcdcdc, hemiLight);
-    scene.add(hemisphere);
+  const settings: BoardLightingOptions = { ...options };
+  function update(next: BoardLightingOptions) {
+    Object.assign(settings, next);
+    light.color.set(settings.keyLightColor ?? CLAY.KEY_LIGHT_COLOR);
+    light.intensity = settings.keyLightIntensity ?? CLAY.KEY_LIGHT_INTENSITY;
+    light.shadow.radius = settings.shadowRadius ?? CLAY.SHADOW_RADIUS;
+    light.shadow.needsUpdate = true;
+    if (settings.environmentIntensity !== undefined) scene.environmentIntensity = settings.environmentIntensity;
+    if (settings.exposure !== undefined) renderer.toneMappingExposure = settings.exposure;
+    if (settings.ambientFill && !hemisphere) {
+      hemisphere = new THREE.HemisphereLight(0xffffff, 0xdcdcdc);
+      scene.add(hemisphere);
+    }
+    if (hemisphere) {
+      hemisphere.visible = settings.ambientFill === true;
+      hemisphere.intensity = settings.hemisphereIntensityLight ?? 0.34;
+    }
   }
+  update(options);
 
   const tmpBox = new THREE.Box3();
 
@@ -172,10 +190,12 @@ export function applyBoardLighting(
 
   return {
     light,
+    update,
     fitToBox,
     fitToPoints,
     refreshMapSize() {
       applyShadowMapSettings(light, chooseShadowMapSize());
+      light.shadow.radius = settings.shadowRadius ?? CLAY.SHADOW_RADIUS;
       light.shadow.needsUpdate = true;
     },
     dispose() {

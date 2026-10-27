@@ -1259,6 +1259,16 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   }
 
   const api: SceneApi = {
+    setLighting(next) {
+      boardLighting.update(next);
+      requestRender();
+    },
+    setPrerenderedTexture(texture) {
+      if (!prerendered) return;
+      prerendered.setTexture(texture);
+      prerendered.cover(camera);
+      requestRender();
+    },
     setSnapshot,
     createCameraViews(cameraOptions: { getBounds?: () => THREE.Vector3[] } = {}) {
       if (prerendered) return { preset: 'axo', toggle() {}, setPreset() {}, refit() { fit(); }, dispose() {} };

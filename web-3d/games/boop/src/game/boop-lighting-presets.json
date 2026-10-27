@@ -1,0 +1,20 @@
+{
+  "soft-studio": {
+    "label": "Soft studio",
+    "plate": "boop-soft-studio.webp",
+    "live": { "ambientFill": true, "keyLightIntensity": 1.7, "keyLightColor": "#fffaf3", "hemisphereIntensityLight": 0.42, "environmentIntensity": 0.8, "exposure": 1.05, "shadowRadius": 10 },
+    "bake": { "sunEnergy": 2.2, "sunColor": "fffaf3", "sunAngle": 16, "worldStrength": 0.85, "worldColor": "ffffff" }
+  },
+  "daylight": {
+    "label": "Clear daylight",
+    "plate": "boop-daylight.webp",
+    "live": { "ambientFill": true, "keyLightIntensity": 2.1, "keyLightColor": "#ffffff", "hemisphereIntensityLight": 0.28, "environmentIntensity": 0.55, "exposure": 1.05, "shadowRadius": 5 },
+    "bake": { "sunEnergy": 2.6, "sunColor": "ffffff", "sunAngle": 7, "worldStrength": 0.55, "worldColor": "f2f6ff" }
+  },
+  "warm-gallery": {
+    "label": "Warm gallery",
+    "plate": "boop-warm-gallery.webp",
+    "live": { "ambientFill": true, "keyLightIntensity": 1.8, "keyLightColor": "#ffe1ba", "hemisphereIntensityLight": 0.34, "environmentIntensity": 0.65, "exposure": 1.05, "shadowRadius": 8 },
+    "bake": { "sunEnergy": 2.3, "sunColor": "ffe1ba", "sunAngle": 12, "worldStrength": 0.7, "worldColor": "fff7eb" }
+  }
+}

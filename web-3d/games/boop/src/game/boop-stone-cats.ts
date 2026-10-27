@@ -200,30 +200,16 @@ function simplifyForShadowStandIn(geometry: THREE.BufferGeometry): THREE.BufferG
   return simplified;
 }
 
-/** Keep baked vase maps unlit, including the white player assets. */
-export function prepareBakedVaseGlb(root: THREE.Object3D): void {
+/** Isolate material state while retaining authored albedo, normal and PBR settings. */
+export function prepareDetailedVaseGlb(root: THREE.Object3D): void {
   cloneMeshMaterials(root);
-  root.traverse(node => {
-    if (!(node instanceof THREE.Mesh)) return;
-    const unlit = (source: THREE.Material): THREE.Material => {
-      if (!(source instanceof THREE.MeshStandardMaterial)) return source;
-      const material = new THREE.MeshBasicMaterial({
-        name: source.name,
-        color: source.color,
-        map: source.map,
-        side: source.side,
-        vertexColors: source.vertexColors,
-      });
-      source.dispose();
-      return material;
-    };
-    node.material = Array.isArray(node.material)
-      ? node.material.map(unlit)
-      : unlit(node.material);
-  });
   ensureOpaquePieceMaterials(root);
+  root.traverse(node => {
+    if (node instanceof THREE.Mesh && !node.geometry.getAttribute('normal')) {
+      node.geometry.computeVertexNormals();
+    }
+  });
 }
-
 /**
  * Both inputs are already upright, base-centred and scaled to board units.
  * Keep the caster beside the authored transform rather than scaling it twice.
@@ -280,10 +266,10 @@ function prepareVisualTemplate(scene: THREE.Group, worldScale: number, offlineSh
 }
 
 const BOOP_VASE_FILES = [
-  'boop-vase-large-white-baked.glb',
-  'boop-vase-large-black-baked.glb',
-  'boop-vase-small-white-baked.glb',
-  'boop-vase-small-black-baked.glb',
+  'boop-vase-large-white-detail.glb',
+  'boop-vase-large-black-detail.glb',
+  'boop-vase-small-white-detail.glb',
+  'boop-vase-small-black-detail.glb',
 ] as const;
 
 export async function loadBoopShadowGeometry(url: string): Promise<THREE.BufferGeometry> {
@@ -300,12 +286,12 @@ async function loadTemplates(offlineShadows?: Record<StoneCatVariant, THREE.Buff
     BOOP_VASE_FILES.map((file, index) => [file, scenes[index]!]),
   ) as Record<BoopVaseFile, THREE.Group>;
 
-  const scale = LARGE_VASE_TILE_FOOTPRINT / xzExtent(sceneByFile['boop-vase-large-white-baked.glb']);
+  const scale = LARGE_VASE_TILE_FOOTPRINT / xzExtent(sceneByFile['boop-vase-large-white-detail.glb']);
 
   const templateByFile = new Map<BoopVaseFile, StoneTemplate>();
   for (const file of BOOP_VASE_FILES) {
     const scene = sceneByFile[file];
-    prepareBakedVaseGlb(scene);
+    prepareDetailedVaseGlb(scene);
     const variant = file.includes('large') ? 'cat' : 'kitten';
     templateByFile.set(file, prepareVisualTemplate(scene, scale, offlineShadows?.[variant]));
   }

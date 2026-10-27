@@ -77,21 +77,27 @@ export function createPrerenderedArena(scene: THREE.Scene, spec: PrerenderedAren
   plate.renderOrder = -10;
   tagExcludeFromBounds(plate);
   scene.add(plate);
-  const map = material.map;
-  if (map) {
-    map.wrapS = THREE.ClampToEdgeWrapping;
-    map.wrapT = THREE.ClampToEdgeWrapping;
+  let map = material.map;
+  const textures = new Set<THREE.Texture>();
+  function setTexture(texture: THREE.Texture) {
+    textures.add(texture);
+    map = texture;
+    material.map = texture;
+    material.needsUpdate = true;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    const image = texture.image as HTMLImageElement | undefined;
+    // Use each plate's corner for seamless letterboxing after a preset change.
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const ctx = canvas.getContext('2d');
+    if (ctx && image) {
+      ctx.drawImage(image, 0, 0, 1, 1, 0, 0, 1, 1);
+      const pixel = ctx.getImageData(0, 0, 1, 1).data;
+      scene.background = new THREE.Color().setRGB(pixel[0]! / 255, pixel[1]! / 255, pixel[2]! / 255, THREE.SRGBColorSpace);
+    }
   }
-  const image = material.map?.image as HTMLImageElement | undefined;
-  // Use the plate's own corner for seamless letterboxing, including Blender lighting.
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 1;
-  const ctx = canvas.getContext('2d');
-  if (ctx && image) {
-    ctx.drawImage(image, 0, 0, 1, 1, 0, 0, 1, 1);
-    const pixel = ctx.getImageData(0, 0, 1, 1).data;
-    scene.background = new THREE.Color().setRGB(pixel[0]! / 255, pixel[1]! / 255, pixel[2]! / 255, THREE.SRGBColorSpace);
-  }
+  setTexture(spec.light);
   function cover(camera: THREE.OrthographicCamera) {
     const zoom = camera.zoom || 1;
     const visibleW = (camera.right - camera.left) / zoom;
@@ -100,13 +106,21 @@ export function createPrerenderedArena(scene: THREE.Scene, spec: PrerenderedAren
     const coverH = Math.max(spec.camera.height, visibleH * 1.02);
     plate.scale.set(coverW / spec.camera.width, coverH / spec.camera.height, 1);
     if (!map) return;
-    map.repeat.set(spec.camera.width / coverW, spec.camera.height / coverH);
+    // Expand UV coverage with the plane so the authored image keeps its world
+    // size; ClampToEdge fills the added margins without stretching the arena.
+    map.repeat.set(coverW / spec.camera.width, coverH / spec.camera.height);
     map.offset.set((1 - map.repeat.x) / 2, (1 - map.repeat.y) / 2);
   }
 
   return {
+    setTexture,
     cover,
-    dispose() { scene.remove(plate); geometry.dispose(); material.dispose(); spec.light.dispose(); },
+    dispose() {
+      scene.remove(plate);
+      geometry.dispose();
+      material.dispose();
+      for (const texture of textures) texture.dispose();
+    },
   };
 }
 

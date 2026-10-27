@@ -7,9 +7,9 @@ import {
   tagPieceForShadows,
   tagPieceGlbMeshesForShadows,
 } from '@abstract/three-engine';
-import { enableVaseShadows, prepareBakedVaseGlb } from './boop-stone-cats';
+import { enableVaseShadows, prepareDetailedVaseGlb } from './boop-stone-cats';
 
-describe('Boop baked vase shadows', () => {
+describe('Boop detailed vase shadows', () => {
   function fixture() {
     const vase = new THREE.Group();
     vase.scale.setScalar(30);
@@ -74,26 +74,33 @@ describe('Boop baked vase shadows', () => {
     expect(((ghost.getObjectByName(caster.name) as THREE.Mesh).material as THREE.Material).colorWrite).toBe(false);
   });
 
-  it.each(['white', 'black'])('preserves the %s baked map without relighting', color => {
+  it.each(['white', 'black'])('preserves the %s PBR maps and shading parameters', color => {
     const map = new THREE.Texture();
-    const source = new THREE.MeshBasicMaterial({ name: color, map, color: 0xcccccc });
+    const normalMap = new THREE.Texture();
+    const source = new THREE.MeshStandardMaterial({
+      name: color, map, normalMap, color: 0xcccccc, roughness: .78, metalness: .02,
+    });
+    source.normalScale.set(.6, .7);
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(), source);
-    prepareBakedVaseGlb(mesh);
-    const material = mesh.material as THREE.MeshBasicMaterial;
+    prepareDetailedVaseGlb(mesh);
+    const material = mesh.material as THREE.MeshStandardMaterial;
     expect(material).not.toBe(source);
-    expect(material.isMeshBasicMaterial).toBe(true);
+    expect(material.isMeshStandardMaterial).toBe(true);
     expect(material.map).toBe(map);
+    expect(material.normalMap).toBe(normalMap);
+    expect(material.normalScale.toArray()).toEqual([.6, .7]);
+    expect(material.roughness).toBe(.78);
+    expect(material.metalness).toBe(.02);
     expect(material.color.getHex()).toBe(0xcccccc);
-    expect(source.map).toBe(map);
+    material.roughness = .4;
+    expect(source.roughness).toBe(.78);
   });
 
-  it('uses only the baked color map if an export still has a lit material', () => {
-    const map = new THREE.Texture();
-    const source = new THREE.MeshStandardMaterial({ map, color: 0xcccccc });
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(), source);
-    prepareBakedVaseGlb(mesh);
-    expect(mesh.material).toBeInstanceOf(THREE.MeshBasicMaterial);
-    expect((mesh.material as THREE.MeshBasicMaterial).map).toBe(map);
-    expect(source.isMeshStandardMaterial).toBe(true);
+  it('retains authored geometry normals for the detailed normal map', () => {
+    const geometry = new THREE.BoxGeometry();
+    const normals = geometry.getAttribute('normal');
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial());
+    prepareDetailedVaseGlb(mesh);
+    expect(mesh.geometry.getAttribute('normal')).toBe(normals);
   });
 });

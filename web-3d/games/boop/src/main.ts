@@ -6,7 +6,6 @@ import {
   createGameButtons,
   DomPlacementGhost,
   BOOP_AI_STRENGTH_STORAGE_KEY,
-  ARENA_GLB_BOARD_LIGHTING,
   ARENA_GLB_SURFACE_COLOR,
   DEFAULT_AI_STRENGTH_LEVELS,
   levelToSearchOptions,
@@ -29,6 +28,7 @@ import {
 } from './game/boop-arena';
 import { BOOP_GRID as size, BOOP_OUTSIDE as OUTSIDE_ROWS } from './game/boop-grid';
 import { createBoopPrerenderTopology, loadBoopPrerender } from './game/boop-prerender';
+import { BOOP_LIGHTING_PRESETS, loadBoopLightingTexture, mountBoopLightingMenu, readBoopLighting } from './game/boop-lighting';
 
 applyBoopAnimationPacing(ANIMATION);
 initBoopKnockPushSounds();
@@ -38,10 +38,11 @@ setActiveLoadingScreen(loading);
 
 const fallbackCat = createBoopCatGeometry();
 const fallbackKitten = createBoopKittenGeometry();
+const lightingPreset = readBoopLighting();
 const prerender =
   new URLSearchParams(location.search).get('arena') === '3d'
     ? null
-    : await loading.track(loadBoopPrerender(), 'Loading Boop prerender plate (textures + columns GLB)');
+    : await loading.track(loadBoopPrerender(lightingPreset), 'Loading Boop prerender plate (textures + columns GLB)');
 const pieces = await loading.track(
   createBoopPieceGeometrySet(fallbackCat, fallbackKitten, prerender?.shadows),
   'Loading Boop vase piece models',
@@ -73,7 +74,7 @@ const scene = await loading.track(
     size: boopPlayfieldGroundSize(size, OUTSIDE_ROWS),
     surfaceColor: ARENA_GLB_SURFACE_COLOR,
   },
-  boardLighting: ARENA_GLB_BOARD_LIGHTING,
+  boardLighting: BOOP_LIGHTING_PRESETS[lightingPreset].live,
   placeSfx: {
     place: BOOP_DEMO_PLACE_SFX_URLS,
     boop: BOOP_DEMO_BOOP_SFX_URLS,
@@ -121,6 +122,11 @@ gameButtons = createGameButtons({
     interaction.cancel();
     controller.newGame();
   },
+});
+mountBoopLightingMenu(gameButtons.root, lightingPreset, async id => {
+  const texture = prerender ? await loadBoopLightingTexture(id) : null;
+  if (texture) scene.setPrerenderedTexture(texture);
+  scene.setLighting(BOOP_LIGHTING_PRESETS[id].live);
 });
 
 thumbControl = createBoopThumbControl({

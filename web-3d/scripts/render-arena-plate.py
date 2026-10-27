@@ -10,6 +10,7 @@ import argparse
 import json
 import math
 import os
+from pathlib import Path
 import sys
 import bpy
 from mathutils import Matrix, Vector
@@ -23,6 +24,7 @@ parser.add_argument('--source-copy')
 parser.add_argument('--resolution', type=int, default=1536)
 parser.add_argument('--samples', type=int, default=0, help='Cycles samples; 0 keeps the path default (Boop 24)')
 parser.add_argument('--contrast', type=float, default=1.06, help='Key-to-fill lighting ratio multiplier; 1 restores the original lighting')
+parser.add_argument('--lighting-preset', help='Boop lighting key from boop-lighting-presets.json; geometry and camera stay registered')
 parser.add_argument('--allow-grid-offsets', action='store_true', help='Keep intentionally moved tile centers and record their reference offsets')
 args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
 assert math.isfinite(args.contrast) and args.contrast > 0, 'Contrast must be positive and finite'
@@ -243,6 +245,8 @@ def matte(name, color):
     return mat
 
 if args.glb:
+    if args.lighting_preset:
+        parser.error('--lighting-preset is supported only for Boop blend exports')
     render_gomoku_glb()
     raise SystemExit(0)
 if not args.arena or not args.grid or not args.source_copy:
@@ -317,16 +321,24 @@ for o in scene.objects:
     if o.type == 'LIGHT':
         o.hide_render = True
 sun_data = bpy.data.lights.new('Boop matched daylight', 'SUN')
-sun_data.energy = 2 * math.sqrt(args.contrast)
-sun_data.angle = math.radians(12)
-sun_data.color = (1, .95, .88)
+lighting = None
+if args.lighting_preset:
+    preset_path = Path(__file__).resolve().parent.parent / 'games/boop/src/game/boop-lighting-presets.json'
+    presets = json.loads(preset_path.read_text(encoding='utf-8'))
+    if args.lighting_preset not in presets:
+        parser.error(f'Unknown Boop lighting preset: {args.lighting_preset}')
+    lighting = presets[args.lighting_preset]['bake']
+sun_data.energy = lighting['sunEnergy'] if lighting else 2 * math.sqrt(args.contrast)
+sun_data.angle = math.radians(lighting['sunAngle'] if lighting else 12)
+sun_data.color = srgb(lighting['sunColor'].lstrip('#')) if lighting else (1, .95, .88)
 sun = bpy.data.objects.new('Boop matched daylight', sun_data)
 scene.collection.objects.link(sun)
 sun.rotation_euler = Vector((-1, -1, -math.sqrt(2))).to_track_quat('-Z', 'Y').to_euler()
 scene.world = bpy.data.worlds.new('Boop soft studio')
 scene.world.use_nodes = True
-scene.world.node_tree.nodes['Background'].inputs['Color'].default_value = (.8, .8, .8, 1)
-scene.world.node_tree.nodes['Background'].inputs['Strength'].default_value = .5 / math.sqrt(args.contrast)
+world_color = srgb(lighting['worldColor'].lstrip('#')) if lighting else (.8, .8, .8)
+scene.world.node_tree.nodes['Background'].inputs['Color'].default_value = (*world_color, 1)
+scene.world.node_tree.nodes['Background'].inputs['Strength'].default_value = lighting['worldStrength'] if lighting else .5 / math.sqrt(args.contrast)
 
 camera_data = bpy.data.cameras.new('Boop locked orthographic')
 camera = bpy.data.objects.new('Boop locked orthographic', camera_data)
@@ -339,7 +351,7 @@ camera_data.type = 'ORTHO'
 camera_data.ortho_scale = 18
 scene.camera = camera
 scene.render.engine = 'CYCLES'
-scene.cycles.samples = 24
+scene.cycles.samples = args.samples or 24
 scene.cycles.use_denoising = bool(getattr(getattr(bpy.app, 'build_options', None), 'openimagedenoise', False))
 scene.render.resolution_x = scene.render.resolution_y = args.resolution
 scene.render.resolution_percentage = 100

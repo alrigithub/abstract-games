@@ -93,30 +93,43 @@ cancelled; invisible shadow meshes are also excluded from picking.
 This is an orthographic image
 workflow; arbitrary camera movement is intentionally unavailable.
 
-## Baked vase runtime assets
+## Detailed vase runtime assets
 
-Boop loads the four `boop-vase-*-baked.glb` files. The original vase GLBs remain
+Boop loads the four `boop-vase-*-detail.glb` files. The original vase GLBs remain
 unchanged in `web-3d/lib/pieces` as regeneration sources. Each runtime vase has
-2,000 triangles and one 512 x 512 baked diffuse texture. The glTF unlit extension
-keeps the captured lighting from being applied twice. This is a fixed-light
-appearance: the baked shading moves with the vase during animations rather than
-being recalculated. The geometry remains genuinely 3D for silhouettes and depth.
+4,000 triangles, a 1024-pixel JPEG color map, and a 512-pixel PNG normal map.
+The original PBR materials and UVs are retained, including roughness and normal
+strength. The top rim, seam boundaries and bounds are protected during reduction.
+Materials respond to the active lighting preset; the earlier unlit baked vase
+assets are retained for comparison but are no longer loaded by the game.
 
 Live drop shadows use the existing 999/1,000-triangle proxies as separate sibling
 meshes. They move with the vase but write neither visible color nor scene depth;
 they are excluded from picking and bounds. The visible vase does not enter the
-VSM shadow pass. Its baked surface does not receive additional dynamic shadows.
+VSM shadow pass.
 
 Regenerate from `web-3d` with Blender 5.2:
 
 ```powershell
-& 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe' --background --factory-startup --threads 6 --python scripts/bake-boop-vases.py -- --source lib/pieces --output .boop-vases-baked
-Copy-Item .boop-vases-baked/*-baked.glb lib/pieces/
+& 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe' --background --factory-startup --threads 6 --python scripts/prepare-boop-vases.py -- --source lib/pieces --output lib/pieces --work .boop-vase-quality
 ```
 
-The helper `scripts/unlit_export.py` converts Blender's exported emission bake to
-an explicit unlit base-color map. It preserves the binary geometry/image payload.
-Inspect the regenerated assets in the game before adopting a new bake. The
-bake uses the inverse of the fixed vase yaw, the game's warm directional key,
-and neutral ambient fill. It approximates the original diffuse lighting without
-runtime PBR or normal-map evaluation; it does not bake view-dependent highlights.
+## Lighting presets
+
+The game menu offers Clear daylight (default), Soft studio, and Warm gallery.
+`?lighting=daylight`, `?lighting=soft-studio`, or `?lighting=warm-gallery` selects
+a shareable look; otherwise the saved preference or daylight is used. Switching
+looks updates the arena plate and live lighting together without resetting the
+match or moving the camera. Other games retain their existing lighting.
+
+`boop-lighting-presets.json` defines the paired Blender bake and Three.js live
+settings. These are local studio/daylight light rigs using the existing Three.js
+environment, with no React/Drei dependency or external HDRI/CDN request. Only
+the selected plate loads at startup; other plates load once when selected.
+
+Regenerate the three registered plates with `scripts/render-boop-lighting-presets.py`.
+The script compares every generated registration against the current manifest
+before installing the WebPs. It does not overwrite the source scenes, column
+GLB or cell manifest. Changes to geometry or camera still require a full arena
+export first. Presets retain one common shadow direction so live shadows align
+with baked column shadows.
