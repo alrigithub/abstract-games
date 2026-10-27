@@ -10,7 +10,6 @@ import {
 } from '@abstract/three-engine';
 import { GOMOKU_AI_STRENGTH_LEVELS, gomokuLevelToSearchOptions } from './game/ai';
 import { createGomokuScene, type ScenePlayer, type StoneRecord } from './gomoku-scene';
-import { loadGomokuPrerender } from './gomoku-prerender';
 import {
   applyMove,
   coordIndex,
@@ -139,22 +138,21 @@ async function playMove(col: number, row: number, isHuman: boolean) {
   if (!game.winner) maybeAiTurn();
 }
 
-const prerender = await loading.track(loadGomokuPrerender(), 'Loading Gomoku prerender plate');
-
 const scene = await loading.track(
   createGomokuScene(board, {
-    prerender,
     onCellClick: (row, col) => void playMove(col, row, true),
     canInteract: () => !aiPending && !game.winner && game.toMove === humanColor,
     hoverPlayer: () => (game.winner || game.toMove !== humanColor ? null : toScenePlayer(humanColor)),
   }),
-  'Starting Gomoku scene (prerender plate + stones)',
+  'Starting Gomoku scene (grid + stones)',
 );
+const cameraViews = scene.createCameraViews();
 
 let gameButtons: GameButtonsBar | undefined;
 
 gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
+  cameraViews,
   aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
   aiStrengthLevels: [...GOMOKU_AI_STRENGTH_LEVELS],
   onAiStrengthChange: level => renderStatus(undefined, level.label),

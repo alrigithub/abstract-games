@@ -31,15 +31,6 @@ import { clayEnvMaterial, clayMaterialForPlayer } from './clay-materials';
 import { applyBoardEnvironment, boardDrawingBufferSize, createBoardWebGLRenderer, measureBoardFrameMs } from './board-renderer';
 import { BoardAssistLayer, type AssistGhostPieceRenderer } from './board-assist';
 import { WIN_ACCENT } from './theme';
-import {
-  attachLockedPlateZoom,
-  createPrerenderedArena,
-  fitPrerenderedCamera,
-  lockedPlateZoomLimits,
-  plateTextureEdge,
-  type LockedPlateZoom,
-  type PrerenderedArena,
-} from './prerendered-arena';
 
 const FLIP_HALO_NAME = 'flip-preview-halo';
 import {
@@ -108,8 +99,6 @@ interface DepartingObject {
 }
 
 export interface BoardSceneOptions {
-  /** Fixed orthographic plate with live 3D pieces and occluders. */
-  prerenderedArena?: PrerenderedArena;
   /** Playable grid extent (cells per side). */
   gridSize: number;
   /** Exterior sandbox ring (Tak reserve rows on the board). */
@@ -155,7 +144,6 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
 
   const scene = new THREE.Scene();
   applyPlayfieldBackdrop(scene, tokens.table);
-  const prerendered = options.prerenderedArena ? createPrerenderedArena(scene, options.prerenderedArena) : null;
   const renderer = createBoardWebGLRenderer();
   const disposeEnvironment = applyBoardEnvironment(scene, renderer);
   const boardLighting = applyBoardLighting(scene, renderer, {
@@ -182,10 +170,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
   camera.position.set(...CAMERA.position);
   camera.lookAt(0, 0, 0);
-  const renderPipeline = createBoardRenderPipeline(renderer, scene, camera, {
-    aoEnabled: prerendered ? false : undefined,
-    postprocessWithoutAo: !!prerendered,
-  });
+  const renderPipeline = createBoardRenderPipeline(renderer, scene, camera);
 
   const board = new THREE.Group();
   const piecesGroup = new THREE.Group();
@@ -229,7 +214,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     const surface = playfieldSurfaceColor();
     if (!surface || !playfieldGroundMaterial) return;
     playfieldGroundMaterial.color.set(surface);
-    if (!prerendered) applyPlayfieldBackdrop(scene, surface);
+    applyPlayfieldBackdrop(scene, surface);
   }
 
   function ensurePlayfieldGroundMaterial(): THREE.MeshStandardMaterial | THREE.MeshBasicMaterial {
@@ -237,7 +222,6 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       playfieldGroundMaterial = options.playfieldGround?.matchBackdrop
         ? new THREE.MeshBasicMaterial({ color: options.playfieldGround.surfaceColor, side: THREE.DoubleSide, toneMapped: false })
         : createArenaGroundMaterial(options.playfieldGround!.surfaceColor);
-      if (prerendered) playfieldGroundMaterial.colorWrite = false;
     }
     return playfieldGroundMaterial;
   }
@@ -246,10 +230,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     tokens = themeTokens();
     boardMaterial = clayEnvMaterial();
     const compactSurface = playfieldSurfaceColor();
-    if (!prerendered) {
-      if (compactSurface) applyPlayfieldBackdrop(scene, compactSurface);
-      else applyPlayfieldBackdrop(scene, tokens.table);
-    }
+    if (compactSurface) applyPlayfieldBackdrop(scene, compactSurface);
+    else applyPlayfieldBackdrop(scene, tokens.table);
     syncPlayfieldGroundAppearance();
     gridMaterial.color.set(tokens.lines);
     outlineMaterial.dispose();
@@ -625,10 +607,6 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   }
 
   function updateControlsEnabled() {
-    if (prerendered) {
-      controls.enabled = false;
-      return;
-    }
     if (boardGestureLockDepth > 0) {
       controls.enabled = true;
       controls.enableRotate = false;
@@ -657,7 +635,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     if (touches.size > 1) {
       container.dataset.cameraGesture = 'true';
       pressBlocksCamera = false;
-      controls.enabled = !prerendered;
+      controls.enabled = true;
       container.dispatchEvent(new CustomEvent('camera-gesture', { detail: { active: true } }));
       const first = [...touches.values()].find(t => t.pointerId !== event.pointerId);
       if (first && blockedTouchId === first.pointerId) {
@@ -714,24 +692,6 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
   controls.touches.ONE = THREE.TOUCH.PAN;
   controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
-  let plateZoom: LockedPlateZoom | null = null;
-  if (prerendered && options.prerenderedArena) {
-    controls.enableRotate = controls.enablePan = controls.enableZoom = false;
-    controls.enabled = false;
-    const limits = lockedPlateZoomLimits(plateTextureEdge(options.prerenderedArena.light), options.prerenderedArena.camera);
-    plateZoom = attachLockedPlateZoom({
-      camera,
-      domElement: renderer.domElement,
-      minZoom: limits.min,
-      maxZoom: limits.max,
-      onChange: () => {
-        prerendered.cover(camera);
-        syncBoardGridLines();
-        requestRender();
-        container.dispatchEvent(new CustomEvent('camera-change'));
-      },
-    });
-  }
   function syncBoardGridLines() {
     applyBoardGridLineScreenScale(board, boardGridLineScreenScale(camera, viewportHeight));
   }
@@ -778,7 +738,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     const bounds = container.getBoundingClientRect();
     width = Math.max(1, Math.round(bounds.width));
     viewportHeight = Math.max(1, Math.round(bounds.height));
-    const buffer = boardDrawingBufferSize(width, viewportHeight, { prerendered: !!prerendered });
+    const buffer = boardDrawingBufferSize(width, viewportHeight);
     const nextBufferWidth = buffer.width;
     const nextBufferHeight = buffer.height;
     if (nextBufferWidth !== bufferWidth || nextBufferHeight !== bufferHeight) {
@@ -791,14 +751,6 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
 
   function fit(reframe = false) {
     const aspect = syncRendererSize();
-    if (options.prerenderedArena) {
-      fitPrerenderedCamera(camera, options.prerenderedArena.camera, aspect, plateZoom?.zoom() ?? 1);
-      prerendered?.cover(camera);
-      syncBoardGridLines();
-      syncShadowFrustum();
-      requestRender();
-      return;
-    }
     if (cameraViewsRef) {
       cameraViewsRef.refit();
       requestRender();
@@ -1263,15 +1215,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       boardLighting.update(next);
       requestRender();
     },
-    setPrerenderedTexture(texture) {
-      if (!prerendered) return;
-      prerendered.setTexture(texture);
-      prerendered.cover(camera);
-      requestRender();
-    },
     setSnapshot,
     createCameraViews(cameraOptions: { getBounds?: () => THREE.Vector3[] } = {}) {
-      if (prerendered) return { preset: 'axo', toggle() {}, setPreset() {}, refit() { fit(); }, dispose() {} };
       cameraViewsRef?.dispose();
       const getBounds = cameraOptions.getBounds ?? collectFramePoints;
       cameraViewsRef = createCameraViewController({
@@ -1443,8 +1388,6 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       flipHaloMaterial.dispose();
       playfieldGroundMaterial?.dispose();
       backdropShadowMaterial?.dispose();
-      plateZoom?.dispose();
-      prerendered?.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     },

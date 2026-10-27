@@ -16,22 +16,19 @@ export function createBoardWebGLRenderer(): THREE.WebGLRenderer {
 /**
  * Drawing-buffer size for the shared board pipeline.
  * Live geometry uses at least {@link CAMERA.minRenderScale}
- * and {@link CAMERA.maxBufferPixels}. A pre-rendered plate caps DPR at 1.5 and 1.5e6 pixels.
+ * and {@link CAMERA.maxBufferPixels}.
  */
 export function boardDrawingBufferSize(
   cssWidth: number,
   cssHeight: number,
-  options: { prerendered?: boolean } = {},
 ): { width: number; height: number } {
   const width = Math.max(1, Math.round(cssWidth));
   const height = Math.max(1, Math.round(cssHeight));
   const dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
-  const pixelBudget = options.prerendered ? 1_500_000 : CAMERA.maxBufferPixels;
-  const resolution = options.prerendered ? Math.min(dpr, 1.5) : Math.max(CAMERA.minRenderScale, dpr);
   const renderScale = Math.min(
-    resolution,
+    Math.max(CAMERA.minRenderScale, dpr),
     CAMERA.maxPixelRatio,
-    Math.sqrt(pixelBudget / (width * height)),
+    Math.sqrt(CAMERA.maxBufferPixels / (width * height)),
   );
   return {
     width: Math.max(1, Math.round(width * renderScale)),

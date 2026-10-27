@@ -263,8 +263,6 @@ export interface BoardAssistStats {
 export interface SceneApi {
   /** Change lighting without replacing the board or interrupting the match. */
   setLighting(options: import('./board-lighting').BoardLightingOptions): void;
-  /** Replace the registered scenery plate while retaining camera and zoom. */
-  setPrerenderedTexture(texture: THREE.Texture): void;
   setSnapshot(snapshot: BoardSnapshot, options?: SnapshotApplyOptions): void;
   setInteraction(view: InteractionView): void;
   /** Unlit legal-move overlays (dots, paths, highlights). */
