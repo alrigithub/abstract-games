@@ -4,6 +4,8 @@ import { attachPageErrorCollectors, waitForBoardCanvas } from './smoke-helpers';
 test('tzaar smoke: canvas renders, no console errors, one human move', async ({ page }) => {
   test.setTimeout(120_000);
   const errors = attachPageErrorCollectors(page);
+  const requests: string[] = [];
+  page.on('request', request => requests.push(request.url()));
   await waitForBoardCanvas(page, '/?e2e=1');
   await page.waitForFunction(() => document.querySelector('#board')?.dataset.ready === 'true', null, {
     timeout: 60_000,
@@ -27,5 +29,6 @@ test('tzaar smoke: canvas renders, no console errors, one human move', async ({ 
   await expect(page.locator('[data-testid="game-status"]')).toContainText(/AI|Your turn|wins|thinking|Tap/i, {
     timeout: 30_000,
   });
+  expect(requests.some(url => /\/lib\/maps\//.test(url) || url.endsWith('yinsh-map.glb') || url.endsWith('tzaar-map.glb'))).toBe(false);
   expect(errors, errors.join('\n')).toEqual([]);
 });

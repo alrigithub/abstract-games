@@ -35,11 +35,6 @@ import { quickLegalMove } from './game/ai';
 import type { Move } from './game/state';
 import type { Player } from './game/player';
 import { loadYinshPieceGeometrySet, YINSH_RING_TARGET_OUTER_DIAMETER } from './yinsh-piece-models';
-import {
-  createYinshArenaTopology,
-  loadYinshArenaTemplate,
-  YINSH_PLAYFIELD_GROUND,
-} from './yinsh-arena';
 
 /** Match engine tap vs drag threshold. */
 const TAP_MOVE_THRESHOLD = 8;
@@ -67,12 +62,9 @@ function yinshCloseupTopology(base: Topology, pieceSet: PieceGeometrySet): Topol
 }
 
 const pieces = await loading.track(loadYinshPieceGeometrySet(), 'Loading Yinsh ring and marker models');
-const yinshArena = ringCloseupShot
-  ? null
-  : await loading.track(loadYinshArenaTemplate(), 'Loading arena map (yinsh-map.glb)');
 const topology = ringCloseupShot
   ? yinshCloseupTopology(createYinshTopology(), pieces)
-  : createYinshArenaTopology(yinshArena!.root);
+  : createYinshTopology();
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 
@@ -92,12 +84,6 @@ const scene = await loading.track(
     gridSize: 11,
     topology,
     pieces,
-    playfieldGround: ringCloseupShot
-      ? undefined
-      : {
-          size: YINSH_PLAYFIELD_GROUND.size,
-          surfaceColor: YINSH_PLAYFIELD_GROUND.surfaceColor,
-        },
   }),
   'Starting board scene (WebGL + audio)',
 );
