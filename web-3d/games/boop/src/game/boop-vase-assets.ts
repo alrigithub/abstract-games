@@ -1,15 +1,15 @@
 export type BoopVasePlayerId = 'A' | 'B';
 export type BoopVaseVariant = 'cat' | 'kitten';
 
-/** Alex stone vase GLBs in web-3d/lib/pieces (embedded 1024px maps; internal root names match filenames). */
+/** Baked low-poly vase GLBs in web-3d/lib/pieces; source assets remain available separately. */
 export const BOOP_VASE_GLB: Record<BoopVasePlayerId, Record<BoopVaseVariant, string>> = {
   A: {
-    kitten: 'boop-vase-small-white.glb',
-    cat: 'boop-vase-large-white.glb',
+    kitten: 'boop-vase-small-white-baked.glb',
+    cat: 'boop-vase-large-white-baked.glb',
   },
   B: {
-    kitten: 'boop-vase-small-black.glb',
-    cat: 'boop-vase-large-black.glb',
+    kitten: 'boop-vase-small-black-baked.glb',
+    cat: 'boop-vase-large-black-baked.glb',
   },
 };
 

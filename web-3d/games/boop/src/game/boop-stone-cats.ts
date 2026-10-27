@@ -5,9 +5,11 @@ import {
   ensureMeshoptDecoderReady,
   createMeshoptGltfLoader,
   pieceUrl,
-  prepareAuthoredPieceGlb,
-  PIECE_OPAQUE_MATERIALS_READY_USER_DATA,
+  cloneMeshMaterials,
+  ensureOpaquePieceMaterials,
   PIECE_SKIP_CAST_SHADOW_USER_DATA,
+  tagExcludeFromBounds,
+  PIECE_OPAQUE_MATERIALS_READY_USER_DATA,
   type EnginePiece,
   type PieceGeometrySet,
 } from '@abstract/three-engine';
@@ -20,10 +22,8 @@ import { boopVaseGlbFor, type BoopVasePlayerId, type BoopVaseVariant } from './b
 /** Large vase max X/Z on a 1-unit bed cell (~80% of tile × 1.2 boost ≈ 0.96). */
 const LARGE_VASE_TILE_FOOTPRINT = 0.8 * 1.2;
 
-/** Target triangle count for directional-shadow casters (full vase ≈ 17–20k). */
+/** Fallback caster budget; default prerender mode uses the offline 1k proxies. */
 const SHADOW_STANDIN_TARGET_TRIS = 2000;
-
-const BOOP_SHADOW_CASTER_NAME = '__boopShadowCaster';
 
 /** Face +X-authored models toward the default camera in XZ. */
 export const BOOP_STONE_CAT_YAW =
@@ -35,7 +35,7 @@ function vaseAssetUrl(file: string): string {
 
 export type StoneCatVariant = BoopVaseVariant;
 
-/** Full GLB hierarchy for display (PBR materials intact); low-poly geo shared for shadow cast + engine hooks. */
+/** Baked visual hierarchy and a separate low-poly caster shared with picking/layout. */
 interface StoneTemplate {
   visual: THREE.Object3D;
   shadowGeometry: THREE.BufferGeometry;
@@ -44,11 +44,6 @@ interface StoneTemplate {
 
 const _box = new THREE.Box3();
 let loaderReady: Promise<void> | undefined;
-
-const shadowCasterMaterial = new THREE.MeshStandardMaterial({
-  colorWrite: false,
-  depthWrite: false,
-});
 
 async function getLoader() {
   if (!loaderReady) loaderReady = ensureMeshoptDecoderReady();
@@ -156,26 +151,60 @@ function simplifyForShadowStandIn(geometry: THREE.BufferGeometry): THREE.BufferG
   return simplified;
 }
 
-export function attachShadowStandIn(visual: THREE.Object3D, shadowGeometry: THREE.BufferGeometry): void {
-  visual.traverse(node => {
+/** Keep baked vase maps unlit, including the white player assets. */
+export function prepareBakedVaseGlb(root: THREE.Object3D): void {
+  cloneMeshMaterials(root);
+  root.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;
-    if (node.name === BOOP_SHADOW_CASTER_NAME) return;
-    node.userData[PIECE_SKIP_CAST_SHADOW_USER_DATA] = true;
-    node.castShadow = false;
+    const unlit = (source: THREE.Material): THREE.Material => {
+      if (!(source instanceof THREE.MeshStandardMaterial)) return source;
+      const material = new THREE.MeshBasicMaterial({
+        name: source.name,
+        color: source.color,
+        map: source.map,
+        side: source.side,
+        vertexColors: source.vertexColors,
+      });
+      source.dispose();
+      return material;
+    };
+    node.material = Array.isArray(node.material)
+      ? node.material.map(unlit)
+      : unlit(node.material);
   });
-
-  const shadowMesh = new THREE.Mesh(shadowGeometry, shadowCasterMaterial);
-  shadowMesh.name = BOOP_SHADOW_CASTER_NAME;
-  shadowMesh.castShadow = true;
-  shadowMesh.receiveShadow = false;
-  // Geometry is already in normalized world units. Cancel the visual's scale
-  // and anchoring so it is not transformed a second time under this parent.
-  visual.updateMatrixWorld(true);
-  shadowMesh.applyMatrix4(visual.matrixWorld.clone().invert());
-  shadowMesh.userData.excludeFromPicking = true;
-  visual.add(shadowMesh);
+  ensureOpaquePieceMaterials(root);
 }
 
+/**
+ * Both inputs are already upright, base-centred and scaled to board units.
+ * Keep the caster beside the authored transform rather than scaling it twice.
+ */
+export function enableVaseShadows(
+  visual: THREE.Object3D,
+  shadowGeometry: THREE.BufferGeometry,
+): THREE.Group {
+  visual.traverse(node => {
+    if (!(node instanceof THREE.Mesh)) return;
+    node.userData[PIECE_SKIP_CAST_SHADOW_USER_DATA] = true;
+    node.castShadow = false;
+    // VSM also includes receivers in its shadow pass.
+    node.receiveShadow = false;
+  });
+  const caster = new THREE.Mesh(shadowGeometry, new THREE.MeshBasicMaterial({
+    colorWrite: false,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  }));
+  caster.name = 'boop-vase-shadow-proxy';
+  caster.castShadow = true;
+  caster.receiveShadow = false;
+  caster.userData.excludeFromPicking = true;
+  tagExcludeFromBounds(caster);
+  const root = new THREE.Group();
+  root.add(visual, caster);
+  root.userData[PIECE_OPAQUE_MATERIALS_READY_USER_DATA] = true;
+  return root;
+}
 function xzExtent(root: THREE.Object3D): number {
   _box.setFromObject(root);
   const size = new THREE.Vector3();
@@ -194,17 +223,17 @@ function prepareVisualTemplate(scene: THREE.Group, worldScale: number, offlineSh
   const shadowGeometry = offlineShadow
     ? offlineShadow.clone().scale(worldScale, worldScale, worldScale)
     : simplifyForShadowStandIn(mergeWorldPieceGeometry(visual.clone(true)));
-  attachShadowStandIn(visual, shadowGeometry);
+  const display = enableVaseShadows(visual, shadowGeometry);
 
-  visual.userData[PIECE_OPAQUE_MATERIALS_READY_USER_DATA] = true;
-  return { visual, shadowGeometry, height };
+  display.userData[PIECE_OPAQUE_MATERIALS_READY_USER_DATA] = true;
+  return { visual: display, shadowGeometry, height };
 }
 
 const BOOP_VASE_FILES = [
-  'boop-vase-large-white.glb',
-  'boop-vase-large-black.glb',
-  'boop-vase-small-white.glb',
-  'boop-vase-small-black.glb',
+  'boop-vase-large-white-baked.glb',
+  'boop-vase-large-black-baked.glb',
+  'boop-vase-small-white-baked.glb',
+  'boop-vase-small-black-baked.glb',
 ] as const;
 
 export async function loadBoopShadowGeometry(url: string): Promise<THREE.BufferGeometry> {
@@ -221,12 +250,12 @@ async function loadTemplates(offlineShadows?: Record<StoneCatVariant, THREE.Buff
     BOOP_VASE_FILES.map((file, index) => [file, scenes[index]!]),
   ) as Record<BoopVaseFile, THREE.Group>;
 
-  const scale = LARGE_VASE_TILE_FOOTPRINT / xzExtent(sceneByFile['boop-vase-large-white.glb']);
+  const scale = LARGE_VASE_TILE_FOOTPRINT / xzExtent(sceneByFile['boop-vase-large-white-baked.glb']);
 
   const templateByFile = new Map<BoopVaseFile, StoneTemplate>();
   for (const file of BOOP_VASE_FILES) {
     const scene = sceneByFile[file];
-    prepareAuthoredPieceGlb(scene);
+    prepareBakedVaseGlb(scene);
     const variant = file.includes('large') ? 'cat' : 'kitten';
     templateByFile.set(file, prepareVisualTemplate(scene, scale, offlineShadows?.[variant]));
   }

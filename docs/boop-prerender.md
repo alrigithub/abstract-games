@@ -92,3 +92,31 @@ already scaled to game units before attachment, so their parent transform is
 cancelled; invisible shadow meshes are also excluded from picking.
 This is an orthographic image
 workflow; arbitrary camera movement is intentionally unavailable.
+
+## Baked vase runtime assets
+
+Boop loads the four `boop-vase-*-baked.glb` files. The original vase GLBs remain
+unchanged in `web-3d/lib/pieces` as regeneration sources. Each runtime vase has
+2,000 triangles and one 512 x 512 baked diffuse texture. The glTF unlit extension
+keeps the captured lighting from being applied twice. This is a fixed-light
+appearance: the baked shading moves with the vase during animations rather than
+being recalculated. The geometry remains genuinely 3D for silhouettes and depth.
+
+Live drop shadows use the existing 999/1,000-triangle proxies as separate sibling
+meshes. They move with the vase but write neither visible color nor scene depth;
+they are excluded from picking and bounds. The visible vase does not enter the
+VSM shadow pass. Its baked surface does not receive additional dynamic shadows.
+
+Regenerate from `web-3d` with Blender 5.2:
+
+```powershell
+& 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe' --background --factory-startup --threads 6 --python scripts/bake-boop-vases.py -- --source lib/pieces --output .boop-vases-baked
+Copy-Item .boop-vases-baked/*-baked.glb lib/pieces/
+```
+
+The helper `scripts/unlit_export.py` converts Blender's exported emission bake to
+an explicit unlit base-color map. It preserves the binary geometry/image payload.
+Inspect the regenerated assets in the game before adopting a new bake. The
+bake uses the inverse of the fixed vase yaw, the game's warm directional key,
+and neutral ambient fill. It approximates the original diffuse lighting without
+runtime PBR or normal-map evaluation; it does not bake view-dependent highlights.
