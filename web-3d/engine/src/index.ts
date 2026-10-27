@@ -41,13 +41,3 @@ export * from './topology/yinsh-hex-grid';
 export * from './geometries/gipf-set';
 export * from './geometries/hex-board';
 export * from './geometries/tzaar-pieces';
-export {
-  attachLockedPlateZoom,
-  batchAuthoredMeshes,
-  createPrerenderedArena,
-  createPrerenderTileProxies,
-  fitPrerenderedCamera,
-  lockedPlateZoomLimits,
-  plateTextureEdge,
-} from './prerendered-arena';
-export type { LockedPlateZoom, PrerenderedArena } from './prerendered-arena';

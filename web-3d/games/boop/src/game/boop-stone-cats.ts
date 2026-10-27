@@ -22,7 +22,7 @@ import { boopVaseGlbFor, type BoopVasePlayerId, type BoopVaseVariant } from './b
 /** Large vase max X/Z on a 1-unit bed cell (~80% of tile × 1.2 boost ≈ 0.96). */
 const LARGE_VASE_TILE_FOOTPRINT = 0.8 * 1.2;
 
-/** Fallback caster budget; default prerender mode uses the offline 1k proxies. */
+/** Fallback caster budget when the offline shadow-proxy GLBs are unavailable. */
 const SHADOW_STANDIN_TARGET_TRIS = 2000;
 
 /** Face +X-authored models toward the default camera in XZ. */
@@ -32,6 +32,15 @@ export const BOOP_STONE_CAT_YAW =
 function vaseAssetUrl(file: string): string {
   return pieceUrl(file);
 }
+
+function shadowAssetUrl(file: string): string {
+  return `${import.meta.env.BASE_URL}shadows/${file}`;
+}
+
+const SHADOW_PROXY_FILES = {
+  cat: 'boop-cat-shadow.glb',
+  kitten: 'boop-kitten-shadow.glb',
+} as const;
 
 export type StoneCatVariant = BoopVaseVariant;
 
@@ -76,12 +85,27 @@ function contactHaloMaterial(): THREE.MeshBasicMaterial {
   });
 }
 
+/** Disc diameter / piece XZ extent. The soft edge sits just outside the base. */
+export const BOOP_CONTACT_HALO_DIAMETER_RATIO = 1.18;
+
+/**
+ * CircleGeometry radius in the visual's local space.
+ * World extent is measured after parent scale, so dividing by that scale keeps
+ * the disc at {@link BOOP_CONTACT_HALO_DIAMETER_RATIO} of the base at every zoom.
+ * A world-unit floor (not a local 0.05) avoids a disc that grows with the GLB scale.
+ */
+export function contactHaloLocalRadius(worldExtent: number, parentScale: number): number {
+  const scale = Math.abs(parentScale) || 1;
+  const radius = (worldExtent * (BOOP_CONTACT_HALO_DIAMETER_RATIO / 2)) / scale;
+  return Math.max(radius, 0.02 / scale);
+}
+
 /** Ground disc at the vase base. Depth test keeps it off the body. */
 function attachContactHalo(visual: THREE.Object3D): void {
   visual.updateMatrixWorld(true);
   const scale = Math.abs(visual.scale.x) || 1;
-  const radius = (xzExtent(visual) * 0.78) / scale;
-  const geometry = new THREE.CircleGeometry(Math.max(radius, 0.05), 40);
+  const radius = contactHaloLocalRadius(xzExtent(visual), scale);
+  const geometry = new THREE.CircleGeometry(radius, 40);
   geometry.rotateX(-Math.PI / 2);
   const halo = new THREE.Mesh(geometry, contactHaloMaterial());
   halo.name = BOOP_CONTACT_HALO_NAME;
@@ -91,6 +115,7 @@ function attachContactHalo(visual: THREE.Object3D): void {
   halo.receiveShadow = false;
   halo.userData.excludeFromPicking = true;
   halo.userData[PIECE_SKIP_CAST_SHADOW_USER_DATA] = true;
+  tagExcludeFromBounds(halo);
   visual.add(halo);
 }
 
@@ -348,6 +373,14 @@ function createStonePieceSet(
   };
 }
 
+async function loadDefaultShadowProxies(): Promise<Record<StoneCatVariant, THREE.BufferGeometry>> {
+  const [cat, kitten] = await Promise.all([
+    loadBoopShadowGeometry(shadowAssetUrl(SHADOW_PROXY_FILES.cat)),
+    loadBoopShadowGeometry(shadowAssetUrl(SHADOW_PROXY_FILES.kitten)),
+  ]);
+  return { cat, kitten };
+}
+
 /** Load Alex stone vase GLBs; fall back to procedural pieces if loading fails. */
 export async function createBoopPieceGeometrySet(
   fallbackCat: THREE.BufferGeometry,
@@ -355,7 +388,15 @@ export async function createBoopPieceGeometrySet(
   offlineShadows?: Record<StoneCatVariant, THREE.BufferGeometry>,
 ): Promise<PieceGeometrySet> {
   try {
-    const templates = await loadTemplates(offlineShadows);
+    let shadows = offlineShadows;
+    if (!shadows) {
+      try {
+        shadows = await loadDefaultShadowProxies();
+      } catch (err) {
+        console.warn('[boop] shadow proxy GLB load failed, using runtime stand-in', err);
+      }
+    }
+    const templates = await loadTemplates(shadows);
     return createStonePieceSet(templates);
   } catch (err) {
     console.warn('[boop] stone vase GLB load failed, using procedural pieces', err);
