@@ -13,8 +13,8 @@ export type PoolCounts = {
   cats_in_reserve: number;
 };
 
-/** Side rows for pool pieces (avoid row −1 above the bed — it floated big vases off-screen). */
-const POOL_ROWS: number[] = [0, 1, 2, 3, 4, 5, 6, 7];
+/** Side rows for pool pieces: eight slots centered on the 6×6 bed (midpoint at row 2.5). */
+const POOL_ROWS: number[] = [-1, 0, 1, 2, 3, 4, 5, 6];
 
 /** Empty exterior columns between the playfield edge and the nearest pool stack. */
 export const POOL_GAP_CELLS_FROM_BED = 2;
