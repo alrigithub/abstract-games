@@ -3,6 +3,10 @@ import { viteSharedLibPlugin } from '../../scripts/vite-shared-lib-plugin.ts';
 
 export default defineConfig({
   base: './',
-  plugins: [viteSharedLibPlugin()],
+  plugins: [
+    viteSharedLibPlugin({
+      include: ['pieces/go-stone-white.glb', 'pieces/go-stone-black.glb'],
+    }),
+  ],
   server: { host: '0.0.0.0', port: 5192, strictPort: true },
 });

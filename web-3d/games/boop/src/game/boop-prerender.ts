@@ -1,10 +1,15 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { batchAuthoredMeshes, createPrerenderTileProxies, createSquareTopology, loadGltfAsync, tagArenaGlbForShadows, tagExcludeFromBounds, trackIfLoading, type SquareGridOptions, type Topology, type PrerenderedArena } from '@abstract/three-engine';
+import { arenaPlayfieldGroundSize, batchAuthoredMeshes, createPrerenderTileProxies, createSquareTopology, loadGltfAsync, tagArenaGlbForShadows, tagExcludeFromBounds, trackIfLoading, type SquareGridOptions, type Topology, type PrerenderedArena } from '@abstract/three-engine';
 import manifest from './boop-arena-manifest.json';
 import { loadBoopShadowGeometry } from './boop-stone-cats';
 
 export const BOOP_PRERENDER_MANIFEST = manifest;
+
+/** Compact ground under the 6×6 bed + exterior pools. */
+export function boopPlayfieldGroundSize(gridSize: number, outsideRows: number): number {
+  return arenaPlayfieldGroundSize(gridSize + outsideRows * 2);
+}
 
 /** Match the invisible depth/shadow floor to Blender's actual arena opening. */
 export function createBoopGroundGeometry(size: number): THREE.BufferGeometry {
