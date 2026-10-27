@@ -1,4 +1,5 @@
 import type { ThemeId } from '@abstract/three-engine';
+import { appendRingCircle } from './boop-ring-visual';
 import type { PieceKind } from './types';
 
 export interface BoopThumbControlOptions {
@@ -15,7 +16,13 @@ export interface BoopThumbControlHandle {
   destroy(): void;
 }
 
-/** Bottom-left small/big vase picker (two simple circles). */
+function ariaLabelForKind(kind: PieceKind): string {
+  return kind === 'cat'
+    ? 'Large vase selected. Activate to place small vases.'
+    : 'Small vase selected. Activate to place large vases.';
+}
+
+/** Bottom-left concentric ring control — one tap toggles small vs large vase. */
 export function createBoopThumbControl(options: BoopThumbControlOptions): BoopThumbControlHandle {
   let kind = options.initialKind;
   let theme = options.theme;
@@ -24,30 +31,46 @@ export function createBoopThumbControl(options: BoopThumbControlOptions): BoopTh
   root.className = 'boop-thumb-control';
   root.dataset.testid = 'boop-thumb-control';
 
-  const kittenBtn = document.createElement('button');
-  kittenBtn.type = 'button';
-  kittenBtn.className = 'boop-thumb-control__size boop-thumb-control__size--kitten';
-  kittenBtn.dataset.testid = 'boop-size-kitten';
-  kittenBtn.setAttribute('aria-label', 'Place small vase');
-  kittenBtn.title = 'Small vase';
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'boop-thumb-control__toggle';
+  toggle.dataset.testid = 'boop-size-toggle';
+  toggle.setAttribute('role', 'switch');
 
-  const catBtn = document.createElement('button');
-  catBtn.type = 'button';
-  catBtn.className = 'boop-thumb-control__size boop-thumb-control__size--cat';
-  catBtn.dataset.testid = 'boop-size-cat';
-  catBtn.setAttribute('aria-label', 'Place large vase');
-  catBtn.title = 'Large vase';
+  const halo = document.createElement('span');
+  halo.className = 'boop-thumb-control__halo';
+  halo.setAttribute('aria-hidden', 'true');
 
-  root.append(kittenBtn, catBtn);
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'boop-thumb-control__rings');
+  svg.setAttribute('viewBox', '0 0 100 100');
+  svg.setAttribute('aria-hidden', 'true');
+
+  toggle.append(halo, svg);
+  root.append(toggle);
   options.mount.append(root);
+
+  function drawRings() {
+    svg.replaceChildren();
+    const outerActive = kind === 'cat';
+    appendRingCircle(svg, { cx: 50, cy: 50, r: 42, strokeWidth: 9, tone: outerActive ? 'active' : 'muted' });
+    appendRingCircle(svg, {
+      cx: 50,
+      cy: 50,
+      r: 17,
+      strokeWidth: 4.5,
+      tone: outerActive ? 'muted' : 'active',
+    });
+  }
 
   function sync() {
     root.dataset.theme = theme;
     root.dataset.kind = kind;
-    kittenBtn.dataset.selected = kind === 'kitten' ? 'true' : 'false';
-    kittenBtn.setAttribute('aria-pressed', kind === 'kitten' ? 'true' : 'false');
-    catBtn.dataset.selected = kind === 'cat' ? 'true' : 'false';
-    catBtn.setAttribute('aria-pressed', kind === 'cat' ? 'true' : 'false');
+    toggle.setAttribute('aria-checked', kind === 'kitten' ? 'true' : 'false');
+    toggle.setAttribute('aria-label', ariaLabelForKind(kind));
+    toggle.title = kind === 'cat' ? 'Large vase' : 'Small vase';
+    halo.classList.toggle('boop-thumb-control__halo--visible', kind === 'kitten');
+    drawRings();
   }
 
   function pick(next: PieceKind) {
@@ -57,8 +80,9 @@ export function createBoopThumbControl(options: BoopThumbControlOptions): BoopTh
     options.onKindChange(next);
   }
 
-  kittenBtn.addEventListener('click', () => pick('kitten'));
-  catBtn.addEventListener('click', () => pick('cat'));
+  toggle.addEventListener('click', () => {
+    pick(kind === 'cat' ? 'kitten' : 'cat');
+  });
 
   sync();
 
