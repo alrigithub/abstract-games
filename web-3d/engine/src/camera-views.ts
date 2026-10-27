@@ -107,53 +107,229 @@ export interface CreateCameraViewControllerOptions {
   applyInitial?: boolean;
 }
 
+interface OrbitSnapshot {
+  target: THREE.Vector3;
+  theta: number;
+  phi: number;
+  radius: number;
+  zoom: number;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  up: THREE.Vector3;
+}
+
 export function createCameraViewController(options: CreateCameraViewControllerOptions): CameraViewController {
   const { camera, controls } = options;
   const transitionMs = options.transitionMs ?? CAMERA_VIEW.TRANSITION_MS;
+  /** Board-centre orbit pivot. Captured before any preset moves the target. */
+  const boardCenter = controls.target.clone();
+  const baseMinPolar = controls.minPolarAngle ?? 0;
   let preset: CameraPresetId = INITIAL_CAMERA_PRESET;
   let animFrame = 0;
+  let animating = false;
+  let pinning = false;
+  /** Angled orbit saved on the way into top view, restored exactly on the way out. */
+  let savedAngled: OrbitSnapshot | null = null;
 
-  const applyPreset = (next: CameraPresetId, animate: boolean) => {
-    cancelAnimationFrame(animFrame);
-    const target = controls.target.clone();
-    const pose = cameraPoseForPreset(target, next);
-    const bounds = options.getBounds();
-    const aspect = options.getAspect();
+  const offset = new THREE.Vector3();
+  const spherical = new THREE.Spherical();
+  const fromPos = new THREE.Vector3();
+  const toPos = new THREE.Vector3();
+  const fromUp = new THREE.Vector3();
+  const toUp = new THREE.Vector3();
+  const fromTarget = new THREE.Vector3();
+  const toTarget = new THREE.Vector3();
 
-    const finish = () => {
-      camera.position.copy(pose.position);
-      camera.up.copy(pose.up);
-      camera.lookAt(target);
-      controls.update();
-      fitOrthographicToWorldPoints(camera, bounds, aspect);
-      options.onUpdate?.();
+  const captureOrbit = (): OrbitSnapshot => {
+    offset.copy(camera.position).sub(controls.target);
+    spherical.setFromVector3(offset);
+    return {
+      target: controls.target.clone(),
+      theta: spherical.theta,
+      phi: spherical.phi,
+      radius: spherical.radius,
+      zoom: camera.zoom,
+      left: camera.left,
+      right: camera.right,
+      top: camera.top,
+      bottom: camera.bottom,
+      up: camera.up.clone(),
     };
+  };
 
+  const applyOrbit = (state: OrbitSnapshot, target: THREE.Vector3) => {
+    offset.setFromSphericalCoords(state.radius, state.phi, state.theta);
+    controls.target.copy(target);
+    camera.position.copy(target).add(offset);
+    camera.up.copy(state.up);
+    camera.zoom = state.zoom;
+    camera.left = state.left;
+    camera.right = state.right;
+    camera.top = state.top;
+    camera.bottom = state.bottom;
+    camera.updateProjectionMatrix();
+    camera.lookAt(target);
+  };
+
+  const setMinPolar = (value: number) => {
+    if (typeof controls.minPolarAngle === 'number') controls.minPolarAngle = value;
+  };
+
+  const pinTopTarget = () => {
+    if (animating || pinning || preset !== 'top') return;
+    if (controls.target.distanceToSquared(boardCenter) < 1e-12) return;
+    pinning = true;
+    camera.position.add(boardCenter).sub(controls.target);
+    controls.target.copy(boardCenter);
+    controls.update();
+    pinning = false;
+  };
+
+  const onControlsChange = () => {
+    pinTopTarget();
+  };
+  controls.addEventListener?.('change', onControlsChange);
+
+  const stopAnimation = () => {
+    if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(animFrame);
+    animFrame = 0;
+    animating = false;
+  };
+
+  /**
+   * Ease camera pose. `controls.update` runs only at the end so the polar clamp
+   * cannot rewrite the orbit halfway through the move.
+   */
+  const fromFrustum = { left: 0, right: 0, top: 0, bottom: 0 };
+  const toFrustum = { left: 0, right: 0, top: 0, bottom: 0 };
+  let lerpFrustum = false;
+  let fromZoom = 1;
+  let toZoom = 1;
+
+  const easeTo = (animate: boolean, finish: () => void) => {
+    stopAnimation();
     if (!animate || transitionMs <= 0) {
-      preset = next;
       finish();
       return;
     }
-
-    const fromPos = camera.position.clone();
-    const fromUp = camera.up.clone();
+    animating = true;
     const started = performance.now();
-
     const tick = (now: number) => {
       const t = ANIMATION.easeOutCubic(Math.min(1, (now - started) / transitionMs));
-      camera.position.lerpVectors(fromPos, pose.position, t);
-      camera.up.copy(fromUp).lerp(pose.up, t).normalize();
-      camera.lookAt(target);
-      controls.update();
-      fitOrthographicToWorldPoints(camera, options.getBounds(), options.getAspect());
-      options.onUpdate?.();
-      if (t < 1) animFrame = requestAnimationFrame(tick);
-      else {
-        preset = next;
-        finish();
+      camera.position.lerpVectors(fromPos, toPos, t);
+      camera.up.copy(fromUp).lerp(toUp, t).normalize();
+      controls.target.lerpVectors(fromTarget, toTarget, t);
+      camera.lookAt(controls.target);
+      if (lerpFrustum) {
+        camera.zoom = fromZoom + (toZoom - fromZoom) * t;
+        camera.left = fromFrustum.left + (toFrustum.left - fromFrustum.left) * t;
+        camera.right = fromFrustum.right + (toFrustum.right - fromFrustum.right) * t;
+        camera.top = fromFrustum.top + (toFrustum.top - fromFrustum.top) * t;
+        camera.bottom = fromFrustum.bottom + (toFrustum.bottom - fromFrustum.bottom) * t;
+        camera.updateProjectionMatrix();
+      } else {
+        fitOrthographicToWorldPoints(camera, options.getBounds(), options.getAspect());
       }
+      options.onUpdate?.();
+      if (t < 1) {
+        animFrame = requestAnimationFrame(tick);
+        return;
+      }
+      animating = false;
+      animFrame = 0;
+      finish();
     };
     animFrame = requestAnimationFrame(tick);
+  };
+
+  const finishTop = () => {
+    const pose = cameraPoseForPreset(boardCenter, 'top');
+    setMinPolar(Math.min(baseMinPolar, CAMERA_VIEW.TOP_POLAR));
+    controls.target.copy(boardCenter);
+    camera.position.copy(pose.position);
+    camera.up.copy(pose.up);
+    camera.lookAt(boardCenter);
+    controls.update();
+    pinTopTarget();
+    fitOrthographicToWorldPoints(camera, options.getBounds(), options.getAspect());
+    options.onUpdate?.();
+  };
+
+  const finishAngled = (snapshot: OrbitSnapshot) => {
+    setMinPolar(baseMinPolar);
+    applyOrbit(snapshot, snapshot.target);
+    controls.update();
+    // update() can clamp a near-pole angle. Put the saved orbit back so the
+    // next drag reads this pose instead of the top-view spherical state.
+    applyOrbit(snapshot, snapshot.target);
+    options.onUpdate?.();
+  };
+
+  const goTop = (animate: boolean) => {
+    if (!savedAngled) savedAngled = captureOrbit();
+    preset = 'top';
+    lerpFrustum = false;
+    const pose = cameraPoseForPreset(boardCenter, 'top');
+    fromPos.copy(camera.position);
+    toPos.copy(pose.position);
+    fromUp.copy(camera.up);
+    toUp.copy(pose.up);
+    fromTarget.copy(controls.target);
+    toTarget.copy(boardCenter);
+    easeTo(animate, finishTop);
+  };
+
+  const goAngled = (animate: boolean) => {
+    preset = 'axo';
+    const snapshot = savedAngled;
+    if (!snapshot) {
+      lerpFrustum = false;
+      const pose = cameraPoseForPreset(controls.target, 'axo');
+      fromPos.copy(camera.position);
+      toPos.copy(pose.position);
+      fromUp.copy(camera.up);
+      toUp.copy(pose.up);
+      fromTarget.copy(controls.target);
+      toTarget.copy(controls.target);
+      easeTo(animate, () => {
+        camera.position.copy(pose.position);
+        camera.up.copy(pose.up);
+        camera.lookAt(controls.target);
+        controls.update();
+        fitOrthographicToWorldPoints(camera, options.getBounds(), options.getAspect());
+        options.onUpdate?.();
+      });
+      return;
+    }
+    lerpFrustum = true;
+    fromZoom = camera.zoom;
+    toZoom = snapshot.zoom;
+    fromFrustum.left = camera.left;
+    fromFrustum.right = camera.right;
+    fromFrustum.top = camera.top;
+    fromFrustum.bottom = camera.bottom;
+    toFrustum.left = snapshot.left;
+    toFrustum.right = snapshot.right;
+    toFrustum.top = snapshot.top;
+    toFrustum.bottom = snapshot.bottom;
+    fromPos.copy(camera.position);
+    offset.setFromSphericalCoords(snapshot.radius, snapshot.phi, snapshot.theta);
+    toPos.copy(snapshot.target).add(offset);
+    fromUp.copy(camera.up);
+    toUp.copy(snapshot.up);
+    fromTarget.copy(controls.target);
+    toTarget.copy(snapshot.target);
+    easeTo(animate, () => {
+      finishAngled(snapshot);
+      savedAngled = null;
+    });
+  };
+
+  const applyPreset = (next: CameraPresetId, animate: boolean) => {
+    if (next === 'top') goTop(animate);
+    else goAngled(animate);
   };
 
   const refit = () => {
@@ -175,7 +351,8 @@ export function createCameraViewController(options: CreateCameraViewControllerOp
     },
     refit,
     dispose() {
-      cancelAnimationFrame(animFrame);
+      stopAnimation();
+      controls.removeEventListener?.('change', onControlsChange);
     },
   };
 }
