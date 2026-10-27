@@ -18,7 +18,6 @@ import { applyBoopAnimationPacing, BOOP_ANIM } from './game/animation';
 import { cellAt, poolCellIndex, wireBoopInteraction, type BoopInteractionHandle } from './game/boop-interaction';
 import { createBoopThumbControl, type BoopThumbControlHandle } from './game/boop-thumb-control';
 import { boardPlayfieldTopY } from './game/boop-grounding';
-import { createBoopDomContactShadows } from './game/boop-dom-contact-shadows';
 import { createBoopPieceGeometrySet } from './game/boop-stone-cats';
 import { BOOP_DEMO_BOOP_SFX_URLS, BOOP_DEMO_PLACE_SFX_URLS } from './game/boop-sfx-manifest';
 import { initBoopKnockPushSounds } from './game/boop-knock-sfx';
@@ -85,12 +84,6 @@ const scene = await loading.track(
 
 mountBoardOverlays(board);
 
-const domContactShadows = createBoopDomContactShadows({
-  board,
-  scene,
-  getSnapshot: () => controller?.getSnapshot() ?? { cellCount: 0, playableCells: 0, cells: [] },
-});
-
 const stage = board.querySelector('canvas') ?? board;
 
 const cameraViews = scene.createCameraViews();
@@ -136,7 +129,6 @@ thumbControl = createBoopThumbControl({
   onKindChange: kind => controller.setStickyKind(kind),
 });
 await loading.track(controller.init(), 'Wiring Boop interaction');
-domContactShadows.start();
 mountBoardOverlays(board);
 interaction = wireBoopInteraction(stage as HTMLElement, board, scene, () => controller, placementGhost);
 await loading.done();
@@ -217,8 +209,6 @@ function mountBoardOverlays(boardEl: HTMLElement) {
   }
   const ghostEl = boardEl.querySelector('[data-testid="boop-placement-ghost"]');
   if (ghostEl) boardEl.appendChild(ghostEl);
-  const contactLayer = boardEl.querySelector('[data-testid="boop-dom-contact-shadows"]');
-  if (contactLayer) boardEl.appendChild(contactLayer);
   const thumbEl = boardEl.querySelector('[data-testid="boop-thumb-control"]');
   if (thumbEl) boardEl.appendChild(thumbEl);
 }
@@ -236,26 +226,6 @@ function injectBoopUiStyles() {
       display: block;
       position: relative;
       z-index: 0;
-    }
-    .boop-dom-contact-shadows {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      z-index: 1;
-      overflow: visible;
-    }
-    .boop-dom-contact-shadow {
-      position: absolute;
-      pointer-events: none;
-      transform: translate(-50%, -50%);
-      border-radius: 50%;
-      background: radial-gradient(
-        circle,
-        rgba(12, 10, 8, 0.48) 0%,
-        rgba(12, 10, 8, 0.32) 40%,
-        rgba(12, 10, 8, 0.12) 68%,
-        transparent 84%
-      );
     }
     .game-button-status:empty {
       display: none;
@@ -284,12 +254,13 @@ function injectBoopUiStyles() {
       position: absolute;
       pointer-events: auto;
       box-sizing: border-box;
-      border: 3px solid color-mix(in srgb, var(--theme-ink, #292524) 82%, transparent);
+      border: 1px solid var(--game-btn-border, #d4d4d8);
       padding: 0;
       margin: 0;
       border-radius: 50%;
-      background: transparent;
-      filter: drop-shadow(0 2px 4px color-mix(in srgb, #000 22%, transparent));
+      background: var(--game-btn-bg, #fff);
+      color: inherit;
+      box-shadow: 0 1px 2px rgba(26, 26, 26, 0.12);
       cursor: pointer;
       transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
     }
@@ -302,6 +273,7 @@ function injectBoopUiStyles() {
       left: 4px;
       top: 50%;
       translate: 0 -50%;
+      background: radial-gradient(circle, #d6d3d1 0 34%, #fff 36%);
     }
     .boop-thumb-control__size--cat {
       width: 64px;
@@ -309,6 +281,7 @@ function injectBoopUiStyles() {
       right: 0;
       top: 50%;
       translate: 0 -50%;
+      background: radial-gradient(circle, #d6d3d1 0 38%, #fff 40%);
     }
     .boop-thumb-control__size--kitten::before,
     .boop-thumb-control__size--cat::before {
@@ -318,7 +291,7 @@ function injectBoopUiStyles() {
     }
     .boop-thumb-control__size[data-selected='true'] {
       border-color: #0d9488;
-      box-shadow: 0 0 0 3px color-mix(in srgb, #0d9488 38%, transparent);
+      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.35);
     }
     .boop-placement-ghost {
       border-width: 3px;

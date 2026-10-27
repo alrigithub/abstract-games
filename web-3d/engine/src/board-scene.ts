@@ -229,7 +229,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     const surface = playfieldSurfaceColor();
     if (!surface || !playfieldGroundMaterial) return;
     playfieldGroundMaterial.color.set(surface);
-    applyPlayfieldBackdrop(scene, surface);
+    if (!prerendered) applyPlayfieldBackdrop(scene, surface);
   }
 
   function ensurePlayfieldGroundMaterial(): THREE.MeshStandardMaterial | THREE.MeshBasicMaterial {
@@ -246,8 +246,10 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     tokens = themeTokens();
     boardMaterial = clayEnvMaterial();
     const compactSurface = playfieldSurfaceColor();
-    if (compactSurface) applyPlayfieldBackdrop(scene, compactSurface);
-    else applyPlayfieldBackdrop(scene, tokens.table);
+    if (!prerendered) {
+      if (compactSurface) applyPlayfieldBackdrop(scene, compactSurface);
+      else applyPlayfieldBackdrop(scene, tokens.table);
+    }
     syncPlayfieldGroundAppearance();
     gridMaterial.color.set(tokens.lines);
     outlineMaterial.dispose();
@@ -723,6 +725,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       minZoom: limits.min,
       maxZoom: limits.max,
       onChange: () => {
+        prerendered.cover(camera);
         syncBoardGridLines();
         requestRender();
         container.dispatchEvent(new CustomEvent('camera-change'));
@@ -790,6 +793,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     const aspect = syncRendererSize();
     if (options.prerenderedArena) {
       fitPrerenderedCamera(camera, options.prerenderedArena.camera, aspect, plateZoom?.zoom() ?? 1);
+      prerendered?.cover(camera);
       syncBoardGridLines();
       syncShadowFrustum();
       requestRender();

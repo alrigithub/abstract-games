@@ -1817,10 +1817,10 @@
       0,
       0
     ],
-    "width": 48.3726993238661,
-    "height": 48.3726993238661,
-    "frameWidth": 29.99936882019043,
-    "frameHeight": 26.163118624687193
+    "width": 42.859866870117195,
+    "height": 42.859866870117195,
+    "frameWidth": 32.61136840820313,
+    "frameHeight": 22.322847328186036
   },
   "liveColumns": [
     "Column NE rubble 1",
@@ -1879,6 +1879,13 @@
     "Fallen column drum SE",
     "Fallen column drum SW"
   ],
-  "staticMeshCount": 672,
+  "staticMeshCount": 423,
+  "hidden": {
+    "infiniteGround": [
+      "Infinite white ground"
+    ],
+    "unionOperandCount": 249,
+    "reason": "Infinite ground lids rubble that extends below it. Union operands are coincident boolean copies of the real meshes, so rendering both z-fights and blackens shadows. Columns stay in the plate and are also exported live for occlusion."
+  },
   "note": "Blender +Z becomes game +Y; Blender +Y becomes game -Z. go-map.glb bytes are not modified."
 }

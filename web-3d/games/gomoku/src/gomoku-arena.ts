@@ -36,8 +36,10 @@ const _box = new THREE.Box3();
 
 export interface GomokuArenaLayout {
   readonly root: THREE.Group;
-  /** World Y of the lowest cell paving. The ground plane sits just under this so joints stay visible. */
+  /** World Y of the lowest cell paving. */
   readonly pavingFloorY: number;
+  /** World Y of the lowest arena mesh. The ground plane sits under this so ruins stay visible. */
+  readonly arenaFloorY: number;
   surfaceY(row: number, col: number): number;
   frameBounds(): THREE.Box3;
 }
@@ -109,7 +111,7 @@ function prepareArenaScene(scene: THREE.Group): THREE.Group {
   tagExcludeFromBounds(scene);
   const remove: THREE.Object3D[] = [];
   scene.traverse(obj => {
-    if (isInfiniteGroundNode(obj)) remove.push(obj);
+    if (isInfiniteGroundNode(obj) || obj.name.toLowerCase().startsWith('union operand')) remove.push(obj);
   });
   for (const obj of remove) obj.parent?.remove(obj);
 
@@ -150,10 +152,12 @@ export async function loadGomokuArenaLayout(): Promise<GomokuArenaLayout> {
 
   const fallbackY = BOARD.PLAYFIELD_SURFACE_Y;
   const pavingFloorY = measurePavingFloorY(root);
+  const arenaFloorY = new THREE.Box3().setFromObject(root).min.y;
 
   return {
     root,
     pavingFloorY,
+    arenaFloorY,
     surfaceY(row, col) {
       return surfaceByCell.get(`${row},${col}`) ?? fallbackY;
     },

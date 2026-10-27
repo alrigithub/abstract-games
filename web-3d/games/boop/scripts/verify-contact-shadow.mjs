@@ -122,11 +122,11 @@ async function main() {
       ui.kitten.w >= 34 &&
       ui.cat.w >= 60 &&
       ui.cat.w - ui.kitten.w >= 22 &&
-      ui.kittenBg === 'rgba(0, 0, 0, 0)' &&
+      ui.      ui.kittenBg !== 'rgba(0, 0, 0, 0)' &&
       ui.ghost &&
       !ui.ghost.hidden &&
       ui.ghostBorder?.includes('148, 136') &&
-      (ui.contactShadowCount ?? 0) >= 4,
+      (ui.contactShadowCount ?? 0) === 0,
   };
 
   console.log(JSON.stringify(report, null, 2));

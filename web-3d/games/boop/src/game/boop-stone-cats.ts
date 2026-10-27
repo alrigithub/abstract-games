@@ -45,6 +45,55 @@ interface StoneTemplate {
 const _box = new THREE.Box3();
 let loaderReady: Promise<void> | undefined;
 
+const BOOP_CONTACT_HALO_NAME = 'boop-contact-halo';
+let contactHaloMap: THREE.CanvasTexture | null = null;
+
+function contactHaloMaterial(): THREE.MeshBasicMaterial {
+  if (!contactHaloMap) {
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      const g = ctx.createRadialGradient(size / 2, size / 2, size * 0.05, size / 2, size / 2, size * 0.5);
+      g.addColorStop(0, 'rgba(12, 10, 8, 0.5)');
+      g.addColorStop(0.42, 'rgba(12, 10, 8, 0.26)');
+      g.addColorStop(0.72, 'rgba(12, 10, 8, 0.08)');
+      g.addColorStop(1, 'rgba(12, 10, 8, 0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, size, size);
+    }
+    contactHaloMap = new THREE.CanvasTexture(canvas);
+    contactHaloMap.colorSpace = THREE.SRGBColorSpace;
+  }
+  return new THREE.MeshBasicMaterial({
+    map: contactHaloMap,
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    toneMapped: false,
+  });
+}
+
+/** Ground disc at the vase base. Depth test keeps it off the body. */
+function attachContactHalo(visual: THREE.Object3D): void {
+  visual.updateMatrixWorld(true);
+  const scale = Math.abs(visual.scale.x) || 1;
+  const radius = (xzExtent(visual) * 0.78) / scale;
+  const geometry = new THREE.CircleGeometry(Math.max(radius, 0.05), 40);
+  geometry.rotateX(-Math.PI / 2);
+  const halo = new THREE.Mesh(geometry, contactHaloMaterial());
+  halo.name = BOOP_CONTACT_HALO_NAME;
+  halo.position.y = 0.006 / scale;
+  halo.renderOrder = 2;
+  halo.castShadow = false;
+  halo.receiveShadow = false;
+  halo.userData.excludeFromPicking = true;
+  halo.userData[PIECE_SKIP_CAST_SHADOW_USER_DATA] = true;
+  visual.add(halo);
+}
+
 async function getLoader() {
   if (!loaderReady) loaderReady = ensureMeshoptDecoderReady();
   await loaderReady;
@@ -223,6 +272,7 @@ function prepareVisualTemplate(scene: THREE.Group, worldScale: number, offlineSh
   const shadowGeometry = offlineShadow
     ? offlineShadow.clone().scale(worldScale, worldScale, worldScale)
     : simplifyForShadowStandIn(mergeWorldPieceGeometry(visual.clone(true)));
+  attachContactHalo(visual);
   const display = enableVaseShadows(visual, shadowGeometry);
 
   display.userData[PIECE_OPAQUE_MATERIALS_READY_USER_DATA] = true;
