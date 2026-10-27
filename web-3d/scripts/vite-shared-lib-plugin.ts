@@ -1,4 +1,4 @@
-import { cpSync, createReadStream, existsSync, statSync } from 'node:fs';
+import { cpSync, createReadStream, existsSync, mkdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Plugin } from 'vite';
@@ -42,12 +42,22 @@ function serveStaticDir(
   createReadStream(file).pipe(res as import('node:stream').Writable);
 }
 
-function serveSharedLib(req: { url?: string }, res: { statusCode: number; setHeader(n: string, v: string): void; end(): void }, next: () => void) {
-  serveStaticDir(SHARED_LIB_DIR, req, res, next);
+export interface SharedLibPluginOptions {
+  /**
+   * Paths relative to `web-3d/lib`, such as `pieces/go-stone-black.glb`.
+   * Omit to ship the whole library. Boop and Gomoku pass only the piece GLBs they load.
+   */
+  include?: readonly string[];
 }
 
-/** Dev server + build: ship {@link WEB3D_ROOT}/lib (pieces + maps) at `./lib/…` in each game dist. */
-export function viteSharedLibPlugin(): Plugin {
+function requestRel(url: string | undefined): string {
+  const urlPath = (url ?? '/').split('?')[0] ?? '/';
+  return decodeURIComponent(urlPath.replace(/^\//, ''));
+}
+
+/** Dev server + build: ship files from {@link WEB3D_ROOT}/lib at `./lib/…` in each game dist. */
+export function viteSharedLibPlugin(options: SharedLibPluginOptions = {}): Plugin {
+  const include = options.include;
   let outDir = 'dist';
 
   return {
@@ -59,7 +69,14 @@ export function viteSharedLibPlugin(): Plugin {
     },
     configureServer(server) {
       if (existsSync(SHARED_LIB_DIR)) {
-        server.middlewares.use(SHARED_LIB_MOUNT, serveSharedLib as (req: unknown, res: unknown, next: () => void) => void);
+        server.middlewares.use(SHARED_LIB_MOUNT, ((req: { url?: string }, res: { statusCode: number; setHeader(n: string, v: string): void; end(): void }, next: () => void) => {
+          const rel = requestRel(req.url);
+          if (include && !include.includes(rel)) {
+            next();
+            return;
+          }
+          serveStaticDir(SHARED_LIB_DIR, req, res, next);
+        }) as (req: unknown, res: unknown, next: () => void) => void);
       }
       if (existsSync(HUB_IMG_DIR)) {
         server.middlewares.use(
@@ -76,7 +93,16 @@ export function viteSharedLibPlugin(): Plugin {
     closeBundle() {
       if (!existsSync(SHARED_LIB_DIR)) return;
       const target = path.resolve(outDir, 'lib');
-      cpSync(SHARED_LIB_DIR, target, { recursive: true });
+      if (!include) {
+        cpSync(SHARED_LIB_DIR, target, { recursive: true });
+        return;
+      }
+      for (const rel of include) {
+        const src = path.join(SHARED_LIB_DIR, rel);
+        const dest = path.join(target, rel);
+        mkdirSync(path.dirname(dest), { recursive: true });
+        cpSync(src, dest);
+      }
     },
   };
 }

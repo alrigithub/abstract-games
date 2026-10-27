@@ -21,13 +21,8 @@ import { createBoopPieceGeometrySet } from './game/boop-stone-cats';
 import { BOOP_DEMO_BOOP_SFX_URLS, BOOP_DEMO_PLACE_SFX_URLS } from './game/boop-sfx-manifest';
 import { initBoopKnockPushSounds } from './game/boop-knock-sfx';
 import { BoopController } from './game/controller';
-import {
-  boopPlayfieldGroundSize,
-  createBoopTopology,
-  loadBoopArenaTemplate,
-} from './game/boop-arena';
 import { BOOP_GRID as size, BOOP_OUTSIDE as OUTSIDE_ROWS } from './game/boop-grid';
-import { createBoopPrerenderTopology, loadBoopPrerender } from './game/boop-prerender';
+import { boopPlayfieldGroundSize, createBoopPrerenderTopology, loadBoopPrerender } from './game/boop-prerender';
 import { BOOP_LIGHTING_PRESETS, loadBoopLightingTexture, mountBoopLightingMenu, readBoopLighting } from './game/boop-lighting';
 
 applyBoopAnimationPacing(ANIMATION);
@@ -39,20 +34,15 @@ setActiveLoadingScreen(loading);
 const fallbackCat = createBoopCatGeometry();
 const fallbackKitten = createBoopKittenGeometry();
 const lightingPreset = readBoopLighting();
-const prerender =
-  new URLSearchParams(location.search).get('arena') === '3d'
-    ? null
-    : await loading.track(loadBoopPrerender(lightingPreset), 'Loading Boop prerender plate (textures + columns GLB)');
+const prerender = await loading.track(
+  loadBoopPrerender(lightingPreset),
+  'Loading Boop prerender plate (textures + columns GLB)',
+);
 const pieces = await loading.track(
-  createBoopPieceGeometrySet(fallbackCat, fallbackKitten, prerender?.shadows),
+  createBoopPieceGeometrySet(fallbackCat, fallbackKitten, prerender.shadows),
   'Loading Boop vase piece models',
 );
-const topology = prerender
-  ? createBoopPrerenderTopology({ size, outsideRows: OUTSIDE_ROWS }, prerender.columns)
-  : createBoopTopology(
-      { size, outsideRows: OUTSIDE_ROWS },
-      await loading.track(loadBoopArenaTemplate(), 'Loading arena map (boop-map.glb)'),
-    );
+const topology = createBoopPrerenderTopology({ size, outsideRows: OUTSIDE_ROWS }, prerender.columns);
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 injectBoopUiStyles();
@@ -63,14 +53,14 @@ const placementGhost = new DomPlacementGhost(board, {
 
 const scene = await loading.track(
   createBoardScene(board, {
-  prerenderedArena: prerender?.plate,
+  prerenderedArena: prerender.plate,
   gridSize: size,
   outsideRows: OUTSIDE_ROWS,
   topology,
   pieces,
   playfieldSurfaceY: boardPlayfieldTopY(),
   playfieldGround: {
-    matchBackdrop: !!prerender,
+    matchBackdrop: true,
     size: boopPlayfieldGroundSize(size, OUTSIDE_ROWS),
     surfaceColor: ARENA_GLB_SURFACE_COLOR,
   },
@@ -111,7 +101,6 @@ controller = new BoopController({
 
 gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
-  cameraViews: prerender ? undefined : cameraViews,
   aiStrengthStorageKey: BOOP_AI_STRENGTH_STORAGE_KEY,
   onAiStrengthChange: () => controller.renderStatus(),
   onNewGameReset: () => {
@@ -124,8 +113,8 @@ gameButtons = createGameButtons({
   },
 });
 mountBoopLightingMenu(gameButtons.root, lightingPreset, async id => {
-  const texture = prerender ? await loadBoopLightingTexture(id) : null;
-  if (texture) scene.setPrerenderedTexture(texture);
+  const texture = await loadBoopLightingTexture(id);
+  scene.setPrerenderedTexture(texture);
   scene.setLighting(BOOP_LIGHTING_PRESETS[id].live);
 });
 
@@ -168,7 +157,7 @@ window.__boopSmokePickAndPlace = async () => {
 
 window.__boopAssertGrounding = () => {
   const boardTop = scene.getBoardTopY();
-  const bases = scene.getStackBottomBaseYs(!!prerender);
+  const bases = scene.getStackBottomBaseYs(true);
   const maxGap = bases.length ? Math.max(...bases.map(b => Math.abs(b - boardTop))) : 0;
   return { ok: maxGap <= 0.001, maxGap, boardTop, bases };
 };

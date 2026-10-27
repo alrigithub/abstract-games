@@ -1,16 +1,4 @@
-import {
-  BOARD,
-  GOMOKU_DIMS,
-  applyArenaPlayfieldMaterial,
-  gomokuCellWorld,
-  liftAuthoredArenaBoardLines,
-  loadGltfAsync,
-  mapUrl,
-  tagArenaGlbForShadows,
-  tagExcludeFromBounds,
-} from '@abstract/three-engine';
-import * as THREE from 'three';
-import { PropertyBinding } from 'three';
+import { GOMOKU_DIMS, gomokuCellWorld } from '@abstract/three-engine';
 
 /** Documented SHA-256 of the committed arena in `web-3d/lib/maps/go-map.glb`. */
 export const GOMOKU_ARENA_GLB_SHA256 =
@@ -29,141 +17,21 @@ export const GOMOKU_ARENA_FIELD_HALF_M = 1.05;
 /** Outer corner cell translation magnitude in authored GLB space. */
 export const GOMOKU_ARENA_AUTHORED_FIELD_HALF_M = 7.35;
 
-const INFINITE_GROUND_RAW = 'Infinite white ground';
-const INFINITE_GROUND_SANITIZED = PropertyBinding.sanitizeNodeName(INFINITE_GROUND_RAW);
-
-const _box = new THREE.Box3();
-
-export interface GomokuArenaLayout {
-  readonly root: THREE.Group;
-  /** World Y of the lowest cell paving. */
-  readonly pavingFloorY: number;
-  /** World Y of the lowest arena mesh. The ground plane sits under this so ruins stay visible. */
-  readonly arenaFloorY: number;
-  surfaceY(row: number, col: number): number;
-  frameBounds(): THREE.Box3;
-}
-
-function arenaAssetUrl(): string {
-  return mapUrl(GOMOKU_ARENA_GLB_FILE);
-}
-
-function isInfiniteGroundNode(obj: THREE.Object3D): boolean {
-  return obj.name === INFINITE_GROUND_RAW || obj.name === INFINITE_GROUND_SANITIZED;
-}
-
-function readCellIndices(node: THREE.Object3D): { row: number; col: number } | null {
-  const extras = node.userData as { row?: number; column?: number };
-  if (typeof extras.row === 'number' && typeof extras.column === 'number') {
-    return { row: extras.row, col: extras.column };
-  }
-  return null;
-}
-
-function tileTopYWorld(mesh: THREE.Object3D): number {
-  _box.setFromObject(mesh);
-  return _box.max.y;
-}
-
-function buildSurfaceMap(root: THREE.Group): Map<string, number> {
-  const map = new Map<string, number>();
-  root.traverse(node => {
-    if (!(node as THREE.Mesh).isMesh || !node.name.startsWith('Cell')) return;
-    const idx = readCellIndices(node);
-    if (!idx) return;
-    map.set(`${idx.row},${idx.col}`, tileTopYWorld(node));
-  });
-  return map;
-}
-
-function applyArenaTransform(root: THREE.Group): void {
-  const s = GOMOKU_ARENA_WORLD_SCALE;
-  root.scale.set(s, s, -s);
-  root.updateMatrixWorld(true);
-}
-
-function alignArenaVertical(root: THREE.Group, surfaceByCell: Map<string, number>): void {
-  const centerKey = `${Math.floor(GOMOKU_DIMS.GRID / 2)},${Math.floor(GOMOKU_DIMS.GRID / 2)}`;
-  const centerTop = surfaceByCell.get(centerKey);
-  if (centerTop === undefined) return;
-  root.position.y = BOARD.PLAYFIELD_SURFACE_Y - centerTop;
-  root.updateMatrixWorld(true);
-}
-
-/** Lowest world Y of the cell tiles (bevels and joints), after the arena is aligned. */
-function measurePavingFloorY(root: THREE.Object3D): number {
-  const box = new THREE.Box3();
-  const acc = new THREE.Box3();
-  let any = false;
-  root.updateMatrixWorld(true);
-  root.traverse(node => {
-    if (!(node as THREE.Mesh).isMesh || !node.name.startsWith('Cell')) return;
-    box.setFromObject(node);
-    if (!any) {
-      acc.copy(box);
-      any = true;
-    } else acc.union(box);
-  });
-  return any ? acc.min.y : BOARD.PLAYFIELD_SURFACE_Y;
-}
-
-function prepareArenaScene(scene: THREE.Group): THREE.Group {
-  tagExcludeFromBounds(scene);
-  const remove: THREE.Object3D[] = [];
-  scene.traverse(obj => {
-    if (isInfiniteGroundNode(obj) || obj.name.toLowerCase().startsWith('union operand')) remove.push(obj);
-  });
-  for (const obj of remove) obj.parent?.remove(obj);
-
-  applyArenaPlayfieldMaterial(scene);
-  liftAuthoredArenaBoardLines(scene);
-  tagArenaGlbForShadows(scene);
-  return scene;
-}
-
 export function gomokuArenaCellAuthoredXz(row: number, col: number): { x: number; z: number } {
   const half = GOMOKU_ARENA_AUTHORED_FIELD_HALF_M;
   const pitch = GOMOKU_ARENA_AUTHORED_PITCH_M;
   return { x: -half + col * pitch, z: half - row * pitch };
 }
 
-/** World XZ of a cell centre after scale + Z flip (before root Y shift). */
-export function gomokuArenaCellWorldXz(row: number, col: number): THREE.Vector2 {
+/** World XZ of a cell centre after scale + Z flip. `y` is the world Z. */
+export function gomokuArenaCellWorldXz(row: number, col: number): { x: number; y: number } {
   const { x, z } = gomokuArenaCellAuthoredXz(row, col);
   const s = GOMOKU_ARENA_WORLD_SCALE;
-  return new THREE.Vector2(x * s, -z * s);
+  return { x: x * s, y: -z * s };
 }
 
 export function gomokuArenaPlacementError(row: number, col: number): number {
   const target = gomokuCellWorld(GOMOKU_DIMS.GRID, row, col);
   const arena = gomokuArenaCellWorldXz(row, col);
   return Math.hypot(arena.x - target.x, arena.y - target.z);
-}
-
-export async function loadGomokuArenaLayout(): Promise<GomokuArenaLayout> {
-  const gltf = await loadGltfAsync(arenaAssetUrl());
-  const root = prepareArenaScene(gltf.scene);
-  root.name = 'gomoku-arena-15x15';
-  applyArenaTransform(root);
-
-  let surfaceByCell = buildSurfaceMap(root);
-  alignArenaVertical(root, surfaceByCell);
-  surfaceByCell = buildSurfaceMap(root);
-
-  const fallbackY = BOARD.PLAYFIELD_SURFACE_Y;
-  const pavingFloorY = measurePavingFloorY(root);
-  const arenaFloorY = new THREE.Box3().setFromObject(root).min.y;
-
-  return {
-    root,
-    pavingFloorY,
-    arenaFloorY,
-    surfaceY(row, col) {
-      return surfaceByCell.get(`${row},${col}`) ?? fallbackY;
-    },
-    frameBounds() {
-      _box.setFromObject(root);
-      return _box.clone();
-    },
-  };
 }
