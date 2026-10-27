@@ -4,7 +4,6 @@ import {
   createBoopCatGeometry,
   createBoopKittenGeometry,
   createGameButtons,
-  DomPlacementGhost,
   BOOP_AI_STRENGTH_STORAGE_KEY,
   DEFAULT_AI_STRENGTH_LEVELS,
   levelToSearchOptions,
@@ -17,6 +16,7 @@ import {
 } from '@abstract/three-engine';
 import { applyBoopAnimationPacing, BOOP_ANIM } from './game/animation';
 import { cellAt, poolCellIndex, wireBoopInteraction, type BoopInteractionHandle } from './game/boop-interaction';
+import { BoopPlacementGhost } from './game/boop-placement-ghost';
 import { createBoopThumbControl, type BoopThumbControlHandle } from './game/boop-thumb-control';
 import { boardPlayfieldTopY } from './game/boop-grounding';
 import { createBoopDomContactShadows } from './game/boop-dom-contact-shadows';
@@ -58,8 +58,7 @@ const topology = prerender
 const board = document.querySelector<HTMLDivElement>('#board')!;
 injectBoopUiStyles();
 let theme: ThemeId = readInitialTheme();
-const placementGhost = new DomPlacementGhost(board, {
-  className: 'boop-placement-ghost',
+const placementGhost = new BoopPlacementGhost(board, {
   testId: 'boop-placement-ghost',
   theme,
 });
@@ -303,78 +302,108 @@ function injectBoopUiStyles() {
       display: none;
     }
     .boop-placement-ghost {
-      --boop-accent: #0d9488;
       position: absolute;
       pointer-events: none;
       transform: translate(-50%, -50%);
-      border-radius: 50%;
-      box-sizing: border-box;
       z-index: 3;
-      border: 2.5px solid var(--boop-accent);
-      background: transparent;
+      box-sizing: border-box;
     }
-    .boop-placement-ghost[data-theme='dark'] {
-      --boop-accent: #5eead4;
+    .boop-placement-ghost__halo {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      border: 1px solid color-mix(in srgb, #b9fe8e 42%, transparent);
+      box-sizing: border-box;
+      pointer-events: none;
+    }
+    .boop-placement-ghost__ring {
+      position: absolute;
+      inset: 0;
+      filter: drop-shadow(0 4px 12px color-mix(in srgb, #000 25%, transparent));
+    }
+    .boop-placement-ghost__ring-svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .boop-placement-ghost__vase {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: radial-gradient(
+        circle at 50% 38%,
+        color-mix(in srgb, #1a1814 55%, transparent) 0%,
+        color-mix(in srgb, #0c0a08 40%, transparent) 72%
+      );
+      pointer-events: none;
     }
     .boop-thumb-control {
       position: absolute;
       left: max(14px, env(safe-area-inset-left, 0px));
       bottom: max(14px, env(safe-area-inset-bottom, 0px));
-      width: clamp(132px, 26vw, 168px);
-      height: 80px;
       z-index: 5;
       pointer-events: none;
     }
-    .boop-thumb-control__size {
-      position: absolute;
+    .boop-thumb-control__toggle {
+      position: relative;
       pointer-events: auto;
-      box-sizing: border-box;
-      border: 3px solid color-mix(in srgb, var(--theme-ink, #292524) 82%, transparent);
+      width: clamp(72px, 14vw, 88px);
+      height: clamp(72px, 14vw, 88px);
       padding: 0;
       margin: 0;
+      border: none;
       border-radius: 50%;
       background: transparent;
-      filter: drop-shadow(0 2px 4px color-mix(in srgb, #000 22%, transparent));
       cursor: pointer;
-      transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+      filter: drop-shadow(0 4px 12px color-mix(in srgb, #000 25%, transparent));
+      transition: transform 120ms ease;
     }
-    .boop-thumb-control[data-theme='dark'] .boop-thumb-control__size {
-      border-color: color-mix(in srgb, var(--theme-ink, #fafaf9) 78%, transparent);
-      filter: drop-shadow(0 2px 5px color-mix(in srgb, #000 50%, transparent));
+    @media (prefers-reduced-motion: reduce) {
+      .boop-thumb-control__toggle {
+        transition: none;
+      }
     }
-    .boop-thumb-control__size:active {
+    .boop-thumb-control__toggle:focus {
+      outline: none;
+    }
+    .boop-thumb-control__toggle:focus-visible {
+      outline: 3px solid color-mix(in srgb, #314000 65%, #b9fe8e);
+      outline-offset: 4px;
+    }
+    .boop-thumb-control__toggle:active {
       transform: scale(0.96);
     }
-    .boop-thumb-control__size--kitten {
-      width: 36px;
-      height: 36px;
-      left: 4px;
-      top: 50%;
-      translate: 0 -50%;
+    .boop-thumb-control__rings {
+      display: block;
+      width: 100%;
+      height: 100%;
     }
-    .boop-thumb-control__size--cat {
-      width: 64px;
-      height: 64px;
-      right: 0;
-      top: 50%;
-      translate: 0 -50%;
-    }
-    .boop-thumb-control__size--kitten::before,
-    .boop-thumb-control__size--cat::before {
-      content: '';
+    .boop-thumb-control__halo {
       position: absolute;
-      inset: -10px;
+      left: 50%;
+      top: 50%;
+      width: 38%;
+      height: 38%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      border: 3px solid transparent;
+      box-sizing: border-box;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 160ms ease, border-color 160ms ease;
     }
-    .boop-thumb-control__size[data-selected='true'] {
-      border-color: #0d9488;
-      box-shadow: 0 0 0 3px color-mix(in srgb, #0d9488 38%, transparent);
+    @media (prefers-reduced-motion: reduce) {
+      .boop-thumb-control__halo {
+        transition: none;
+      }
     }
-    .boop-thumb-control[data-theme='dark'] .boop-thumb-control__size[data-selected='true'] {
-      border-color: #5eead4;
-      box-shadow: 0 0 0 3px color-mix(in srgb, #5eead4 34%, transparent);
-    }
-    .boop-placement-ghost {
-      border-width: 3px;
+    .boop-thumb-control__halo--visible {
+      opacity: 1;
+      border-color: color-mix(in srgb, #b9fe8e 35%, transparent);
     }
   `;
   document.head.append(style);

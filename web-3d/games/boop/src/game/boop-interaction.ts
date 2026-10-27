@@ -2,7 +2,6 @@ import {
   cellCoordinates,
   cellIndex,
   createTapInteraction,
-  DomPlacementGhost,
   tapTransfer,
   type InteractionView,
   type SceneApi,
@@ -12,6 +11,7 @@ import {
 import { nearestEmptyBedCell } from './boop-bed-snap';
 import { boopFootprintWorldUnits } from './boop-placement-footprints';
 import { BOOP_START_POOL_COUNTS, primaryPoolCellIndex } from './boop-pool-layout';
+import type { BoopPlacementGhost } from './boop-placement-ghost';
 import type { BoopController } from './controller';
 import type { PieceKind } from './types';
 
@@ -52,7 +52,7 @@ export function wireBoopInteraction(
   boardEl: HTMLElement,
   scene: SceneApi,
   getController: () => BoopController,
-  ghost: DomPlacementGhost,
+  ghost: BoopPlacementGhost,
 ): BoopInteractionHandle {
   const cellAt = (row: number, col: number) => cellIndex(GRID, row, col, OUTSIDE)!;
   const coords = (index: number) => cellCoordinates(GRID, index, OUTSIDE);
@@ -90,7 +90,7 @@ export function wireBoopInteraction(
       return;
     }
     const kind = c.effectiveStickyKind();
-    ghost.showAt(scene, boardEl, cell, boopFootprintWorldUnits(kind), cellAt);
+    ghost.showAt(scene, boardEl, cell, boopFootprintWorldUnits(kind), cellAt, kind);
   }
 
   const interaction = createTapInteraction({
@@ -165,7 +165,7 @@ export function wireBoopInteraction(
     const cell = boardEl.dataset.ghostCell;
     const kind = boardEl.dataset.ghostKind as PieceKind | undefined;
     if (cell && kind) {
-      ghost.showAt(scene, boardEl, Number(cell), boopFootprintWorldUnits(kind), cellAt);
+      ghost.showAt(scene, boardEl, Number(cell), boopFootprintWorldUnits(kind), cellAt, kind);
     }
   });
 
@@ -201,7 +201,7 @@ export function wireBoopInteraction(
     previewGhostAt(index, kind) {
       boardEl.dataset.ghostCell = String(index);
       boardEl.dataset.ghostKind = kind;
-      ghost.showAt(scene, boardEl, index, boopFootprintWorldUnits(kind), cellAt);
+      ghost.showAt(scene, boardEl, index, boopFootprintWorldUnits(kind), cellAt, kind);
     },
     hideGhost() {
       delete boardEl.dataset.ghostCell;

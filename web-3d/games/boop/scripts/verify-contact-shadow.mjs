@@ -48,8 +48,7 @@ async function main() {
   const ui = await page.evaluate(() => {
     const thumb = document.querySelector('[data-testid="boop-thumb-control"]');
     const ghost = document.querySelector('[data-testid="boop-placement-ghost"]');
-    const kitten = document.querySelector('[data-testid="boop-size-kitten"]');
-    const cat = document.querySelector('[data-testid="boop-size-cat"]');
+    const toggle = document.querySelector('[data-testid="boop-size-toggle"]');
     const rect = el => {
       if (!el) return null;
       const r = el.getBoundingClientRect();
@@ -59,12 +58,9 @@ async function main() {
     return {
       thumb: rect(thumb),
       ghost: rect(ghost),
-      kitten: rect(kitten),
-      cat: rect(cat),
-      ghostBorder: ghost ? getComputedStyle(ghost).borderColor : null,
-      kittenBg: bg(kitten),
-      catBg: bg(cat),
-      kittenSelected: kitten?.dataset.selected,
+      toggle: rect(toggle),
+      toggleKind: document.querySelector('[data-testid="boop-thumb-control"]')?.dataset.kind,
+      ghostHasRing: !!ghost?.querySelector('.boop-placement-ghost__ring'),
       contactShadowCount: document.querySelectorAll('.boop-dom-contact-shadow').length,
     };
   });

@@ -121,13 +121,6 @@ export class BoopController {
 
   private syncStickyKindToDom() {
     const effective = this.effectiveStickyKind();
-    for (const kind of ['kitten', 'cat'] as const) {
-      const btn = document.querySelector<HTMLElement>(`[data-testid="boop-size-${kind === 'kitten' ? 'kitten' : 'cat'}"]`);
-      if (!btn) continue;
-      const active = effective === kind;
-      btn.dataset.selected = active ? 'true' : 'false';
-      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-    }
     this.onStickyKindChange?.(effective);
   }
 
