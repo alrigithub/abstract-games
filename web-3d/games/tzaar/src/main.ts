@@ -7,16 +7,13 @@ import {
   createTzaarHexTopology,
   DEFAULT_LOBBY_HREF,
   levelToSearchOptions,
-  applyDocumentTheme,
   motionDelay,
   prefersReducedMotion,
-  readInitialTheme,
   recordAiThinkMetrics,
   TZAAR_AI_STRENGTH_STORAGE_KEY,
   createLoadingScreen,
   setActiveLoadingScreen,
   type InteractionView,
-  type ThemeId,
 } from '@abstract/three-engine';
 import { loadTzaarPieceGeometrySet } from './tzaar-piece-models';
 import { quickLegalMove } from './game/ai';
@@ -36,8 +33,6 @@ setActiveLoadingScreen(loading);
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 const toast = document.querySelector<HTMLDivElement>('#tzaar-toast')!;
-let theme: ThemeId = readInitialTheme();
-applyDocumentTheme(theme);
 
 let humanPlayer: Player = 'A';
 let aiPlayer: Player = 'B';
@@ -57,7 +52,6 @@ const scene = await loading.track(
     gridSize: 9,
     topology,
     pieces,
-    initialTheme: theme,
     stackedPiecesReceiveShadow: true,
   }),
   'Starting board scene (WebGL + audio)',
@@ -73,12 +67,6 @@ const EMPTY_VIEW: InteractionView = {
   target: null,
   progress: 0,
 };
-
-function applyTheme(next: ThemeId) {
-  theme = next;
-  applyDocumentTheme(theme);
-  scene.setTheme(theme);
-}
 
 function syncSnapshot(options?: Parameters<typeof scene.setSnapshot>[1]) {
   scene.setSnapshot(gameToSnapshot(game), options);
@@ -159,7 +147,6 @@ const gameButtons = createGameButtons({
   lobbyHref: DEFAULT_LOBBY_HREF,
   cameraViews,
   aiStrengthStorageKey: TZAAR_AI_STRENGTH_STORAGE_KEY,
-  applyTheme,
   onAiStrengthChange: () => renderStatus(),
   onRestartRound: () => startGame(humanPlayer),
   firstPlayer: {

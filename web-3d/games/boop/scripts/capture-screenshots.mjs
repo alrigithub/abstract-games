@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Light + dark captures: default (top) and 3/4 (axo) with stone cats on board.
+ * Top and 3/4 captures with stone cats on board.
  */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -45,22 +45,20 @@ async function main() {
     const browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 
-    for (const theme of ['light', 'dark']) {
-      await page.goto(`${baseUrl}?theme=${theme}`, { waitUntil: 'networkidle' });
-      await page.waitForSelector('[data-testid="board"][data-ready="true"]', { timeout: 30_000 });
-      await page.waitForFunction(() => window.__boopStageShowcase != null, null, { timeout: 10_000 });
-      await page.evaluate(() => window.__boopStageShowcase());
-      await page.waitForTimeout(2500);
+    await page.goto(baseUrl, { waitUntil: 'networkidle' });
+    await page.waitForSelector('[data-testid="board"][data-ready="true"]', { timeout: 30_000 });
+    await page.waitForFunction(() => window.__boopStageShowcase != null, null, { timeout: 10_000 });
+    await page.evaluate(() => window.__boopStageShowcase());
+    await page.waitForTimeout(2500);
 
-      for (const view of ['top', 'axo']) {
-        await page.evaluate(v => window.__boopSetCameraPreset(v), view);
-        await page.waitForTimeout(view === 'axo' ? 1200 : 600);
-        await page.evaluate(() => window.dispatchEvent(new Event('resize')));
-        await page.waitForTimeout(400);
-        const out = path.join(artifactsDir, `boop-stone-cats-${theme}-${view}.png`);
-        await page.screenshot({ path: out, fullPage: false });
-        console.log(`Wrote ${out}`);
-      }
+    for (const view of ['top', 'axo']) {
+      await page.evaluate(v => window.__boopSetCameraPreset(v), view);
+      await page.waitForTimeout(view === 'axo' ? 1200 : 600);
+      await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+      await page.waitForTimeout(400);
+      const out = path.join(artifactsDir, `boop-stone-cats-${view}.png`);
+      await page.screenshot({ path: out, fullPage: false });
+      console.log(`Wrote ${out}`);
     }
 
     await browser.close();

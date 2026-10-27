@@ -41,23 +41,22 @@ with tempfile.TemporaryDirectory(prefix='render-', dir=work) as temporary:
     stage = Path(temporary)
     subprocess.run([
         args.blender, '--background', '--factory-startup', '--threads', str(args.threads),
-        '--python-exit-code', '1', '--python', str(root / 'scripts/render-boop-arena.py'), '--',
+        '--python-exit-code', '1', '--python', str(root / 'scripts/render-arena-plate.py'), '--',
         '--arena', str(args.arena), '--grid', str(args.grid), '--output', str(stage),
         '--source-copy', str(work / 'boop-prerender-aligned.blend'),
         '--resolution', str(args.resolution), '--contrast', str(args.contrast), '--allow-grid-offsets',
     ], check=True)
-    for name in ('boop-light.png', 'boop-dark.png', 'boop-columns.glb', 'boop-arena.json'):
+    for name in ('boop-light.png', 'boop-columns.glb', 'boop-arena.json'):
         if not (stage / name).is_file():
             raise RuntimeError(f'Blender did not produce {name}; runtime assets were not changed')
     subprocess.run([
-        sys.executable, str(root / 'scripts/prepare-boop-plates.py'), str(stage),
+        sys.executable, str(root / 'scripts/prepare-arena-plates.py'), str(stage),
         '--output-directory', str(runtime), '--manifest-output', str(manifest),
     ], check=True)
     shutil.copy2(stage / 'boop-columns.glb', runtime / 'boop-columns.glb')
-    for theme in ('light', 'dark'):
-        shutil.copy2(stage / f'boop-{theme}.png', work / f'boop-{theme}.png')
+    shutil.copy2(stage / 'boop-light.png', work / 'boop-light.png')
 config_path.write_text(json.dumps({
     'arena': str(args.arena), 'grid': str(args.grid), 'blender': args.blender,
     'contrast': args.contrast,
 }, indent=2) + '\n')
-print(f'Updated both plates, columns and grid data. Blender preview: {work / "boop-prerender-aligned.blend"}')
+print(f'Updated the light plate, columns and grid data. Blender preview: {work / "boop-prerender-aligned.blend"}')

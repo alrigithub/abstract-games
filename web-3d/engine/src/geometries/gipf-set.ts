@@ -258,19 +258,12 @@ export function gipfLayoutFrameCorners(layout: GipfHexLayout): THREE.Vector3[] {
   ];
 }
 
-function luminance(hex: string): number {
-  const n = Number.parseInt(hex.replace('#', ''), 16);
-  if (!Number.isFinite(n)) return 1;
-  return (((n >> 16) & 255) + ((n >> 8) & 255) + (n & 255)) / 765;
-}
-
 export function gipfPrintColors(tokens: ThemeTokens): { field: string; rim: string; lines: string; centre: string } {
-  const dark = luminance(tokens.board) < 0.45;
   return {
     field: tokens.board,
-    rim: dark ? '#07080a' : '#141210',
+    rim: '#141210',
     lines: tokens.lines,
-    centre: dark ? '#2a2e36' : tokens.lines,
+    centre: tokens.lines,
   };
 }
 

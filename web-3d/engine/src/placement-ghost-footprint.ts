@@ -1,4 +1,4 @@
-import type { SceneApi, ThemeId } from './types';
+import type { SceneApi } from './types';
 
 /** Approximate CSS pixels per world unit using two adjacent cells on the board. */
 export function pxPerWorldUnit(
@@ -14,7 +14,6 @@ export function pxPerWorldUnit(
 export interface DomPlacementGhostOptions {
   className?: string;
   testId?: string;
-  theme?: ThemeId;
 }
 
 /**
@@ -32,11 +31,6 @@ export class DomPlacementGhost {
     if (options.testId) this.el.dataset.testid = options.testId;
     this.el.hidden = true;
     board.appendChild(this.el);
-    if (options.theme) this.applyTheme(options.theme);
-  }
-
-  applyTheme(theme: ThemeId) {
-    this.el.dataset.theme = theme;
   }
 
   hide() {

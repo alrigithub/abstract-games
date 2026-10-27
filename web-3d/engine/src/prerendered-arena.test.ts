@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { fitPrerenderedCamera } from './prerendered-arena';
+import { fitPrerenderedCamera, lockedPlateZoomLimits } from './prerendered-arena';
 
 describe('registered pre-render camera', () => {
   const spec = { position: [12, 12, 12], target: [0, 0, 0], width: 18, height: 18 };
@@ -17,8 +17,20 @@ describe('registered pre-render camera', () => {
     expect(Math.abs(corner.x / corner.y)).toBeCloseTo(1 / aspect);
     expect(camera.position.toArray()).toEqual(spec.position);
     expect(camera.zoom).toBe(1);
+    fitPrerenderedCamera(camera, spec, aspect, 1.35);
+    expect(camera.zoom).toBeCloseTo(1.35);
+    expect(camera.position.toArray()).toEqual(spec.position);
     // A live object's projected point round-trips to the same world position.
     const world = new THREE.Vector3(2.5, .12, -1.5);
     expect(world.clone().project(camera).unproject(camera).distanceTo(world)).toBeLessThan(1e-10);
+  });
+
+  it('caps locked-plate zoom from the plate resolution', () => {
+    const boop = lockedPlateZoomLimits(1536);
+    const gomoku = lockedPlateZoomLimits(2048);
+    expect(boop.min).toBeLessThan(1);
+    expect(boop.max).toBeGreaterThan(1);
+    expect(boop.max).toBeLessThanOrEqual(2);
+    expect(gomoku.max).toBeGreaterThan(boop.max);
   });
 });

@@ -8,4 +8,5 @@ games/*/screenshots/
 .cache/
 .boop-export/
 .boop-export.local.json
+.gomoku-export/
 __pycache__/

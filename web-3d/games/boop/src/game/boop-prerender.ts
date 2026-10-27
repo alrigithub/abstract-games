@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { createSquareTopology, loadGltfAsync, tagArenaGlbForShadows, tagExcludeFromBounds, trackIfLoading, type SquareGridOptions, type Topology, type PrerenderedArena } from '@abstract/three-engine';
+import { batchAuthoredMeshes, createPrerenderTileProxies, createSquareTopology, loadGltfAsync, tagArenaGlbForShadows, tagExcludeFromBounds, trackIfLoading, type SquareGridOptions, type Topology, type PrerenderedArena } from '@abstract/three-engine';
 import manifest from './boop-arena-manifest.json';
 import { loadBoopShadowGeometry } from './boop-stone-cats';
 
@@ -33,45 +33,18 @@ function asset(name: string): string {
 }
 
 export function batchBoopColumns(columns: THREE.Group): void {
-  columns.updateMatrixWorld(true);
-  const inverse = columns.matrixWorld.clone().invert();
-  const parts: THREE.BufferGeometry[] = [];
-  let material: THREE.Material | undefined;
-  columns.traverse(node => {
-    if (!(node instanceof THREE.Mesh)) return;
-    if (Array.isArray(node.material)) throw new Error('Expected one shared column material');
-    material ??= node.material;
-    let geometry = node.geometry.clone();
-    // Column shafts and Blender cubes have different UV/index layouts. These
-    // matte exports have no maps, so only positions and normals are needed.
-    for (const name of Object.keys(geometry.attributes)) {
-      if (name !== 'position' && name !== 'normal') geometry.deleteAttribute(name);
-    }
-    if (!geometry.getAttribute('normal')) geometry.computeVertexNormals();
-    if (geometry.index) {
-      const indexed = geometry;
-      geometry = indexed.toNonIndexed();
-      indexed.dispose();
-    }
-    parts.push(geometry.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inverse, node.matrixWorld)));
-  });
-  const merged = mergeGeometries(parts);
-  for (const part of parts) part.dispose();
-  if (!merged || !material) throw new Error('Missing Boop live columns');
-  columns.clear();
-  columns.add(new THREE.Mesh(merged, material));
+  batchAuthoredMeshes(columns);
 }
 
 export async function loadBoopPrerender() {
   const loader = new THREE.TextureLoader();
-  const [light, dark, gltf, cat, kitten] = await Promise.all([
+  const [light, gltf, cat, kitten] = await Promise.all([
     trackIfLoading(loader.loadAsync(asset('boop-light.webp')), 'Loading texture boop-light.webp'),
-    trackIfLoading(loader.loadAsync(asset('boop-dark.webp')), 'Loading texture boop-dark.webp'),
     loadGltfAsync(asset('boop-columns.glb')),
     loadBoopShadowGeometry(asset('boop-cat-shadow.glb')),
     loadBoopShadowGeometry(asset('boop-kitten-shadow.glb')),
   ]);
-  for (const texture of [light, dark]) texture.colorSpace = THREE.SRGBColorSpace;
+  light.colorSpace = THREE.SRGBColorSpace;
   const columns = gltf.scene;
   batchBoopColumns(columns);
   tagExcludeFromBounds(columns);
@@ -81,7 +54,7 @@ export async function loadBoopPrerender() {
     // Static column shadows are already in the plate; live pieces still shadow the columns.
     node.castShadow = false;
   });
-  const plate: PrerenderedArena = { light, dark, camera: manifest.camera, occluders: columns };
+  const plate: PrerenderedArena = { light, camera: manifest.camera, occluders: columns };
   return { columns, plate, shadows: { cat, kitten } };
 }
 
@@ -113,26 +86,11 @@ export function createBoopPrerenderTopology(options: SquareGridOptions, columns:
         ctx.boardGeometries.push(child.geometry);
       }
       ctx.board.add(columns.clone(true));
-      // Two batched low-poly surfaces provide depth/AO and live shadows over the image.
-      const parts = manifest.cells.map(c => {
-        const geometry = new THREE.PlaneGeometry(.94, .94);
-        geometry.rotateX(-Math.PI / 2);
-        geometry.translate(c.x, c.y, c.z);
-        return geometry;
-      });
-      const geometry = mergeGeometries(parts);
-      for (const part of parts) part.dispose();
-      if (!geometry) throw new Error('Could not create Boop shadow surfaces');
-      ctx.boardGeometries.push(geometry);
-      const depth = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ colorWrite: false }));
-      depth.name = 'boop-tile-depth-proxy';
-      depth.renderOrder = -1;
-      const shadow = new THREE.Mesh(geometry, new THREE.ShadowMaterial({ opacity: .22, depthWrite: false }));
-      shadow.name = 'boop-tile-shadow-receiver';
-      shadow.position.y = .001;
-      tagArenaGlbForShadows(shadow);
-      shadow.castShadow = false;
-      ctx.board.add(depth, shadow);
+      const proxies = createPrerenderTileProxies(manifest.cells);
+      proxies.depth.name = 'boop-tile-depth-proxy';
+      proxies.shadow.name = 'boop-tile-shadow-receiver';
+      ctx.boardGeometries.push(proxies.depth.geometry as THREE.BufferGeometry);
+      ctx.board.add(proxies.depth, proxies.shadow);
       return true;
     },
   };

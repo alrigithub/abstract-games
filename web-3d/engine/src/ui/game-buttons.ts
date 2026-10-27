@@ -6,7 +6,7 @@ import {
 } from './ai-strength';
 import type { CameraViewController } from '../camera-views';
 import { nextCameraPresetAfter } from '../camera-views';
-import { applyDocumentTheme, bindThemeToggle, readInitialTheme, type ThemeId } from '../theme';
+import { applyDocumentTheme } from '../theme';
 import { ensureBasePageStyles } from './page-styles';
 import { initPlaceSfx, isPlaceSoundEnabled, readPlaceSoundEnabled, setPlaceSoundEnabled } from '../sound/place-sfx';
 import {
@@ -315,10 +315,6 @@ function cameraPresetLabel(preset: 'top' | 'axo'): string {
   return preset === 'top' ? 'Top view' : '¾ view';
 }
 
-function themeTargetLabel(theme: ThemeId): string {
-  return theme === 'light' ? 'Dark mode' : 'Light mode';
-}
-
 export interface FirstPlayerChoice {
   label: string;
   id: string;
@@ -364,10 +360,6 @@ export interface CreateGameButtonsOptions {
   onNewGameReset?: () => void;
   /** Restart the current round with the same mode and settings (no start dialog). Falls back to {@link onNewGameReset}. */
   onRestartRound?: () => void;
-  /** When set, adds a theme toggle button using {@link bindThemeToggle}. */
-  applyTheme?: (theme: ThemeId) => void;
-  /** Alias for {@link applyTheme}. */
-  onThemeChange?: (theme: ThemeId) => void;
   /** Shared top / ¾ camera presets; adds the Camera button when set. */
   cameraViews?: CameraViewController;
   fullscreenElement?: HTMLElement;
@@ -425,13 +417,12 @@ function createMenuItem(options: {
 export function createGameButtons(options: CreateGameButtonsOptions): GameButtonsBar {
   if (options.basePageStyles !== false) {
     ensureBasePageStyles();
-    applyDocumentTheme(readInitialTheme());
+    applyDocumentTheme();
   }
   ensureGameButtonStyles();
   initPlaceSfx();
   const mount = options.mount ?? document.body;
   const fullscreenEl = options.fullscreenElement ?? document.documentElement;
-  const themeApply = options.applyTheme ?? options.onThemeChange;
   const usesFirstPlayerPopover = !options.onNewGameReset && (options.firstPlayer != null || options.onFirstPlayerSelected != null);
 
   const root = document.createElement('div');
@@ -507,14 +498,6 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
     aiSlot.append(aiTitle);
   }
 
-  const themeBtn = createMenuItem({
-    testId: 'theme-toggle',
-    icon: 'sun',
-    label: 'Theme',
-    closeOnActivate: true,
-  });
-  if (!themeApply) themeBtn.hidden = true;
-
   let soundEnabled = readPlaceSoundEnabled();
   const soundBtn = createMenuItem({
     testId: 'sound-toggle',
@@ -537,7 +520,6 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   if (options.aiStrengthStorageKey) menu.append(aiSlot);
   menu.append(document.createElement('hr'));
   menu.lastElementChild!.className = 'game-menu-separator';
-  menu.append(themeBtn);
   menu.append(soundBtn);
   menu.append(document.createElement('hr'));
   menu.lastElementChild!.className = 'game-menu-separator';
@@ -637,7 +619,6 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
     cameraBtn.replaceChildren(createCameraToolbarIcon());
   };
 
-  let currentTheme: ThemeId = readInitialTheme();
   const syncSoundLabel = () => {
     soundEnabled = isPlaceSoundEnabled();
     const label = menu.querySelector<HTMLElement>('[data-testid="sound-toggle"] .game-menu-label');
@@ -648,21 +629,6 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
       iconHost.replaceWith(createMenuIcon(soundEnabled ? 'volume-2' : 'volume-x', text));
     }
     soundBtn.setAttribute('aria-pressed', String(soundEnabled));
-  };
-
-  const syncThemeLabel = () => {
-    try {
-      const t = document.documentElement.dataset.theme;
-      if (t === 'light' || t === 'dark') currentTheme = t;
-    } catch {
-      /* ignore */
-    }
-    const label = menu.querySelector<HTMLElement>('[data-testid="theme-toggle"] .game-menu-label');
-    const iconHost = menu.querySelector<HTMLElement>('[data-testid="theme-toggle"] .game-menu-icon');
-    if (label) label.textContent = themeTargetLabel(currentTheme);
-    if (iconHost) {
-      iconHost.replaceWith(createMenuIcon(currentTheme === 'light' ? 'moon' : 'sun', label?.textContent ?? ''));
-    }
   };
 
   let menuOpen = false;
@@ -678,21 +644,12 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
     menuOpen = true;
     menu.hidden = false;
     menuTrigger.setAttribute('aria-expanded', 'true');
-    syncThemeLabel();
     syncSoundLabel();
     const items = menuItems();
     if (items[0]) items[0].focus();
   };
 
   menu.addEventListener('game-menu-close', () => closeMenu());
-
-  let unbindTheme: (() => void) | undefined;
-  if (themeApply) {
-    unbindTheme = bindThemeToggle(themeBtn, themeApply);
-    themeBtn.addEventListener('click', () => {
-      queueMicrotask(syncThemeLabel);
-    });
-  }
 
   soundBtn.addEventListener('click', () => {
     setPlaceSoundEnabled(!isPlaceSoundEnabled());
@@ -721,7 +678,6 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
   });
   document.addEventListener('fullscreenchange', syncFullscreenControl);
   syncFullscreenControl();
-  syncThemeLabel();
 
   menuTrigger.addEventListener('click', e => {
     e.stopPropagation();
@@ -813,7 +769,6 @@ export function createGameButtons(options: CreateGameButtonsOptions): GameButton
       document.removeEventListener('fullscreenchange', syncFullscreenControl);
       document.removeEventListener('click', onDocClick);
       document.removeEventListener('keydown', onKeyDown);
-      unbindTheme?.();
       unbindCamera?.();
       options.cameraViews?.dispose();
       aiStrength?.destroy();

@@ -5,10 +5,8 @@ import {
   applyClayEnvMaterials,
   applyClayMaterials,
   applyClayPieceMaterials,
-  clayMaterialBankSnapshot,
   clayMaterialRoleForName,
   getClayMaterial,
-  syncClayMaterialTheme,
 } from './clay-materials';
 
 describe('clay materials', () => {
@@ -64,13 +62,5 @@ describe('clay materials', () => {
     namedRoot.add(named);
     applyClayMaterials(namedRoot, { pieceSide: 'dark' });
     expect(named.material).toBe(getClayMaterial('piece_light'));
-  });
-
-  it('syncs env albedo for dark theme', () => {
-    syncClayMaterialTheme('light');
-    expect(clayMaterialBankSnapshot().env).toBe(CLAY.ENV);
-    syncClayMaterialTheme('dark');
-    expect(clayMaterialBankSnapshot().env).toBe(CLAY.ENV_DARK);
-    syncClayMaterialTheme('light');
   });
 });

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Low-angle light/dark captures for piece grounding (before/after).
+ * Low-angle captures for piece grounding (before/after).
  * BOOP_GROUNDING_PHASE=before|after (default after)
  */
 import { spawn } from 'node:child_process';
@@ -63,20 +63,18 @@ async function main() {
     const browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 
-    for (const theme of ['light', 'dark']) {
-      await page.goto(`${baseUrl}?theme=${theme}`, { waitUntil: 'networkidle' });
-      await page.waitForSelector('[data-testid="board"][data-ready="true"]', { timeout: 15_000 });
-      await page.waitForFunction(() => window.__boopController != null, null, { timeout: 15_000 });
-      await page.evaluate(async () => {
-        await window.__boopController.ensureRestingOffBoardPiece();
-      });
-      await page.waitForTimeout(2800);
-      await lowAngleOrbit(page);
-      await page.waitForTimeout(400);
-      const out = path.join(artifactsDir, `boop-${theme}-grounding-${phase}.png`);
-      await page.screenshot({ path: out, fullPage: false });
-      console.log(`Wrote ${out}`);
-    }
+    await page.goto(baseUrl, { waitUntil: 'networkidle' });
+    await page.waitForSelector('[data-testid="board"][data-ready="true"]', { timeout: 15_000 });
+    await page.waitForFunction(() => window.__boopController != null, null, { timeout: 15_000 });
+    await page.evaluate(async () => {
+      await window.__boopController.ensureRestingOffBoardPiece();
+    });
+    await page.waitForTimeout(2800);
+    await lowAngleOrbit(page);
+    await page.waitForTimeout(400);
+    const out = path.join(artifactsDir, `boop-grounding-${phase}.png`);
+    await page.screenshot({ path: out, fullPage: false });
+    console.log(`Wrote ${out}`);
 
     await browser.close();
   } finally {

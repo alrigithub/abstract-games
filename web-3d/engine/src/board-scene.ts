@@ -9,7 +9,7 @@ import {
 } from './board-grid-lines';
 import { createCameraViewController, fitOrthographicToWorldPoints, type CameraViewController } from './camera-views';
 import { ANIMATION, BOARD, CAMERA } from './constants';
-import { applyPlayfieldBackdrop, createPlayfieldGroundMesh } from './playfield-ground';
+import { applyPlayfieldBackdrop, createArenaGroundMaterial, createPlayfieldGroundMesh } from './playfield-ground';
 import {
   box3CornerPoints,
   expandBoxByPlayfieldContent,
@@ -27,11 +27,19 @@ import {
   type BoardLightingOptions,
 } from './board-lighting';
 import { createBoardRenderPipeline } from './board-render-pipeline';
-import { clayEnvMaterial, clayMaterialForPlayer, syncClayMaterialTheme } from './clay-materials';
-import { applyBoardEnvironment, createBoardWebGLRenderer, measureBoardFrameMs } from './board-renderer';
+import { clayEnvMaterial, clayMaterialForPlayer } from './clay-materials';
+import { applyBoardEnvironment, boardDrawingBufferSize, createBoardWebGLRenderer, measureBoardFrameMs } from './board-renderer';
 import { BoardAssistLayer, type AssistGhostPieceRenderer } from './board-assist';
 import { WIN_ACCENT } from './theme';
-import { createPrerenderedArena, fitPrerenderedCamera, type PrerenderedArena } from './prerendered-arena';
+import {
+  attachLockedPlateZoom,
+  createPrerenderedArena,
+  fitPrerenderedCamera,
+  lockedPlateZoomLimits,
+  plateTextureEdge,
+  type LockedPlateZoom,
+  type PrerenderedArena,
+} from './prerendered-arena';
 
 const FLIP_HALO_NAME = 'flip-preview-halo';
 import {
@@ -43,7 +51,7 @@ import {
   type PlaceSoundKind,
   type PlaceSfxPools,
 } from './sound/place-sfx';
-import { themeTokens, type ThemeId } from './theme';
+import { themeTokens } from './theme';
 import type {
   AssistGhostHint,
   BoardAssistState,
@@ -110,7 +118,6 @@ export interface BoardSceneOptions {
   pieces: PieceGeometrySet;
   /** Players used for materials (default A/B). */
   players?: string[];
-  initialTheme?: ThemeId;
   /** Board slab thickness in world units (default {@link BOARD.SLAB}). */
   boardSlab?: number;
   /** Y of the playfield/table top where piece bases rest (default 0). */
@@ -135,10 +142,8 @@ export interface PlayfieldGroundOptions {
   surfaceY?: number;
   /** World units (square plane side). */
   size: number;
-  /** Ground + scene backdrop in light theme. */
+  /** Ground + scene backdrop. */
   surfaceColor: string;
-  /** When omitted, uses {@link surfaceColor} in dark theme too (e.g. white epic arenas). */
-  darkSurfaceColor?: string;
 }
 
 export async function createBoardScene(container: HTMLElement, options: BoardSceneOptions): Promise<SceneApi> {
@@ -146,13 +151,11 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   initPlaceSfx();
   const players = options.players ?? ['A', 'B'];
   const playfieldY = options.playfieldSurfaceY ?? BOARD.PLAYFIELD_SURFACE_Y;
-  let themeId: ThemeId = options.initialTheme ?? 'light';
-  options.pieces.onThemeChange?.(themeId);
-  let tokens = themeTokens(themeId);
+  let tokens = themeTokens();
 
   const scene = new THREE.Scene();
   applyPlayfieldBackdrop(scene, tokens.table);
-  const prerendered = options.prerenderedArena ? createPrerenderedArena(scene, options.prerenderedArena, themeId) : null;
+  const prerendered = options.prerenderedArena ? createPrerenderedArena(scene, options.prerenderedArena) : null;
   const renderer = createBoardWebGLRenderer();
   const disposeEnvironment = applyBoardEnvironment(scene, renderer);
   const boardLighting = applyBoardLighting(scene, renderer, {
@@ -218,41 +221,31 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     side: THREE.DoubleSide,
     depthWrite: false,
   });
-  function playfieldSurfaceColorForTheme(): string | null {
-    const spec = options.playfieldGround;
-    if (!spec) return null;
-    if (themeId === 'dark' && spec.darkSurfaceColor) return spec.darkSurfaceColor;
-    return spec.surfaceColor;
+  function playfieldSurfaceColor(): string | null {
+    return options.playfieldGround?.surfaceColor ?? null;
   }
 
   function syncPlayfieldGroundAppearance() {
-    const surface = playfieldSurfaceColorForTheme();
+    const surface = playfieldSurfaceColor();
     if (!surface || !playfieldGroundMaterial) return;
     playfieldGroundMaterial.color.set(surface);
     applyPlayfieldBackdrop(scene, surface);
-    prerendered?.setTheme(themeId);
   }
 
   function ensurePlayfieldGroundMaterial(): THREE.MeshStandardMaterial | THREE.MeshBasicMaterial {
     if (!playfieldGroundMaterial) {
       playfieldGroundMaterial = options.playfieldGround?.matchBackdrop
         ? new THREE.MeshBasicMaterial({ color: options.playfieldGround.surfaceColor, side: THREE.DoubleSide, toneMapped: false })
-        : new THREE.MeshStandardMaterial({
-        color: options.playfieldGround!.surfaceColor,
-        roughness: 0.82,
-        metalness: 0,
-        side: THREE.DoubleSide,
-      });
+        : createArenaGroundMaterial(options.playfieldGround!.surfaceColor);
       if (prerendered) playfieldGroundMaterial.colorWrite = false;
     }
     return playfieldGroundMaterial;
   }
 
   function rebuildMaterials() {
-    tokens = themeTokens(themeId);
-    syncClayMaterialTheme(themeId);
+    tokens = themeTokens();
     boardMaterial = clayEnvMaterial();
-    const compactSurface = playfieldSurfaceColorForTheme();
+    const compactSurface = playfieldSurfaceColor();
     if (compactSurface) applyPlayfieldBackdrop(scene, compactSurface);
     else applyPlayfieldBackdrop(scene, tokens.table);
     syncPlayfieldGroundAppearance();
@@ -314,7 +307,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   function assistGhostPieceRenderer(): AssistGhostPieceRenderer | null {
     if (!options.pieces.createAssistGhost) return null;
     return {
-      createVisual: hint => options.pieces.createAssistGhost!(hint, themeId),
+      createVisual: hint => options.pieces.createAssistGhost!(hint),
       positionY: assistGhostPositionY,
     };
   }
@@ -412,45 +405,6 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       } else if (halo) {
         halo.visible = false;
       }
-    }
-  }
-
-  function refreshPieceMaterials() {
-    for (const item of objects.values()) {
-      const player = item.mesh.userData.player as string;
-      const shape = item.mesh.userData.shape as string;
-      if (!shape) continue;
-      applyPieceMaterial(item.mesh, { id: item.pieceId, player, shape });
-    }
-    for (const mesh of pilesGroup.children) {
-      if (!(mesh instanceof THREE.Object3D)) continue;
-      const pick = mesh.userData.reserve as ReservePick | undefined;
-      if (!pick) continue;
-      applyPieceMaterial(mesh, { id: 'reserve', player: pick.player, shape: pick.shape });
-    }
-  }
-
-  function refreshPieceVisuals() {
-    if (!options.pieces.replaceVisual) return;
-    for (const item of objects.values()) {
-      const player = item.mesh.userData.player as string;
-      const shape = item.mesh.userData.shape as string;
-      if (!shape) continue;
-      const piece = { id: item.pieceId, player, shape } as EnginePiece;
-      options.pieces.replaceVisual!(item.mesh, piece);
-      applyPieceMaterial(item.mesh, piece);
-      const stack = snapshot.cells[Number(item.mesh.userData.cellIndex)] ?? [];
-      const stackIndex = stack.findIndex(p => p.id === item.pieceId);
-      tagPieceForShadows(item.mesh, stackedPiecesReceiveShadow && stackIndex > 0);
-    }
-    for (const mesh of pilesGroup.children) {
-      if (!(mesh instanceof THREE.Object3D)) continue;
-      const pick = mesh.userData.reserve as ReservePick | undefined;
-      if (!pick) continue;
-      const piece = { id: 'reserve', player: pick.player, shape: pick.shape } as EnginePiece;
-      options.pieces.replaceVisual!(mesh, piece);
-      applyPieceMaterial(mesh, piece);
-      tagPieceForShadows(mesh, false);
     }
   }
 
@@ -758,9 +712,22 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
   controls.touches.ONE = THREE.TOUCH.PAN;
   controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
-  if (prerendered) {
+  let plateZoom: LockedPlateZoom | null = null;
+  if (prerendered && options.prerenderedArena) {
     controls.enableRotate = controls.enablePan = controls.enableZoom = false;
     controls.enabled = false;
+    const limits = lockedPlateZoomLimits(plateTextureEdge(options.prerenderedArena.light), options.prerenderedArena.camera);
+    plateZoom = attachLockedPlateZoom({
+      camera,
+      domElement: renderer.domElement,
+      minZoom: limits.min,
+      maxZoom: limits.max,
+      onChange: () => {
+        syncBoardGridLines();
+        requestRender();
+        container.dispatchEvent(new CustomEvent('camera-change'));
+      },
+    });
   }
   function syncBoardGridLines() {
     applyBoardGridLineScreenScale(board, boardGridLineScreenScale(camera, viewportHeight));
@@ -808,14 +775,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     const bounds = container.getBoundingClientRect();
     width = Math.max(1, Math.round(bounds.width));
     viewportHeight = Math.max(1, Math.round(bounds.height));
-    const dpr = window.devicePixelRatio || 1;
-    const renderScale = Math.min(
-      prerendered ? Math.min(dpr, 1.5) : Math.max(CAMERA.minRenderScale, dpr),
-      CAMERA.maxPixelRatio,
-      Math.sqrt((prerendered ? 1_500_000 : CAMERA.maxBufferPixels) / (width * viewportHeight)),
-    );
-    const nextBufferWidth = Math.max(1, Math.round(width * renderScale));
-    const nextBufferHeight = Math.max(1, Math.round(viewportHeight * renderScale));
+    const buffer = boardDrawingBufferSize(width, viewportHeight, { prerendered: !!prerendered });
+    const nextBufferWidth = buffer.width;
+    const nextBufferHeight = buffer.height;
     if (nextBufferWidth !== bufferWidth || nextBufferHeight !== bufferHeight) {
       bufferWidth = nextBufferWidth;
       bufferHeight = nextBufferHeight;
@@ -827,7 +789,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   function fit(reframe = false) {
     const aspect = syncRendererSize();
     if (options.prerenderedArena) {
-      fitPrerenderedCamera(camera, options.prerenderedArena.camera, aspect);
+      fitPrerenderedCamera(camera, options.prerenderedArena.camera, aspect, plateZoom?.zoom() ?? 1);
       syncBoardGridLines();
       syncShadowFrustum();
       requestRender();
@@ -1315,20 +1277,6 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       view = next;
       updateInteraction();
     },
-    setTheme(id) {
-      themeId = id;
-      rebuildMaterials();
-      syncPlayfieldGroundAppearance();
-      boardLighting.syncThemeAmbientFill(id);
-      options.pieces.onThemeChange?.(id);
-      refreshPieceVisuals();
-      refreshPieceMaterials();
-      flipHaloMaterial.color.set(tokens.win);
-      assistLayer.applyTheme(tokens);
-      assistLayer.setGhostPieceRenderer(assistGhostPieceRenderer());
-      assistLayer.update(assistState, cellPosition);
-      requestRender();
-    },
     setBoardAssist(state) {
       assistState = state;
       assistLayer.update(assistState, cellPosition);
@@ -1481,6 +1429,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       flipHaloMaterial.dispose();
       playfieldGroundMaterial?.dispose();
       backdropShadowMaterial?.dispose();
+      plateZoom?.dispose();
       prerendered?.dispose();
       renderer.dispose();
       renderer.domElement.remove();

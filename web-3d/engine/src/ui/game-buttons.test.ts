@@ -83,14 +83,13 @@ describe('createGameButtons menu', () => {
       mount,
       basePageStyles: false,
       aiStrengthStorageKey: 'test-ai-key',
-      applyTheme: () => {},
       onNewGameReset: () => {},
     });
     bar.openMenu();
     expect(mount.querySelector('[data-testid="new-game"]')).toBeTruthy();
     expect(mount.querySelector('[data-testid="restart-round"]')).toBeTruthy();
     expect(mount.querySelector('[data-testid="ai-strength"]')).toBeTruthy();
-    expect(mount.querySelector('[data-testid="theme-toggle"]')).toBeTruthy();
+    expect(mount.querySelector('[data-testid="theme-toggle"]')).toBeNull();
     expect(mount.querySelector('[data-testid="sound-toggle"]')).toBeTruthy();
     expect(mount.querySelector('[data-testid="back-to-lobby"]')).toBeTruthy();
     expect(mount.querySelector('[data-testid="fullscreen-toggle"]')).toBeTruthy();

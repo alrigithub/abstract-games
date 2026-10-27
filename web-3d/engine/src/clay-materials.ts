@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { CLAY } from './constants';
-import type { ThemeId } from './theme';
 
 export type ClayMaterialRole = 'env' | 'piece_light' | 'piece_dark';
 
@@ -11,8 +10,6 @@ export const CLAY_BLENDER_MATERIAL_NAMES: Record<string, ClayMaterialRole> = {
 };
 
 const CLAY_USER_DATA = 'clayMaterialRole' as const;
-
-let activeTheme: ThemeId = 'light';
 
 const bank: Record<ClayMaterialRole, THREE.MeshStandardMaterial> = {
   env: createClayMat(CLAY.ENV),
@@ -33,16 +30,6 @@ function createClayMat(hex: string): THREE.MeshStandardMaterial {
 bank.env.side = THREE.DoubleSide;
 bank.env.depthWrite = true;
 bank.env.roughness = CLAY.ENV_MATERIAL_ROUGHNESS;
-
-function envHexForTheme(themeId: ThemeId): string {
-  return themeId === 'dark' ? CLAY.ENV_DARK : CLAY.ENV;
-}
-
-/** Update shared env albedo when the document theme changes (piece clays stay fixed). */
-export function syncClayMaterialTheme(themeId: ThemeId): void {
-  activeTheme = themeId;
-  bank.env.color.set(envHexForTheme(themeId));
-}
 
 export function clayMaterialRoleForName(materialName: string | undefined): ClayMaterialRole | null {
   if (!materialName) return null;
@@ -133,14 +120,4 @@ export function clayMaterialForPlayer(player: string): THREE.MeshStandardMateria
 
 export function clayEnvMaterial(): THREE.MeshStandardMaterial {
   return getClayMaterial('env');
-}
-
-/** @internal tests */
-export function clayMaterialBankSnapshot(): { env: string; pieceLight: string; pieceDark: string; theme: ThemeId } {
-  return {
-    env: `#${bank.env.color.getHexString()}`,
-    pieceLight: `#${bank.piece_light.color.getHexString()}`,
-    pieceDark: `#${bank.piece_dark.color.getHexString()}`,
-    theme: activeTheme,
-  };
 }

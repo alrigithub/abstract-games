@@ -1,14 +1,13 @@
 import {
   BOARD,
   GOMOKU_DIMS,
-  applyArenaGlbAuthoredMaterials,
+  applyArenaPlayfieldMaterial,
   gomokuCellWorld,
   liftAuthoredArenaBoardLines,
   loadGltfAsync,
   mapUrl,
   tagArenaGlbForShadows,
   tagExcludeFromBounds,
-  type ThemeId,
 } from '@abstract/three-engine';
 import * as THREE from 'three';
 import { PropertyBinding } from 'three';
@@ -37,10 +36,10 @@ const _box = new THREE.Box3();
 
 export interface GomokuArenaLayout {
   readonly root: THREE.Group;
+  /** World Y of the lowest cell paving. The ground plane sits just under this so joints stay visible. */
+  readonly pavingFloorY: number;
   surfaceY(row: number, col: number): number;
   frameBounds(): THREE.Box3;
-  /** Arena keeps authored sage albedo; theme only affects stones and chrome. */
-  setTheme(_themeId: ThemeId): void;
 }
 
 function arenaAssetUrl(): string {
@@ -89,6 +88,23 @@ function alignArenaVertical(root: THREE.Group, surfaceByCell: Map<string, number
   root.updateMatrixWorld(true);
 }
 
+/** Lowest world Y of the cell tiles (bevels and joints), after the arena is aligned. */
+function measurePavingFloorY(root: THREE.Object3D): number {
+  const box = new THREE.Box3();
+  const acc = new THREE.Box3();
+  let any = false;
+  root.updateMatrixWorld(true);
+  root.traverse(node => {
+    if (!(node as THREE.Mesh).isMesh || !node.name.startsWith('Cell')) return;
+    box.setFromObject(node);
+    if (!any) {
+      acc.copy(box);
+      any = true;
+    } else acc.union(box);
+  });
+  return any ? acc.min.y : BOARD.PLAYFIELD_SURFACE_Y;
+}
+
 function prepareArenaScene(scene: THREE.Group): THREE.Group {
   tagExcludeFromBounds(scene);
   const remove: THREE.Object3D[] = [];
@@ -97,7 +113,7 @@ function prepareArenaScene(scene: THREE.Group): THREE.Group {
   });
   for (const obj of remove) obj.parent?.remove(obj);
 
-  applyArenaGlbAuthoredMaterials(scene);
+  applyArenaPlayfieldMaterial(scene);
   liftAuthoredArenaBoardLines(scene);
   tagArenaGlbForShadows(scene);
   return scene;
@@ -122,7 +138,7 @@ export function gomokuArenaPlacementError(row: number, col: number): number {
   return Math.hypot(arena.x - target.x, arena.y - target.z);
 }
 
-export async function loadGomokuArenaLayout(_initialTheme: ThemeId = 'light'): Promise<GomokuArenaLayout> {
+export async function loadGomokuArenaLayout(): Promise<GomokuArenaLayout> {
   const gltf = await loadGltfAsync(arenaAssetUrl());
   const root = prepareArenaScene(gltf.scene);
   root.name = 'gomoku-arena-15x15';
@@ -133,18 +149,17 @@ export async function loadGomokuArenaLayout(_initialTheme: ThemeId = 'light'): P
   surfaceByCell = buildSurfaceMap(root);
 
   const fallbackY = BOARD.PLAYFIELD_SURFACE_Y;
+  const pavingFloorY = measurePavingFloorY(root);
 
   return {
     root,
+    pavingFloorY,
     surfaceY(row, col) {
       return surfaceByCell.get(`${row},${col}`) ?? fallbackY;
     },
     frameBounds() {
       _box.setFromObject(root);
       return _box.clone();
-    },
-    setTheme(_themeId: ThemeId) {
-      /* authored sage albedo — no arenaSurface retint */
     },
   };
 }

@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { BOARD, CLAY } from './constants';
 import { expandBoxByPlayfieldContent, tagExcludeFromBounds } from './playfield-bounds';
 import { PLAYFIELD_GROUND_USER_DATA } from './playfield-ground';
-import { themeTokens, type ThemeId } from './theme';
 import { ARENA_SHADOW_USER_DATA } from './board-arena-glb';
 
 export interface BoardLightingOptions {
@@ -15,19 +14,22 @@ export interface BoardLightingOptions {
   ambientFill?: boolean;
   /** Override {@link CLAY.KEY_LIGHT_INTENSITY} for a single demo (e.g. Boop stone vases). */
   keyLightIntensity?: number;
-  /** Override default hemisphere fill in light theme (default 0.34). */
+  /** Override default hemisphere fill (default 0.34). */
   hemisphereIntensityLight?: number;
-  /** Override default hemisphere fill in dark theme (default 0.36). */
-  hemisphereIntensityDark?: number;
 }
+
+/** Sun and fill used by Boop's arena GLB and Gomoku's go-map. */
+export const ARENA_GLB_BOARD_LIGHTING: BoardLightingOptions = {
+  ambientFill: true,
+  keyLightIntensity: 1.72,
+  hemisphereIntensityLight: 0.26,
+};
 
 export interface BoardLightingHandle {
   readonly light: THREE.DirectionalLight;
   fitToBox(box: THREE.Box3): void;
   fitToPoints(points: THREE.Vector3[]): void;
   refreshMapSize(): void;
-  /** Sync hemisphere fill colours when the document theme changes (no-op if fill disabled). */
-  syncThemeAmbientFill(themeId: ThemeId): void;
   dispose(): void;
 }
 
@@ -126,31 +128,12 @@ export function applyBoardLighting(
 
   let hemisphere: THREE.HemisphereLight | null = null;
   const hemiLight = options.hemisphereIntensityLight ?? 0.34;
-  const hemiDark = options.hemisphereIntensityDark ?? 0.36;
   if (options.ambientFill) {
-    hemisphere = new THREE.HemisphereLight(0xffffff, 0x888880, 0.3);
+    hemisphere = new THREE.HemisphereLight(0xffffff, 0xdcdcdc, hemiLight);
     scene.add(hemisphere);
   }
 
   const tmpBox = new THREE.Box3();
-
-  function syncThemeAmbientFill(themeId: ThemeId) {
-    if (!hemisphere) return;
-    const tokens = themeTokens(themeId);
-    if (themeId === 'light') {
-      // Neutral fill — avoids warm double-tint on authored sage PBR tiles.
-      hemisphere.color.set('#ffffff');
-      hemisphere.groundColor.set('#dcdcdc');
-      hemisphere.intensity = hemiLight;
-      return;
-    }
-    const sky = new THREE.Color(CLAY.ENV_DARK);
-    const ground = new THREE.Color(CLAY.BACKDROP);
-    hemisphere.color.copy(sky);
-    hemisphere.groundColor.copy(ground);
-    hemisphere.intensity = hemiDark;
-  }
-  syncThemeAmbientFill('light');
 
   function fitToBox(box: THREE.Box3) {
     tmpBox.copy(box);
@@ -195,7 +178,6 @@ export function applyBoardLighting(
       applyShadowMapSettings(light, chooseShadowMapSize());
       light.shadow.needsUpdate = true;
     },
-    syncThemeAmbientFill,
     dispose() {
       scene.remove(light);
       scene.remove(target);

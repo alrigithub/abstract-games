@@ -51,7 +51,7 @@ describe('BoardAssistLayer', () => {
 
   it('draws run celebration halos without path segments', () => {
     const layer = new BoardAssistLayer();
-    layer.applyTheme(themeTokens('light'));
+    layer.applyTheme(themeTokens());
     layer.update(
       {
         runGlows: [{ markerCells: [0, 1, 2, 3, 4], strength: 'announce' }],

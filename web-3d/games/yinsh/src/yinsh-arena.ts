@@ -12,7 +12,6 @@ import {
   yinshBoardExtents,
   yinshCoordKey,
   yinshWorldPoint,
-  type ThemeId,
   type Topology,
   type YinshCoord,
 } from '@abstract/three-engine';
@@ -67,7 +66,7 @@ function alignArenaVertical(root: THREE.Group, meshes: THREE.Mesh[]): void {
   root.updateMatrixWorld(true);
 }
 
-function prepareArenaScene(scene: THREE.Group, themeId: ThemeId): THREE.Group {
+function prepareArenaScene(scene: THREE.Group): THREE.Group {
   tagExcludeFromBounds(scene);
   const remove: THREE.Object3D[] = [];
   scene.traverse(obj => {
@@ -75,7 +74,7 @@ function prepareArenaScene(scene: THREE.Group, themeId: ThemeId): THREE.Group {
   });
   for (const obj of remove) obj.parent?.remove(obj);
 
-  applyArenaGlbThemeMaterials(scene, themeId, YINSH_ARENA_MATERIALS);
+  applyArenaGlbThemeMaterials(scene, YINSH_ARENA_MATERIALS);
   liftAuthoredArenaBoardLines(scene);
   tagArenaGlbForShadows(scene);
   scene.name = 'yinsh-white-epic-arena';
@@ -86,7 +85,6 @@ export interface YinshArenaTemplate {
   readonly root: THREE.Group;
   surfaceY(coord: YinshCoord): number;
   frameBounds(): THREE.Box3;
-  setTheme(themeId: ThemeId): void;
 }
 
 function buildSurfaceMap(root: THREE.Group, meshes: THREE.Mesh[]): Map<string, number> {
@@ -102,9 +100,9 @@ function buildSurfaceMap(root: THREE.Group, meshes: THREE.Mesh[]): Map<string, n
   return map;
 }
 
-export async function loadYinshArenaTemplate(initialTheme: ThemeId = 'light'): Promise<YinshArenaTemplate> {
+export async function loadYinshArenaTemplate(): Promise<YinshArenaTemplate> {
   const gltf = await loadGltfAsync(arenaAssetUrl());
-  const root = prepareArenaScene(gltf.scene as THREE.Group, initialTheme);
+  const root = prepareArenaScene(gltf.scene as THREE.Group);
   const meshes = collectArenaMeshes(root);
   alignArenaVertical(root, meshes);
   const surfaceByCoord = buildSurfaceMap(root, meshes);
@@ -119,9 +117,6 @@ export async function loadYinshArenaTemplate(initialTheme: ThemeId = 'light'): P
     frameBounds() {
       _box.setFromObject(root);
       return _box.clone();
-    },
-    setTheme(themeId: ThemeId) {
-      applyArenaGlbThemeMaterials(root, themeId, YINSH_ARENA_MATERIALS);
     },
   };
 }
@@ -163,7 +158,6 @@ export const YINSH_PLAYFIELD_GROUND = {
   surfaceY: -0.16,
   matchBackdrop: true,
   surfaceColor: CLAY.BACKDROP,
-  darkSurfaceColor: CLAY.ENV_DARK,
 } as const;
 
 export function createYinshArenaTopology(arenaTemplate: THREE.Group): Topology {

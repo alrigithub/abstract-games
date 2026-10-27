@@ -1,4 +1,4 @@
-import { pxPerWorldUnit, type BoardSnapshot, type SceneApi, type ThemeId } from '@abstract/three-engine';
+import { pxPerWorldUnit, type BoardSnapshot, type SceneApi } from '@abstract/three-engine';
 import { cellAt } from './boop-interaction';
 import { boopFootprintWorldUnits } from './boop-placement-footprints';
 
@@ -6,7 +6,6 @@ export interface BoopDomContactShadowsOptions {
   board: HTMLElement;
   scene: SceneApi;
   getSnapshot: () => BoardSnapshot;
-  getTheme: () => ThemeId;
 }
 
 export interface BoopDomContactShadowsHandle {
@@ -33,8 +32,6 @@ export function createBoopDomContactShadows(options: BoopDomContactShadowsOption
 
   function sync() {
     const snap = options.getSnapshot();
-    const theme = options.getTheme();
-    layer.dataset.theme = theme;
     const boardRect = options.board.getBoundingClientRect();
     const seen = new Set<string>();
 

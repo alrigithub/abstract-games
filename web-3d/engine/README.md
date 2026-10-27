@@ -11,7 +11,6 @@ import {
   createSquareTopology,
   createTakPieceGeometries,
   takPieceGeometrySet,
-  readStoredTheme,
 } from '@abstract/three-engine';
 
 const geos = createTakPieceGeometries();
@@ -22,7 +21,6 @@ const scene = await createBoardScene(container, {
   gridSize: 5,
   topology,
   pieces,
-  initialTheme: readStoredTheme(),
 });
 
 const interaction = createInteraction({
@@ -51,9 +49,9 @@ const interaction = createInteraction({
 
 Piece animation timings live in `constants.ts` (`ANIMATION`, `INTERACTION`) and match the original Tak project.
 
-## Themes
+## Palette
 
-Call `scene.setTheme('light' \| 'dark')`. Defaults follow `prefers-color-scheme`; persist with `storeTheme()` / `readStoredTheme()`.
+Boards use the light clay palette only (pale avocado / light grey). There is no dark theme.
 
 ## AI / remote moves
 

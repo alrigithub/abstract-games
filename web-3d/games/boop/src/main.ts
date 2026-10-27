@@ -6,14 +6,13 @@ import {
   createGameButtons,
   DomPlacementGhost,
   BOOP_AI_STRENGTH_STORAGE_KEY,
+  ARENA_GLB_BOARD_LIGHTING,
+  ARENA_GLB_SURFACE_COLOR,
   DEFAULT_AI_STRENGTH_LEVELS,
   levelToSearchOptions,
-  readInitialTheme,
-  storeTheme,
   createLoadingScreen,
   setActiveLoadingScreen,
   type SceneApi,
-  type ThemeId,
 } from '@abstract/three-engine';
 import { applyBoopAnimationPacing, BOOP_ANIM } from './game/animation';
 import { cellAt, poolCellIndex, wireBoopInteraction, type BoopInteractionHandle } from './game/boop-interaction';
@@ -57,11 +56,9 @@ const topology = prerender
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 injectBoopUiStyles();
-let theme: ThemeId = readInitialTheme();
 const placementGhost = new DomPlacementGhost(board, {
   className: 'boop-placement-ghost',
   testId: 'boop-placement-ghost',
-  theme,
 });
 
 const scene = await loading.track(
@@ -71,19 +68,13 @@ const scene = await loading.track(
   outsideRows: OUTSIDE_ROWS,
   topology,
   pieces,
-  initialTheme: theme,
   playfieldSurfaceY: boardPlayfieldTopY(),
   playfieldGround: {
     matchBackdrop: !!prerender,
     size: boopPlayfieldGroundSize(size, OUTSIDE_ROWS),
-    surfaceColor: '#ffffff',
+    surfaceColor: ARENA_GLB_SURFACE_COLOR,
   },
-  boardLighting: {
-    ambientFill: true,
-    keyLightIntensity: 1.72,
-    hemisphereIntensityLight: 0.26,
-    hemisphereIntensityDark: 0.3,
-  },
+  boardLighting: ARENA_GLB_BOARD_LIGHTING,
   placeSfx: {
     place: BOOP_DEMO_PLACE_SFX_URLS,
     boop: BOOP_DEMO_BOOP_SFX_URLS,
@@ -98,19 +89,9 @@ const domContactShadows = createBoopDomContactShadows({
   board,
   scene,
   getSnapshot: () => controller?.getSnapshot() ?? { cellCount: 0, playableCells: 0, cells: [] },
-  getTheme: () => theme,
 });
 
 const stage = board.querySelector('canvas') ?? board;
-
-function applyTheme(id: ThemeId) {
-  theme = id;
-  scene.setTheme(id);
-  placementGhost.applyTheme(id);
-  interaction?.setGhostTheme(id);
-  thumbControl?.applyTheme(id);
-  domContactShadows.sync();
-}
 
 const cameraViews = scene.createCameraViews();
 
@@ -137,7 +118,6 @@ controller = new BoopController({
 gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
   cameraViews: prerender ? undefined : cameraViews,
-  applyTheme,
   aiStrengthStorageKey: BOOP_AI_STRENGTH_STORAGE_KEY,
   onAiStrengthChange: () => controller.renderStatus(),
   onNewGameReset: () => {
@@ -153,7 +133,6 @@ gameButtons = createGameButtons({
 thumbControl = createBoopThumbControl({
   mount: board,
   initialKind: controller.getStickyKind(),
-  theme,
   onKindChange: kind => controller.setStickyKind(kind),
 });
 await loading.track(controller.init(), 'Wiring Boop interaction');
@@ -169,7 +148,6 @@ window.__boopController = controller;
 declare global {
   interface Window {
     __boopScene?: SceneApi;
-    __boopSetTheme?: (theme: ThemeId) => void;
     __boopController?: BoopController;
     __boopSmokePickAndPlace?: () => Promise<void>;
     __boopAssertGrounding?: () => { ok: boolean; maxGap: number; boardTop: number; bases: number[] };
@@ -231,17 +209,6 @@ window.__boopSetScreenshotCamera = () => {
   );
 };
 
-window.__boopSetTheme = (id: ThemeId) => {
-  storeTheme(id);
-  applyTheme(id);
-};
-
-const params = new URLSearchParams(location.search);
-const forcedTheme = params.get('theme');
-if (forcedTheme === 'light' || forcedTheme === 'dark') {
-  window.__boopSetTheme(forcedTheme);
-}
-
 function mountBoardOverlays(boardEl: HTMLElement) {
   const canvas = boardEl.querySelector('canvas');
   if (canvas instanceof HTMLElement) {
@@ -290,15 +257,6 @@ function injectBoopUiStyles() {
         transparent 84%
       );
     }
-    .boop-dom-contact-shadows[data-theme='dark'] .boop-dom-contact-shadow {
-      background: radial-gradient(
-        circle,
-        rgba(0, 0, 0, 0.55) 0%,
-        rgba(0, 0, 0, 0.32) 38%,
-        rgba(0, 0, 0, 0.12) 62%,
-        transparent 78%
-      );
-    }
     .game-button-status:empty {
       display: none;
     }
@@ -312,9 +270,6 @@ function injectBoopUiStyles() {
       z-index: 3;
       border: 2.5px solid var(--boop-accent);
       background: transparent;
-    }
-    .boop-placement-ghost[data-theme='dark'] {
-      --boop-accent: #5eead4;
     }
     .boop-thumb-control {
       position: absolute;
@@ -337,10 +292,6 @@ function injectBoopUiStyles() {
       filter: drop-shadow(0 2px 4px color-mix(in srgb, #000 22%, transparent));
       cursor: pointer;
       transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
-    }
-    .boop-thumb-control[data-theme='dark'] .boop-thumb-control__size {
-      border-color: color-mix(in srgb, var(--theme-ink, #fafaf9) 78%, transparent);
-      filter: drop-shadow(0 2px 5px color-mix(in srgb, #000 50%, transparent));
     }
     .boop-thumb-control__size:active {
       transform: scale(0.96);
@@ -368,10 +319,6 @@ function injectBoopUiStyles() {
     .boop-thumb-control__size[data-selected='true'] {
       border-color: #0d9488;
       box-shadow: 0 0 0 3px color-mix(in srgb, #0d9488 38%, transparent);
-    }
-    .boop-thumb-control[data-theme='dark'] .boop-thumb-control__size[data-selected='true'] {
-      border-color: #5eead4;
-      box-shadow: 0 0 0 3px color-mix(in srgb, #5eead4 34%, transparent);
     }
     .boop-placement-ghost {
       border-width: 3px;

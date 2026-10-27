@@ -4,14 +4,12 @@ import {
   clonePieceVisualTemplate,
   ensureMeshoptDecoderReady,
   createMeshoptGltfLoader,
-  pieceGlbSideForPlayer,
   pieceUrl,
   prepareAuthoredPieceGlb,
   PIECE_OPAQUE_MATERIALS_READY_USER_DATA,
   PIECE_SKIP_CAST_SHADOW_USER_DATA,
   type EnginePiece,
   type PieceGeometrySet,
-  type ThemeId,
 } from '@abstract/three-engine';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -244,13 +242,11 @@ async function loadTemplates(offlineShadows?: Record<StoneCatVariant, THREE.Buff
   return out;
 }
 
-let boopPieceTheme: ThemeId = 'light';
-
 function resolveTemplate(
   templates: Record<BoopVasePlayerId, Record<StoneCatVariant, StoneTemplate>>,
   piece: EnginePiece,
 ): StoneTemplate {
-  const player: BoopVasePlayerId = pieceGlbSideForPlayer(boopPieceTheme, piece.player);
+  const player: BoopVasePlayerId = piece.player === 'B' ? 'B' : 'A';
   const variant: StoneCatVariant = piece.shape === 'kitten' ? 'kitten' : 'cat';
   return templates[player][variant];
 }
@@ -283,9 +279,6 @@ function createStonePieceSet(
     },
     replaceVisual(root: THREE.Object3D, piece: EnginePiece) {
       mountModel(root as THREE.Group, clonePieceVisualTemplate(templateFor(piece).visual));
-    },
-    onThemeChange(id) {
-      boopPieceTheme = id;
     },
   };
 }

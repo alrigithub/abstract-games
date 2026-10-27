@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import type { ThemeId } from './theme';
 import { PIECE_SKIP_CAST_SHADOW_USER_DATA, setMeshShadowFlags } from './board-lighting';
 import { cloneMeshMaterials } from './ghost-visual';
 
@@ -25,21 +24,6 @@ function lightWhiteStoneMaterial(source: THREE.Material): THREE.Material {
   return material;
 }
 
-export interface ApplyPieceGlbThemeMaterialsOptions {
-  /** When true, keep authored GLB materials (textures, PBR) instead of clay overrides. */
-  keepGlbMaterials?: boolean;
-}
-
-/** Piece GLBs: optional no-op when keeping authored materials (theme must not repaint stones). */
-export function applyPieceGlbThemeMaterials(
-  root: THREE.Object3D,
-  _themeId: ThemeId,
-  options: ApplyPieceGlbThemeMaterialsOptions = { keepGlbMaterials: true },
-): void {
-  void _themeId;
-  void options;
-}
-
 /** Every mesh in an authored piece GLB casts and receives directional shadows. */
 export function tagPieceGlbMeshesForShadows(root: THREE.Object3D): void {
   setMeshShadowFlags(
@@ -56,8 +40,7 @@ export function tagPieceGlbMeshesForShadows(root: THREE.Object3D): void {
 }
 
 /** After load: isolate materials and configure shadows before templating. */
-export function prepareAuthoredPieceGlb(root: THREE.Object3D, themeId: ThemeId = 'light'): void {
-  applyPieceGlbThemeMaterials(root, themeId, { keepGlbMaterials: true });
+export function prepareAuthoredPieceGlb(root: THREE.Object3D): void {
   cloneMeshMaterials(root);
   root.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;

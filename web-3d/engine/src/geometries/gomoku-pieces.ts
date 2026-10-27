@@ -3,7 +3,7 @@ import { BOARD } from '../constants';
 import { clayEnvMaterial, clayMaterialForPlayer } from '../clay-materials';
 import { themeTokens } from '../theme';
 import { anchorGeometryBaseToY0 } from './anchor';
-import type { PieceGeometrySet, ThemeId } from '../types';
+import type { PieceGeometrySet } from '../types';
 
 /** Canonical sizes — see `web-3d/games/gomoku/IMPLEMENTED.md`. */
 export const GOMOKU_DIMS = {
@@ -76,8 +76,8 @@ export interface GomokuThemeMaterials {
   stoneB: THREE.MeshStandardMaterial;
 }
 
-export function gomokuThemeMaterials(theme: ThemeId): GomokuThemeMaterials {
-  const tokens = themeTokens(theme);
+export function gomokuThemeMaterials(): GomokuThemeMaterials {
+  const tokens = themeTokens();
   return {
     table: new THREE.Color(tokens.table),
     board: clayEnvMaterial(),

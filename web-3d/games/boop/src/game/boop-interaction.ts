@@ -7,7 +7,6 @@ import {
   type InteractionView,
   type SceneApi,
   type Selection,
-  type ThemeId,
 } from '@abstract/three-engine';
 import { nearestEmptyBedCell } from './boop-bed-snap';
 import { boopFootprintWorldUnits } from './boop-placement-footprints';
@@ -30,7 +29,6 @@ export interface BoopInteractionHandle {
   cancel(): void;
   dispose(): void;
   setStickyKind(kind: PieceKind): void;
-  setGhostTheme(theme: ThemeId): void;
   /** Programmatic tap place for AI (pool/resting → bed). */
   tapPlaceOnBed(fromIndex: number, toIndex: number, options?: { ai?: boolean }): Promise<void>;
   previewGhostAt(cellIndex: number, kind: PieceKind): void;
@@ -196,7 +194,6 @@ export function wireBoopInteraction(
       ghost.hide();
     },
     setStickyKind: kind => getController().setStickyKind(kind),
-    setGhostTheme: theme => ghost.applyTheme(theme),
     tapPlaceOnBed,
     previewGhostAt(index, kind) {
       boardEl.dataset.ghostCell = String(index);

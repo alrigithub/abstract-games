@@ -8,12 +8,10 @@ import {
   applyGhostOpacity,
   clonePieceVisualTemplate,
   loadGltfAsync,
-  pieceGlbSideForPlayer,
   pieceUrl,
   prepareAuthoredPieceGlb,
   type AssistGhostHint,
   type PieceGeometrySet,
-  type ThemeId,
 } from '@abstract/three-engine';
 
 /** World-space ring outer diameter (hex spacing = 1; slight gap to neighbours). */
@@ -134,11 +132,9 @@ async function buildTemplates(): Promise<YinshTemplates> {
   };
 }
 
-let yinshPieceTheme: ThemeId = 'light';
-
 function templateFor(templates: YinshTemplates, piece: EnginePiece): THREE.Object3D {
   const shape = piece.shape === 'marker' ? 'marker' : 'ring';
-  const side = pieceGlbSideForPlayer(yinshPieceTheme, piece.player);
+  const side = piece.player === 'B' ? 'B' : 'A';
   return templates[shape][side];
 }
 
@@ -202,10 +198,7 @@ export async function loadYinshPieceGeometrySet(): Promise<PieceGeometrySet> {
         configureStoneRenderOrder(model, shape);
         mountModel(root as THREE.Group, model);
       },
-      onThemeChange(id) {
-        yinshPieceTheme = id;
-      },
-      createAssistGhost(hint, _themeId) {
+      createAssistGhost(hint) {
         return buildAssistGhostVisual(templates, hint);
       },
     };

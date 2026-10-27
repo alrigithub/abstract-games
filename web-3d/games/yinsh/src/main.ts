@@ -7,16 +7,12 @@ import {
   DEFAULT_LOBBY_HREF,
   AiWorkerSession,
   levelToSearchOptions,
-  applyDocumentTheme,
-  readInitialTheme,
   recordAiThinkMetrics,
-  THEME_STORAGE_KEY,
   YINSH_AI_STRENGTH_STORAGE_KEY,
   yinshWorldPoint,
   createLoadingScreen,
   setActiveLoadingScreen,
   type PieceGeometrySet,
-  type ThemeId,
   type Topology,
 } from '@abstract/three-engine';
 import type { AiResponse } from './game/ai.worker';
@@ -71,16 +67,14 @@ function yinshCloseupTopology(base: Topology, pieceSet: PieceGeometrySet): Topol
 }
 
 const pieces = await loading.track(loadYinshPieceGeometrySet(), 'Loading Yinsh ring and marker models');
-let theme: ThemeId = readInitialTheme();
 const yinshArena = ringCloseupShot
   ? null
-  : await loading.track(loadYinshArenaTemplate(theme), 'Loading arena map (yinsh-map.glb)');
+  : await loading.track(loadYinshArenaTemplate(), 'Loading arena map (yinsh-map.glb)');
 const topology = ringCloseupShot
   ? yinshCloseupTopology(createYinshTopology(), pieces)
   : createYinshArenaTopology(yinshArena!.root);
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
-applyDocumentTheme(theme);
 
 let humanPlayer: Player = 'A';
 let aiPlayer: Player = 'B';
@@ -98,7 +92,6 @@ const scene = await loading.track(
     gridSize: 11,
     topology,
     pieces,
-    initialTheme: theme,
     playfieldGround: ringCloseupShot
       ? undefined
       : {
@@ -109,13 +102,6 @@ const scene = await loading.track(
   'Starting board scene (WebGL + audio)',
 );
 const stage = board.querySelector('canvas') ?? board;
-
-function applyTheme(next: ThemeId) {
-  theme = next;
-  applyDocumentTheme(theme);
-  yinshArena?.setTheme(theme);
-  scene.setTheme(theme);
-}
 
 function activeRingMoveStart(): Coord | null {
   if (game.turnMode.tag === 'RingMovement') return ringMoveFrom ?? game.turnMode.start;
@@ -165,7 +151,6 @@ const gameButtons = createGameButtons({
   lobbyHref: DEFAULT_LOBBY_HREF,
   cameraViews,
   aiStrengthStorageKey: YINSH_AI_STRENGTH_STORAGE_KEY,
-  applyTheme,
   onAiStrengthChange: () => renderStatus(),
   onRestartRound: () => startGame(humanPlayer),
   firstPlayer: {
@@ -178,18 +163,6 @@ const gameButtons = createGameButtons({
     onSelect: id => startGame(id as Player),
   },
 });
-
-try {
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    try {
-      if (localStorage.getItem(THEME_STORAGE_KEY) === null) applyTheme(readInitialTheme());
-    } catch {
-      /* ignore */
-    }
-  });
-} catch {
-  /* ignore */
-}
 
 function startGame(human: Player) {
   stopAi();

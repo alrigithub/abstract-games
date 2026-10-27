@@ -1,24 +1,20 @@
-import type { ThemeId } from '@abstract/three-engine';
 import type { PieceKind } from './types';
 
 export interface BoopThumbControlOptions {
   mount: HTMLElement;
   initialKind: PieceKind;
   onKindChange: (kind: PieceKind) => void;
-  theme: ThemeId;
 }
 
 export interface BoopThumbControlHandle {
   setKind(kind: PieceKind): void;
   getKind(): PieceKind;
-  applyTheme(theme: ThemeId): void;
   destroy(): void;
 }
 
 /** Bottom-left small/big vase picker (two simple circles). */
 export function createBoopThumbControl(options: BoopThumbControlOptions): BoopThumbControlHandle {
   let kind = options.initialKind;
-  let theme = options.theme;
 
   const root = document.createElement('div');
   root.className = 'boop-thumb-control';
@@ -42,7 +38,6 @@ export function createBoopThumbControl(options: BoopThumbControlOptions): BoopTh
   options.mount.append(root);
 
   function sync() {
-    root.dataset.theme = theme;
     root.dataset.kind = kind;
     kittenBtn.dataset.selected = kind === 'kitten' ? 'true' : 'false';
     kittenBtn.setAttribute('aria-pressed', kind === 'kitten' ? 'true' : 'false');
@@ -68,10 +63,6 @@ export function createBoopThumbControl(options: BoopThumbControlOptions): BoopTh
       sync();
     },
     getKind: () => kind,
-    applyTheme(id) {
-      theme = id;
-      sync();
-    },
     destroy() {
       root.remove();
     },
