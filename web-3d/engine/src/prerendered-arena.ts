@@ -1,10 +1,8 @@
 import * as THREE from 'three';
-import type { ThemeId } from './theme';
 import { tagExcludeFromBounds } from './playfield-bounds';
 
 export interface PrerenderedArena {
   light: THREE.Texture;
-  dark: THREE.Texture;
   occluders?: THREE.Object3D;
   camera: {
     position: readonly number[];
@@ -31,7 +29,7 @@ export function fitPrerenderedCamera(camera: THREE.OrthographicCamera, spec: Pre
   camera.updateMatrixWorld(true);
 }
 
-export function createPrerenderedArena(scene: THREE.Scene, spec: PrerenderedArena, theme: ThemeId) {
+export function createPrerenderedArena(scene: THREE.Scene, spec: PrerenderedArena) {
   const direction = new THREE.Vector3(...spec.camera.position).sub(new THREE.Vector3(...spec.camera.target)).normalize();
   const material = new THREE.MeshBasicMaterial({ map: spec.light, toneMapped: false, fog: false, depthWrite: false });
   const geometry = new THREE.PlaneGeometry(spec.camera.width, spec.camera.height);
@@ -45,27 +43,15 @@ export function createPrerenderedArena(scene: THREE.Scene, spec: PrerenderedAren
   plate.renderOrder = -10;
   tagExcludeFromBounds(plate);
   scene.add(plate);
-  function setTheme(id: ThemeId) {
-    material.map = id === 'light' ? spec.light : spec.dark;
-    spec.occluders?.traverse(node => {
-      if (!(node instanceof THREE.Mesh)) return;
-      for (const mat of Array.isArray(node.material) ? node.material : [node.material]) {
-        if (!(mat instanceof THREE.MeshStandardMaterial)) continue;
-        if (mat.userData.plateLightColor === undefined) mat.userData.plateLightColor = mat.color.getHex();
-        mat.color.setHex(id === 'light' ? mat.userData.plateLightColor : 0x72716e);
-      }
-    });
-    const image = material.map.image as HTMLImageElement;
-    // Use the plate's own corner for seamless letterboxing, including Blender lighting.
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 1;
-    const ctx = canvas.getContext('2d');
-    if (ctx && image) {
-      ctx.drawImage(image, 0, 0, 1, 1, 0, 0, 1, 1);
-      const pixel = ctx.getImageData(0, 0, 1, 1).data;
-      scene.background = new THREE.Color().setRGB(pixel[0]! / 255, pixel[1]! / 255, pixel[2]! / 255, THREE.SRGBColorSpace);
-    }
+  const image = material.map?.image as HTMLImageElement | undefined;
+  // Use the plate's own corner for seamless letterboxing, including Blender lighting.
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 1;
+  const ctx = canvas.getContext('2d');
+  if (ctx && image) {
+    ctx.drawImage(image, 0, 0, 1, 1, 0, 0, 1, 1);
+    const pixel = ctx.getImageData(0, 0, 1, 1).data;
+    scene.background = new THREE.Color().setRGB(pixel[0]! / 255, pixel[1]! / 255, pixel[2]! / 255, THREE.SRGBColorSpace);
   }
-  setTheme(theme);
-  return { setTheme, dispose() { scene.remove(plate); geometry.dispose(); material.dispose(); spec.light.dispose(); spec.dark.dispose(); } };
+  return { dispose() { scene.remove(plate); geometry.dispose(); material.dispose(); spec.light.dispose(); } };
 }

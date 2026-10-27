@@ -6,13 +6,11 @@ import {
   createSquareTopology,
   INTERACTION,
   levelToSearchOptions,
-  readInitialTheme,
   TAK_AI_STRENGTH_STORAGE_KEY,
   createLoadingScreen,
   setActiveLoadingScreen,
   type InteractionApi,
   type InteractionView,
-  type ThemeId,
 } from '@abstract/three-engine';
 import { loadTakPieceGeometrySet } from './tak-piece-models';
 import { toEngineSnapshot, toTakSelection } from './bridge';
@@ -37,7 +35,6 @@ const sizeSelect = document.querySelector<HTMLSelectElement>('#size')!;
 const pieces = await loading.track(loadTakPieceGeometrySet(), 'Loading Tak piece models');
 let boardSize = 5;
 let topology = createSquareTopology({ size: boardSize, outsideRows: 6 });
-let theme: ThemeId = readInitialTheme();
 let state: BoardState = createSandboxState(boardSize);
 const history: BoardState[] = [];
 let sandbox = true;
@@ -49,18 +46,12 @@ const scene = await loading.track(
     outsideRows: 6,
     topology,
     pieces,
-    initialTheme: theme,
     boardSlab: BOARD.TAK_SLAB,
     stackedPiecesReceiveShadow: true,
   }),
   'Starting board scene (WebGL + audio)',
 );
 const stage = board.querySelector('canvas') ?? board;
-
-function applyTheme(id: ThemeId) {
-  theme = id;
-  scene.setTheme(id);
-}
 
 const cameraViews = scene.createCameraViews();
 
@@ -88,7 +79,6 @@ const gameButtons = createGameButtons({
   mount: document.querySelector<HTMLElement>('#game-buttons-mount')!,
   cameraViews,
   aiStrengthStorageKey: TAK_AI_STRENGTH_STORAGE_KEY,
-  applyTheme,
   gameActions: [
     {
       testId: 'flip-stone',
@@ -330,7 +320,6 @@ document.querySelector('#camera-mode')!.addEventListener('click', () => {
   (document.querySelector('#camera-mode') as HTMLButtonElement).textContent = cameraMode === 'pan' ? 'Pan' : 'Orbit';
 });
 
-applyTheme(theme);
 refresh();
 gameButtons.setStatus('Sandbox');
 menu.showModal();

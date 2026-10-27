@@ -98,8 +98,6 @@ export const CLAY = {
   ENV: '#cbd0be',
   /** Fog + scene background (subtle vignette, still grey-green). */
   BACKDROP: '#d9dad3',
-  /** Dark-theme environment albedo. */
-  ENV_DARK: '#72716e',
   PIECE_LIGHT: '#e8e4dc',
   PIECE_DARK: '#4a4a48',
   MATERIAL_ROUGHNESS: 0.88,

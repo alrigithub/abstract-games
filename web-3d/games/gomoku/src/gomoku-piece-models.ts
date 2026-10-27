@@ -7,13 +7,11 @@ import {
   clonePieceVisualTemplate,
   gomokuGlbStoneHeight,
   loadGltfAsync,
-  pieceGlbSideForPlayer,
   pieceUrl,
   prepareAuthoredPieceGlb,
   tagGhostForShadows,
   tagPieceForShadows,
   themeTokens,
-  type ThemeId,
 } from '@abstract/three-engine';
 type StonePlayer = 'A' | 'B';
 
@@ -28,9 +26,8 @@ export interface GomokuStoneAssets {
   readonly shadowGeometry: THREE.BufferGeometry;
   yawForId(id: string): number;
   createVisual(player: StonePlayer): THREE.Object3D;
-  createGhostVisual(player: StonePlayer, themeId: ThemeId): THREE.Object3D;
+  createGhostVisual(player: StonePlayer): THREE.Object3D;
   replaceVisual(root: THREE.Object3D, player: StonePlayer): void;
-  onThemeChange(themeId: ThemeId): void;
   dispose(): void;
 }
 
@@ -72,11 +69,8 @@ async function buildTemplates(): Promise<StoneTemplates> {
   return { A: prepareTemplate(white), B: prepareTemplate(black) };
 }
 
-let gomokuStoneTheme: ThemeId = 'light';
-
 function templateFor(templates: StoneTemplates, player: StonePlayer): THREE.Object3D {
-  const side = pieceGlbSideForPlayer(gomokuStoneTheme, player);
-  return side === 'A' ? templates.A : templates.B;
+  return player === 'B' ? templates.B : templates.A;
 }
 
 function mountModel(root: THREE.Group, model: THREE.Object3D) {
@@ -127,7 +121,7 @@ export async function loadGomokuStoneAssets(
       shadowGeometry,
       yawForId: gomokuStoneYawForId,
       createVisual,
-      createGhostVisual(player, themeId) {
+      createGhostVisual(player) {
         const ghost = createVisual(player);
         applyGhostOpacity(ghost, GLB_GHOST_OPACITY);
         tagGhostForShadows(ghost);
@@ -136,9 +130,6 @@ export async function loadGomokuStoneAssets(
       replaceVisual(root, player) {
         mountModel(root as THREE.Group, clonePieceVisualTemplate(templateFor(templates, player)));
         tagPieceForShadows(root, false);
-      },
-      onThemeChange(id) {
-        gomokuStoneTheme = id;
       },
       dispose() {
         shadowGeometry.dispose();
@@ -154,20 +145,17 @@ export async function loadGomokuStoneAssets(
       createVisual(player) {
         return createProceduralVisual(player, shadowGeometry, materials);
       },
-      createGhostVisual(player, themeId) {
+      createGhostVisual(player) {
         const mesh = createProceduralVisual(player, shadowGeometry, materials);
-        const mat = (mesh.material as THREE.MeshBasicMaterial).clone();
+        const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
         mat.transparent = true;
-        mat.opacity = themeTokens(themeId).ghostOpacity;
+        mat.opacity = themeTokens().ghostOpacity;
         mesh.material = mat;
         tagGhostForShadows(mesh);
         return mesh;
       },
       replaceVisual() {
         /* procedural stones update materials in the scene */
-      },
-      onThemeChange() {
-        /* procedural path uses theme materials from the scene */
       },
       dispose() {
         shadowGeometry.dispose();

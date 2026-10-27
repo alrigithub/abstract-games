@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { applyClayEnvMaterials } from './clay-materials';
-import type { ThemeId } from './theme';
 import { CLAY } from './constants';
 
 export const ARENA_SHADOW_USER_DATA = 'arenaShadowSurface';
@@ -63,18 +62,17 @@ export function tagArenaGlbForShadows(root: THREE.Object3D): void {
 export interface ApplyArenaGlbThemeMaterialsOptions {
   /** When true, keep authored GLB materials (colours, textures) instead of shared clay ENV. */
   keepGlbMaterials?: boolean;
-  /** Apply the menu palette while retaining authored normal/bump detail. */
+  /** Apply the light clay palette while retaining authored normal/bump detail. */
   tintToTheme?: boolean;
 }
 
 /** Shared clay ENV material for authored arena / environment GLBs. */
 export function applyArenaGlbThemeMaterials(
   root: THREE.Object3D,
-  themeId: ThemeId,
   options: ApplyArenaGlbThemeMaterialsOptions = {},
 ): void {
   if (options.tintToTheme) {
-    const color = new THREE.Color(themeId === 'light' ? CLAY.ENV : CLAY.ENV_DARK);
+    const color = new THREE.Color(CLAY.ENV);
     root.traverse(node => {
       if (!(node instanceof THREE.Mesh)) return;
       const tinted = Array.isArray(node.material)
@@ -88,18 +86,36 @@ export function applyArenaGlbThemeMaterials(
   applyClayEnvMaterials(root);
 }
 
-/** Matte PBR for arena GLBs that keep authored albedo (strips baked maps that tint under scene lighting). */
-export function applyArenaGlbAuthoredMaterials(root: THREE.Object3D): void {
+let sharedArenaPlayfieldMaterial: THREE.MeshStandardMaterial | undefined;
+
+/**
+ * One matte white material for arena GLBs that should shade like Boop's map:
+ * no albedo/AO/light maps, roughness 0.82, metalness 0, double-sided.
+ */
+export function arenaPlayfieldMaterial(): THREE.MeshStandardMaterial {
+  if (!sharedArenaPlayfieldMaterial) {
+    sharedArenaPlayfieldMaterial = new THREE.MeshStandardMaterial({
+      name: 'arena-playfield',
+      color: 0xffffff,
+      emissive: new THREE.Color(0x000000),
+      metalness: 0,
+      roughness: ARENA_ROUGHNESS,
+      side: THREE.DoubleSide,
+    });
+  }
+  return sharedArenaPlayfieldMaterial;
+}
+
+/** Replace every arena mesh material with {@link arenaPlayfieldMaterial}. */
+export function applyArenaPlayfieldMaterial(root: THREE.Object3D): void {
+  const material = arenaPlayfieldMaterial();
   root.traverse(node => {
     if (!(node instanceof THREE.Mesh)) return;
-    const mesh = node;
-    if (Array.isArray(mesh.material)) {
-      assignMeshMaterial(
-        mesh,
-        mesh.material.map(mat => matteArenaStandardMaterial(mat)),
-      );
-    } else {
-      assignMeshMaterial(mesh, matteArenaStandardMaterial(mesh.material));
+    const prev = node.material;
+    node.material = material;
+    const materials = Array.isArray(prev) ? prev : [prev];
+    for (const mat of materials) {
+      if (mat instanceof THREE.Material && mat !== material) mat.dispose();
     }
   });
 }

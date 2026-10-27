@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { configureBoardShadowMap } from './board-lighting';
-import { BOARD, CLAY } from './constants';
+import { BOARD, CAMERA, CLAY } from './constants';
 
 /**
  * Shared board rendering: sRGB output, AgX tone mapping, pixel ratio 1.
@@ -11,6 +11,32 @@ export function createBoardWebGLRenderer(): THREE.WebGLRenderer {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
   configureBoardWebGLRenderer(renderer);
   return renderer;
+}
+
+/**
+ * Drawing-buffer size for the shared board pipeline.
+ * Live geometry (Boop `?arena=3d`, Gomoku) uses at least {@link CAMERA.minRenderScale}
+ * and {@link CAMERA.maxBufferPixels}. A pre-rendered plate caps DPR at 1.5 and 1.5e6 pixels.
+ */
+export function boardDrawingBufferSize(
+  cssWidth: number,
+  cssHeight: number,
+  options: { prerendered?: boolean } = {},
+): { width: number; height: number } {
+  const width = Math.max(1, Math.round(cssWidth));
+  const height = Math.max(1, Math.round(cssHeight));
+  const dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
+  const pixelBudget = options.prerendered ? 1_500_000 : CAMERA.maxBufferPixels;
+  const resolution = options.prerendered ? Math.min(dpr, 1.5) : Math.max(CAMERA.minRenderScale, dpr);
+  const renderScale = Math.min(
+    resolution,
+    CAMERA.maxPixelRatio,
+    Math.sqrt(pixelBudget / (width * height)),
+  );
+  return {
+    width: Math.max(1, Math.round(width * renderScale)),
+    height: Math.max(1, Math.round(height * renderScale)),
+  };
 }
 
 export function configureBoardWebGLRenderer(renderer: THREE.WebGLRenderer): void {

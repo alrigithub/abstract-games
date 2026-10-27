@@ -46,7 +46,7 @@ with tempfile.TemporaryDirectory(prefix='render-', dir=work) as temporary:
         '--source-copy', str(work / 'boop-prerender-aligned.blend'),
         '--resolution', str(args.resolution), '--contrast', str(args.contrast), '--allow-grid-offsets',
     ], check=True)
-    for name in ('boop-light.png', 'boop-dark.png', 'boop-columns.glb', 'boop-arena.json'):
+    for name in ('boop-light.png', 'boop-columns.glb', 'boop-arena.json'):
         if not (stage / name).is_file():
             raise RuntimeError(f'Blender did not produce {name}; runtime assets were not changed')
     subprocess.run([
@@ -54,10 +54,9 @@ with tempfile.TemporaryDirectory(prefix='render-', dir=work) as temporary:
         '--output-directory', str(runtime), '--manifest-output', str(manifest),
     ], check=True)
     shutil.copy2(stage / 'boop-columns.glb', runtime / 'boop-columns.glb')
-    for theme in ('light', 'dark'):
-        shutil.copy2(stage / f'boop-{theme}.png', work / f'boop-{theme}.png')
+    shutil.copy2(stage / 'boop-light.png', work / 'boop-light.png')
 config_path.write_text(json.dumps({
     'arena': str(args.arena), 'grid': str(args.grid), 'blender': args.blender,
     'contrast': args.contrast,
 }, indent=2) + '\n')
-print(f'Updated both plates, columns and grid data. Blender preview: {work / "boop-prerender-aligned.blend"}')
+print(f'Updated the light plate, columns and grid data. Blender preview: {work / "boop-prerender-aligned.blend"}')

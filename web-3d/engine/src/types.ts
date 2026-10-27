@@ -97,10 +97,8 @@ export interface PieceGeometrySet {
   useOutline?(piece: EnginePiece): boolean;
   /** Override fill material(s); return null to use theme player color. */
   materialFor?(piece: EnginePiece, tokens: ThemeTokens, selected?: boolean): THREE.Material | THREE.Material[] | null;
-  /** GLB-backed sets: swap white/black models when the document theme changes. */
-  onThemeChange?(themeId: ThemeId): void;
   /** Move-assist translucent piece clone (same mesh as {@link createVisual}). */
-  createAssistGhost?(hint: AssistGhostHint, themeId: ThemeId): THREE.Object3D | null;
+  createAssistGhost?(hint: AssistGhostHint): THREE.Object3D | null;
 }
 
 export interface PieceBuildContext {
@@ -273,7 +271,6 @@ export interface SceneApi {
   setFlipPreview(pieceIds: readonly string[]): void;
   /** World position of a piece mesh (XZ center; Y = mesh origin). */
   getPieceWorldPosition(pieceId: string): { x: number; y: number; z: number } | null;
-  setTheme(theme: ThemeId): void;
   /** Shared top / axo camera presets (Back-to-Lobby bar Camera button). */
   createCameraViews(options?: { getBounds?: () => THREE.Vector3[] }): CameraViewController;
   setCameraMode(mode: 'pan' | 'orbit'): void;
@@ -328,13 +325,11 @@ export interface InteractionApi {
   dispose(): void;
 }
 
-export type ThemeId = 'light' | 'dark';
-
 export interface ThemeTokens {
   table: string;
   board: string;
   lines: string;
-  /** Matte PBR tint for 3D arena GLBs (off-white light, warm slate dark). */
+  /** Matte PBR tint for clay-tinted arena GLBs. */
   arenaSurface: string;
   win: string;
   /** Warm gold/amber accent for five-in-a-row celebration halos. */

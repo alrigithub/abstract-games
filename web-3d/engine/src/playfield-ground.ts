@@ -4,6 +4,30 @@ import { tagExcludeFromBounds } from './playfield-bounds';
 
 export const PLAYFIELD_GROUND_USER_DATA = 'playfieldGround' as const;
 
+/** White floor Boop uses under its arena (light theme and the live GLB path). */
+export const ARENA_GLB_SURFACE_COLOR = '#ffffff';
+
+/** Roughness shared by the live arena ground plane and {@link arenaPlayfieldMaterial}. */
+export const ARENA_GROUND_ROUGHNESS = 0.82;
+
+/**
+ * Square ground that pads a playfield the same way Boop's arena ground does.
+ * `playfieldSpan` is the world width of the bed (grid size + exterior rows).
+ */
+export function arenaPlayfieldGroundSize(playfieldSpan: number): number {
+  const half = playfieldSpan / 2 + 0.85;
+  return Math.ceil(half * 2 + 1.5);
+}
+
+export function createArenaGroundMaterial(surfaceColor: string): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color: surfaceColor,
+    roughness: ARENA_GROUND_ROUGHNESS,
+    metalness: 0,
+    side: THREE.DoubleSide,
+  });
+}
+
 /** Single shared ground extent — larger than any camera pan/zoom in {@link CAMERA} limits. */
 export function createPlayfieldGroundGeometry(
   size: number = BOARD.PLAYFIELD_GROUND_SIZE,

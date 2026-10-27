@@ -6,10 +6,10 @@
   <title>Abstract Games</title>
   <style>
     :root {
-      color-scheme: dark;
+      color-scheme: light;
       font-family: system-ui, sans-serif;
-      background: hsl(0, 0%, 5%);
-      color: hsl(0, 0%, 88%);
+      background: #d9dad3;
+      color: #1a1a1a;
     }
     body {
       max-width: 40rem;
@@ -33,14 +33,14 @@
       font-size: 1rem;
     }
     .sep {
-      color: hsl(0, 0%, 45%);
+      color: #71717a;
       margin: 0 0.15em;
     }
-    a { color: hsl(210, 80%, 65%); }
+    a { color: #2563eb; }
     button.rules {
       font: inherit;
       font-size: 0.92rem;
-      color: hsl(210, 45%, 58%);
+      color: #3f6212;
       background: none;
       border: none;
       padding: 0;
@@ -49,14 +49,14 @@
       text-underline-offset: 0.15em;
     }
     button.rules:hover {
-      color: hsl(210, 80%, 65%);
+      color: #2563eb;
     }
     .skim {
       margin: 0.2rem 0 0;
-      color: hsl(0, 0%, 52%);
+      color: #52525b;
       font-size: 0.88rem;
     }
-    p.note { color: hsl(0, 0%, 55%); font-size: 0.9rem; }
+    p.note { color: #52525b; font-size: 0.9rem; }
 
     /* Rules TLDR slide-over */
     .rules-overlay {
@@ -90,9 +90,9 @@
       width: min(100%, 22rem);
       max-height: min(92vh, 640px);
       margin: auto 0 auto auto;
-      background: hsl(0, 0%, 9%);
-      border-left: 1px solid hsl(0, 0%, 18%);
-      box-shadow: -8px 0 32px hsl(0, 0%, 0% / 0.45);
+      background: #f4f4f5;
+      border-left: 1px solid #e4e4e7;
+      box-shadow: -8px 0 32px rgba(0, 0, 0, 0.12);
       transform: translateX(100%);
       transition: transform 0.22s ease;
     }
@@ -105,7 +105,7 @@
       justify-content: space-between;
       gap: 0.75rem;
       padding: 0.75rem 1rem;
-      border-bottom: 1px solid hsl(0, 0%, 16%);
+      border-bottom: 1px solid #e4e4e7;
       flex-shrink: 0;
     }
     .rules-panel-header h2 {
@@ -116,16 +116,16 @@
     .rules-close {
       font: inherit;
       line-height: 1;
-      color: hsl(0, 0%, 70%);
-      background: hsl(0, 0%, 14%);
-      border: 1px solid hsl(0, 0%, 22%);
+      color: #3f3f46;
+      background: #ffffff;
+      border: 1px solid #d4d4d8;
       border-radius: 0.35rem;
       padding: 0.35rem 0.55rem;
       cursor: pointer;
     }
     .rules-close:hover {
-      color: hsl(0, 0%, 92%);
-      background: hsl(0, 0%, 18%);
+      color: #1a1a1a;
+      background: #f4f4f5;
     }
     .rules-scroll {
       overflow: auto;
@@ -138,11 +138,11 @@
       width: 100%;
       height: auto;
       border-radius: 0.35rem;
-      box-shadow: 0 2px 12px hsl(0, 0%, 0% / 0.35);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
     }
     .rules-panel-footer {
       padding: 0.75rem 1rem 1rem;
-      border-top: 1px solid hsl(0, 0%, 16%);
+      border-top: 1px solid #e4e4e7;
       flex-shrink: 0;
     }
     .rules-official {

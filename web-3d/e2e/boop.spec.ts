@@ -21,7 +21,7 @@ test('Boop pre-render stays registered when resized and ignores camera gestures'
   const errors = attachPageErrorCollectors(page);
   const requests: string[] = [];
   page.on('request', request => requests.push(request.url()));
-  await waitForBoardCanvas(page, '/?theme=light');
+  await waitForBoardCanvas(page, '/');
   await page.waitForFunction(() => document.querySelector('#board')?.dataset.ready === 'true');
   await expect(page.locator('[data-testid="camera-toggle"]')).toHaveCount(0);
   const before = await page.evaluate(() => window.__boopScene!.cellScreen(0));
@@ -41,8 +41,6 @@ test('Boop pre-render stays registered when resized and ignores camera gestures'
       }).filter(result => result.cell !== result.hit);
     })).toEqual([]);
   }
-  await page.evaluate(() => window.__boopSetTheme!('dark'));
-  await page.evaluate(() => window.__boopSetTheme!('light'));
   expect(requests.some(url => url.endsWith('boop-columns.glb'))).toBe(true);
   expect(requests.some(url => url.endsWith('boop-map.glb'))).toBe(false);
   expect(errors, errors.join('\n')).toEqual([]);

@@ -8,11 +8,9 @@ import {
   type PieceGeometrySet,
   clonePieceVisualTemplate,
   loadGltfAsync,
-  pieceGlbSideForPlayer,
   pieceUrl,
   prepareAuthoredPieceGlb,
   type TzaarKind,
-  type ThemeId,
 } from '@abstract/three-engine';
 
 /** One GLB per type × colour. Player A is ivory, B is black. */
@@ -92,10 +90,8 @@ async function buildTemplates(): Promise<TzaarTemplates> {
   };
 }
 
-let tzaarPieceTheme: ThemeId = 'light';
-
 function templateFor(templates: TzaarTemplates, piece: EnginePiece): THREE.Object3D {
-  const side: TzaarStoneSide = pieceGlbSideForPlayer(tzaarPieceTheme, piece.player);
+  const side: TzaarStoneSide = piece.player === 'B' ? 'B' : 'A';
   return templates[tzaarKindOf(piece)][side];
 }
 
@@ -132,9 +128,6 @@ export async function loadTzaarPieceGeometrySet(): Promise<PieceGeometrySet> {
       replaceVisual(root, piece) {
         const model = clonePieceVisualTemplate(templateFor(templates, piece));
         mountModel(root as THREE.Group, model);
-      },
-      onThemeChange(id) {
-        tzaarPieceTheme = id;
       },
     };
   } catch (error) {

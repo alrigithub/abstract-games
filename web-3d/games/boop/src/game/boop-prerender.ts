@@ -64,14 +64,13 @@ export function batchBoopColumns(columns: THREE.Group): void {
 
 export async function loadBoopPrerender() {
   const loader = new THREE.TextureLoader();
-  const [light, dark, gltf, cat, kitten] = await Promise.all([
+  const [light, gltf, cat, kitten] = await Promise.all([
     trackIfLoading(loader.loadAsync(asset('boop-light.webp')), 'Loading texture boop-light.webp'),
-    trackIfLoading(loader.loadAsync(asset('boop-dark.webp')), 'Loading texture boop-dark.webp'),
     loadGltfAsync(asset('boop-columns.glb')),
     loadBoopShadowGeometry(asset('boop-cat-shadow.glb')),
     loadBoopShadowGeometry(asset('boop-kitten-shadow.glb')),
   ]);
-  for (const texture of [light, dark]) texture.colorSpace = THREE.SRGBColorSpace;
+  light.colorSpace = THREE.SRGBColorSpace;
   const columns = gltf.scene;
   batchBoopColumns(columns);
   tagExcludeFromBounds(columns);
@@ -81,7 +80,7 @@ export async function loadBoopPrerender() {
     // Static column shadows are already in the plate; live pieces still shadow the columns.
     node.castShadow = false;
   });
-  const plate: PrerenderedArena = { light, dark, camera: manifest.camera, occluders: columns };
+  const plate: PrerenderedArena = { light, camera: manifest.camera, occluders: columns };
   return { columns, plate, shadows: { cat, kitten } };
 }
 

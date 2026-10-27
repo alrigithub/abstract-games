@@ -8,11 +8,9 @@ import {
   type EnginePiece,
   clonePieceVisualTemplate,
   loadGltfAsync,
-  pieceGlbSideForPlayer,
   pieceUrl,
   prepareAuthoredPieceGlb,
   type PieceGeometrySet,
-  type ThemeId,
 } from '@abstract/three-engine';
 
 /** Prior procedural flat width in world units (one cell ≈ 1). */
@@ -97,11 +95,9 @@ async function buildTemplates(): Promise<TakTemplates> {
   };
 }
 
-let takPieceTheme: ThemeId = 'light';
-
 function templateFor(templates: TakTemplates, piece: EnginePiece): THREE.Object3D {
   const shape = (piece.shape === 'standing' ? 'standing' : piece.shape === 'capstone' ? 'capstone' : 'flat') as ShapeKey;
-  const side = pieceGlbSideForPlayer(takPieceTheme, piece.player);
+  const side = piece.player === 'B' ? 'B' : 'A';
   return templates[shape][side];
 }
 
@@ -142,9 +138,6 @@ export async function loadTakPieceGeometrySet(): Promise<PieceGeometrySet> {
       replaceVisual(root, piece) {
         const model = clonePieceVisualTemplate(templateFor(templates, piece));
         mountModel(root as THREE.Group, model);
-      },
-      onThemeChange(id) {
-        takPieceTheme = id;
       },
     };
   } catch (error) {

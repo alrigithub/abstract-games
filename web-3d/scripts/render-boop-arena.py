@@ -166,7 +166,3 @@ for o in columns:
     o.visible_camera = False
 scene.render.filepath = os.path.join(args.output, 'boop-light.png')
 bpy.ops.render.render(write_still=True)
-stone.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (*srgb('72716e'), 1)
-ground.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (*srgb('72716e'), 1)
-scene.render.filepath = os.path.join(args.output, 'boop-dark.png')
-bpy.ops.render.render(write_still=True)

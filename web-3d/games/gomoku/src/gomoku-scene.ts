@@ -4,23 +4,30 @@ import {
   BOARD,
   CAMERA,
   GOMOKU_DIMS,
+  ARENA_GLB_BOARD_LIGHTING,
+  ARENA_GLB_SURFACE_COLOR,
   applyBoardEnvironment,
   applyBoardLighting,
+  applyPlayfieldBackdrop,
+  arenaPlayfieldGroundSize,
+  boardDrawingBufferSize,
+  createArenaGroundMaterial,
   createBoardRenderPipeline,
   createBoardWebGLRenderer,
-  syncClayMaterialTheme,
   createCameraViewController,
-  applyPlayfieldBackdrop,
+  createPlayfieldGroundMesh,
+  fitPlayfieldShadowCatcher,
   measureBoardFrameMs,
+  syncSceneShadowCatcher,
   tagGhostForShadows,
   tagExcludeFromBounds,
   tagPieceForShadows,
+  tagPlayfieldForShadows,
   gomokuCellWorld,
   gomokuThemeMaterials,
   playPiecePlaceSound,
   initPlaceSfx,
   type CameraViewController,
-  type ThemeId,
 } from '@abstract/three-engine';
 import { loadGomokuStoneAssets, type GomokuStoneAssets } from './gomoku-piece-models';
 import { loadGomokuArenaLayout, type GomokuArenaLayout } from './gomoku-arena';
@@ -36,7 +43,6 @@ export interface StoneRecord {
 }
 
 export interface GomokuSceneOptions {
-  theme?: ThemeId;
   stoneAssets?: GomokuStoneAssets;
   arenaLayout?: GomokuArenaLayout;
   onCellClick?: (row: number, col: number) => void;
@@ -45,7 +51,6 @@ export interface GomokuSceneOptions {
 }
 
 export interface GomokuSceneApi {
-  setTheme(id: ThemeId): void;
   setStones(stones: StoneRecord[], winLine: { row: number; col: number }[] | null): void;
   setHover(row: number | null, col: number | null, player: ScenePlayer | null): void;
   animateDrop(stone: StoneRecord): Promise<void>;
@@ -63,26 +68,22 @@ export async function createGomokuScene(
   options: GomokuSceneOptions = {},
 ): Promise<GomokuSceneApi> {
   initPlaceSfx();
-  let themeId: ThemeId = options.theme ?? 'light';
-  syncClayMaterialTheme(themeId);
-  let materials = gomokuThemeMaterials(themeId);
+  const materials = gomokuThemeMaterials();
   let inputEnabled = true;
 
   const [stoneAssets, arenaLayout] = await Promise.all([
     options.stoneAssets ?? loadGomokuStoneAssets(materials),
-    options.arenaLayout ?? loadGomokuArenaLayout(themeId),
+    options.arenaLayout ?? loadGomokuArenaLayout(),
   ]);
-  stoneAssets.onThemeChange(themeId);
 
   const size = GOMOKU_DIMS.GRID;
   const dropLift = stoneAssets.stoneHeight * 2;
   const scene = new THREE.Scene();
-  applyPlayfieldBackdrop(scene, materials.table);
+  applyPlayfieldBackdrop(scene, ARENA_GLB_SURFACE_COLOR);
 
   const renderer = createBoardWebGLRenderer();
   const disposeEnvironment = applyBoardEnvironment(scene, renderer);
-  const boardLighting = applyBoardLighting(scene, renderer, { ambientFill: true });
-  boardLighting.syncThemeAmbientFill(themeId);
+  const boardLighting = applyBoardLighting(scene, renderer, ARENA_GLB_BOARD_LIGHTING);
   container.appendChild(renderer.domElement);
 
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
@@ -96,7 +97,21 @@ export async function createGomokuScene(
   const ghostGroup = new THREE.Group();
   const winGlow = new GomokuWinGlowLayer();
   winGlow.attach(scene);
+  const arenaSpan = (() => {
+    const frame = arenaLayout.frameBounds();
+    return Math.max(frame.max.x - frame.min.x, frame.max.z - frame.min.z, 1);
+  })();
+  const ground = createPlayfieldGroundMesh(
+    createArenaGroundMaterial(ARENA_GLB_SURFACE_COLOR),
+    arenaPlayfieldGroundSize(arenaSpan),
+  );
+  // Cell tops rest on the shared playfield Y. The paving thickness hangs below that,
+  // and an opaque ground at the tops would lid over the joints. Sit the same white
+  // ground just under the tiles so the go grid reads.
+  ground.position.y = Math.min(arenaLayout.pavingFloorY, BOARD.PLAYFIELD_SURFACE_Y) - BOARD.LINE_LIFT;
+  boardGroup.add(ground);
   scene.add(boardGroup, stonesGroup, ghostGroup, arenaLayout.root);
+  tagPlayfieldForShadows(boardGroup);
 
   const stoneMeshes = new Map<string, THREE.Object3D>();
   let ghostMesh: THREE.Object3D | null = null;
@@ -124,6 +139,12 @@ export async function createGomokuScene(
     bounds.max.y = Math.max(bounds.max.y, stoneBaseY(7, 7) + stoneAssets.stoneHeight);
     bounds.expandByScalar(0.2);
     boardLighting.fitToBox(bounds);
+    const catcherBounds = bounds.clone();
+    catcherBounds.min.y = BOARD.PLAYFIELD_SURFACE_Y;
+    catcherBounds.max.y = BOARD.PLAYFIELD_SURFACE_Y + 0.01;
+    catcherBounds.expandByScalar(0.85);
+    syncSceneShadowCatcher(scene, catcherBounds, 0.55);
+    fitPlayfieldShadowCatcher(boardGroup, catcherBounds, 0.55);
   }
 
   syncShadowFrustum();
@@ -216,7 +237,7 @@ export async function createGomokuScene(
     ghostGroup.clear();
     ghostMesh = null;
     if (row === null || col === null || !player) return;
-    ghostMesh = stoneAssets.createGhostVisual(player, themeId);
+    ghostMesh = stoneAssets.createGhostVisual(player);
     tagGhostForShadows(ghostMesh);
     const p = gomokuCellWorld(size, row, col);
     ghostMesh.position.set(p.x, stoneBaseY(row, col), p.z);
@@ -271,6 +292,8 @@ export async function createGomokuScene(
   controls.addEventListener('change', () => requestRender());
 
   let cameraViewsRef: CameraViewController | null = null;
+  let bufferW = 0;
+  let bufferH = 0;
 
   function gomokuFramePoints(): THREE.Vector3[] {
     const bounds = arenaLayout.frameBounds();
@@ -285,9 +308,14 @@ export async function createGomokuScene(
 
   function syncViewport() {
     const bounds = container.getBoundingClientRect();
-    viewportW = Math.max(1, bounds.width);
-    viewportH = Math.max(1, bounds.height);
-    renderPipeline.setSize(viewportW, viewportH);
+    viewportW = Math.max(1, Math.round(bounds.width));
+    viewportH = Math.max(1, Math.round(bounds.height));
+    const buffer = boardDrawingBufferSize(viewportW, viewportH);
+    if (buffer.width !== bufferW || buffer.height !== bufferH) {
+      bufferW = buffer.width;
+      bufferH = buffer.height;
+      renderPipeline.setSize(bufferW, bufferH);
+    }
     return viewportW / viewportH;
   }
 
@@ -332,25 +360,6 @@ export async function createGomokuScene(
   fit();
 
   return {
-    setTheme(id: ThemeId) {
-      themeId = id;
-      materials.line.dispose();
-      materials.star.dispose();
-      syncClayMaterialTheme(themeId);
-      materials = gomokuThemeMaterials(themeId);
-      applyPlayfieldBackdrop(scene, materials.table);
-      arenaLayout.setTheme(themeId);
-      boardLighting.syncThemeAmbientFill(themeId);
-      stoneAssets.onThemeChange(themeId);
-      if (stoneAssets.usesGlb) {
-        for (const mesh of stoneMeshes.values()) {
-          const player = mesh.userData.player as ScenePlayer | undefined;
-          if (player) stoneAssets.replaceVisual(mesh, player);
-          tagPieceForShadows(mesh, false);
-        }
-      }
-      requestRender();
-    },
     setStones(stones: StoneRecord[], winLine: { row: number; col: number }[] | null) {
       const keep = new Set(stones.map(s => s.id));
       for (const [id, mesh] of stoneMeshes) {

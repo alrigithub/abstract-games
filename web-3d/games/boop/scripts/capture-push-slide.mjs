@@ -43,7 +43,7 @@ async function main() {
   try {
     const browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-    await page.goto(`${baseUrl}?theme=light`, { waitUntil: 'networkidle' });
+    await page.goto(baseUrl, { waitUntil: 'networkidle' });
     await page.waitForSelector('[data-testid="board"][data-ready="true"]', { timeout: 15_000 });
     await page.waitForFunction(() => window.__boopController != null, null, { timeout: 15_000 });
     await page.evaluate(() => window.__boopSetCameraPreset?.('axo'));

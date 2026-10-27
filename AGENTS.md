@@ -47,7 +47,7 @@ Deploy the **entire** `hosting-staging/` tree to Firebase Hosting site **bimsava
 - **Tests:** Vitest for rules/engine per package; Playwright smoke in `web-3d/e2e/` (`data-testid="board"`). No committed screenshot baselines — Playwright may capture on failure only.
 - **GLBs:** Never run `compress-glb` unless Alex explicitly asks for it. Commit GLBs exactly as provided. At runtime, load with the engine meshopt-capable loader (`ensureMeshoptDecoderReady`, `loadGltfAsync` / `createMeshoptGltfLoader` in `@abstract/three-engine`) so meshopt-compressed assets still work when present.
 - **Lighting:** Shared sun direction `LIGHT_DIR = normalize(1, √2, -1)` in `board-lighting.ts`; directional light with **real drop shadows** on every piece (shadow map fitted to playfield).
-- **Look:** Line-drawn boards on a large white playfield ground; **dark theme** is a full token inversion of the light palette (`invertThemeTokens`), not a separate art pass.
+- **Look:** Line-drawn boards on a large white playfield ground. The only palette is the light one (pale avocado / light grey). There is no dark theme, theme toggle, or `prefers-color-scheme` branch.
 
 ## Do not
 

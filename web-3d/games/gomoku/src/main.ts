@@ -3,12 +3,10 @@ import {
   createGameButtons,
   GOMOKU_AI_STRENGTH_STORAGE_KEY,
   playWinSoundAfterPlace,
-  readInitialTheme,
   recordAiThinkMetrics,
   createLoadingScreen,
   setActiveLoadingScreen,
   type GameButtonsBar,
-  type ThemeId,
 } from '@abstract/three-engine';
 import { GOMOKU_AI_STRENGTH_LEVELS, gomokuLevelToSearchOptions } from './game/ai';
 import { createGomokuScene, type ScenePlayer, type StoneRecord } from './gomoku-scene';
@@ -29,21 +27,11 @@ setActiveLoadingScreen(loading);
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 
-let theme: ThemeId = readInitialTheme();
-
 let humanColor: Player = 'black';
 let game: GameState = createGame();
 let aiPending = false;
 let aiGeneration = 0;
 const aiSession = new AiWorkerSession();
-
-function applyTheme(id: ThemeId) {
-  theme = id;
-  scene.setTheme(id);
-  // bindThemeToggle runs during createGameButtons — gameButtons is not initialized yet.
-  if (typeof gameButtons !== 'undefined') syncBoard();
-}
-
 
 function toScenePlayer(player: Player): ScenePlayer {
   return player === 'white' ? 'A' : 'B';
@@ -152,7 +140,6 @@ async function playMove(col: number, row: number, isHuman: boolean) {
 
 const scene = await loading.track(
   createGomokuScene(board, {
-    theme,
     onCellClick: (row, col) => void playMove(col, row, true),
     canInteract: () => !aiPending && !game.winner && game.toMove === humanColor,
     hoverPlayer: () => (game.winner || game.toMove !== humanColor ? null : toScenePlayer(humanColor)),
@@ -170,7 +157,6 @@ gameButtons = createGameButtons({
   aiStrengthStorageKey: GOMOKU_AI_STRENGTH_STORAGE_KEY,
   aiStrengthLevels: [...GOMOKU_AI_STRENGTH_LEVELS],
   onAiStrengthChange: level => renderStatus(undefined, level.label),
-  applyTheme,
   onFirstPlayerSelected: color => startGame(color),
   onRestartRound: () => startGame(humanColor),
 });

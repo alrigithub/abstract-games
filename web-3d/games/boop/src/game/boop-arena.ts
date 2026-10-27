@@ -1,5 +1,7 @@
 import {
   BOARD,
+  arenaPlayfieldGroundSize,
+  arenaPlayfieldMaterial,
   createSquareTopology,
   loadGltfAsync,
   mapUrl,
@@ -34,8 +36,6 @@ const INFINITE_LIGHT_GROUND_SANITIZED = PropertyBinding.sanitizeNodeName(INFINIT
 
 const GREENERY_NAME = /moss|groundcover|leaf|leaves|ivy|grass|plant|fern|vine|water/i;
 
-const PLAIN_WHITE = new THREE.Color(0xffffff);
-
 function isInfiniteLightGroundNode(obj: THREE.Object3D): boolean {
   return (
     obj.name === INFINITE_LIGHT_GROUND_RAW ||
@@ -60,22 +60,6 @@ function isGreeneryMaterial(mat: THREE.Material): boolean {
   return materialLooksGreen(mat);
 }
 
-let sharedArenaMaterial: THREE.MeshStandardMaterial | undefined;
-
-/** One matte white material for the baked arena (avoids hundreds of cloned GLB materials). */
-function arenaPlayfieldMaterial(): THREE.MeshStandardMaterial {
-  if (!sharedArenaMaterial) {
-    sharedArenaMaterial = new THREE.MeshStandardMaterial({
-      color: PLAIN_WHITE,
-      emissive: new THREE.Color(0x000000),
-      metalness: 0,
-      roughness: 0.82,
-      side: THREE.DoubleSide,
-    });
-  }
-  return sharedArenaMaterial;
-}
-
 function disposeMeshMaterials(mesh: THREE.Mesh): void {
   const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
   for (const mat of materials) mat.dispose();
@@ -85,7 +69,13 @@ const _arenaRootInv = new THREE.Matrix4();
 const _arenaBake = new THREE.Matrix4();
 
 function assignSharedArenaMaterial(mesh: THREE.Mesh): void {
-  mesh.material = arenaPlayfieldMaterial();
+  const next = arenaPlayfieldMaterial();
+  const prev = mesh.material;
+  mesh.material = next;
+  const materials = Array.isArray(prev) ? prev : [prev];
+  for (const mat of materials) {
+    if (mat instanceof THREE.Material && mat !== next) mat.dispose();
+  }
 }
 
 /** Alex's export ships ~270 tiny meshes; merge when attributes match, else one shared material. */
@@ -123,10 +113,7 @@ function consolidateArenaMeshes(scene: THREE.Group): void {
     return;
   }
 
-  for (const mesh of meshes) {
-    disposeMeshMaterials(mesh);
-    assignSharedArenaMaterial(mesh);
-  }
+  for (const mesh of meshes) assignSharedArenaMaterial(mesh);
 }
 
 function arenaAssetUrl(): string {
@@ -194,8 +181,7 @@ export function addBoopPlayGridLines(ctx: BoardBuildContext): void {
 
 /** Compact ground under the 6×6 bed + exterior pools (matches white arena). */
 export function boopPlayfieldGroundSize(gridSize: number, outsideRows: number): number {
-  const half = gridSize / 2 + outsideRows + 0.85;
-  return Math.ceil(half * 2 + 1.5);
+  return arenaPlayfieldGroundSize(gridSize + outsideRows * 2);
 }
 
 export function createBoopTopology(options: SquareGridOptions, arenaTemplate: THREE.Group): Topology {
