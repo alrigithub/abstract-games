@@ -121,13 +121,6 @@ export class BoopController {
 
   private syncStickyKindToDom() {
     const effective = this.effectiveStickyKind();
-    for (const kind of ['kitten', 'cat'] as const) {
-      const btn = document.querySelector<HTMLElement>(`[data-testid="boop-size-${kind === 'kitten' ? 'kitten' : 'cat'}"]`);
-      if (!btn) continue;
-      const active = effective === kind;
-      btn.dataset.selected = active ? 'true' : 'false';
-      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-    }
     this.onStickyKindChange?.(effective);
   }
 
@@ -180,7 +173,7 @@ export class BoopController {
     this.publishSnapshot();
     this.stickyKind = 'kitten';
     this.syncStickyKindToDom();
-    this.renderStatus('Your turn — tap a bed cell to place (pick kitten or cat below)');
+    this.renderStatus('Your turn — tap a bed cell to place');
   }
 
   getSnapshot(): BoardSnapshot {
@@ -382,7 +375,7 @@ export class BoopController {
     }
     this.setStatus(
       detail ??
-        'Click kitten or cat in the pool, then click an empty bed cell (ghost shows where it will land)',
+        'Tap an empty bed cell to place. The ring control switches small and big vases.',
     );
   }
 

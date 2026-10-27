@@ -1,6 +1,29 @@
 import { pxPerWorldUnit, type SceneApi } from '@abstract/three-engine';
 import { BOOP_GRID as GRID } from './boop-grid';
 
+const BED_CENTER = (GRID - 1) / 2;
+
+/**
+ * Bed cell under a playfield-plane hit. Matches the square-grid floor test
+ * (boundaries sit halfway between cell centres). No screen-space hysteresis.
+ */
+export function bedCellFromPlayfield(x: number, z: number): number | null {
+  const col = Math.floor(x + GRID / 2);
+  const row = Math.floor(z + GRID / 2);
+  if (row < 0 || col < 0 || row >= GRID || col >= GRID) return null;
+  return row * GRID + col;
+}
+
+/** World X of a bed column centre (playfield y = 0). */
+export function bedColumnWorldX(col: number): number {
+  return col - BED_CENTER;
+}
+
+/** World Z of a bed row centre (playfield y = 0). */
+export function bedRowWorldZ(row: number): number {
+  return row - BED_CENTER;
+}
+
 export interface BedSnapOptions {
   /** Screen px from cell centre to accept (includes gaps between cells). */
   maxSnapPx?: number;

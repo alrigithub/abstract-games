@@ -435,6 +435,8 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   const pointer = new THREE.Vector2();
   const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const rayPoint = new THREE.Vector3();
+  const screenProject = new THREE.Vector3();
+  const pointerFrame = { left: 0, top: 0, width: 0, height: 0 };
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const touches = new Map<number, PointerEvent>();
   let pressBlocksCamera = false;
@@ -453,6 +455,38 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     raycaster.setFromCamera(pointer, camera);
     plane.constant = -elevation;
     return raycaster.ray.intersectPlane(plane, rayPoint)?.clone() ?? null;
+  }
+
+  function refreshPointerFrame(out: { left: number; top: number; width: number; height: number }) {
+    const bounds = renderer.domElement.getBoundingClientRect();
+    pointerFrame.left = bounds.left;
+    pointerFrame.top = bounds.top;
+    pointerFrame.width = bounds.width;
+    pointerFrame.height = bounds.height;
+    out.left = pointerFrame.left;
+    out.top = pointerFrame.top;
+    out.width = pointerFrame.width;
+    out.height = pointerFrame.height;
+  }
+
+  function hitPlayfield(clientX: number, clientY: number, out: { x: number; z: number }): boolean {
+    const { left, top, width, height } = pointerFrame;
+    if (!width || !height) return false;
+    pointer.set(((clientX - left) / width) * 2 - 1, -((clientY - top) / height) * 2 + 1);
+    raycaster.setFromCamera(pointer, camera);
+    plane.constant = -playfieldY;
+    if (!raycaster.ray.intersectPlane(plane, rayPoint)) return false;
+    out.x = rayPoint.x;
+    out.z = rayPoint.z;
+    return true;
+  }
+
+  function projectToScreenInto(x: number, y: number, z: number, out: Point) {
+    camera.updateMatrixWorld();
+    screenProject.set(x, y, z).project(camera);
+    const { left, top, width, height } = pointerFrame;
+    out.x = left + ((screenProject.x + 1) * width) / 2;
+    out.y = top + ((1 - screenProject.y) * height) / 2;
   }
 
   function requestRender() {
@@ -1265,6 +1299,9 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
     hitTest(clientX, clientY) {
       return cellAtPointer(clientX, clientY);
     },
+    refreshPointerFrame,
+    hitPlayfield,
+    projectToScreenInto,
     hitReserve(clientX, clientY) {
       const slot = slotAt(clientX, clientY);
       if (!slot) return null;

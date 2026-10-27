@@ -5,17 +5,19 @@ import {
   createBoopKittenGeometry,
   createGameButtons,
   createSquareTopology,
-  DomPlacementGhost,
   BOOP_AI_STRENGTH_STORAGE_KEY,
   DEFAULT_AI_STRENGTH_LEVELS,
   levelToSearchOptions,
   createLoadingScreen,
+  LOBBY_FONT_FAMILY,
   setActiveLoadingScreen,
   type SceneApi,
 } from '@abstract/three-engine';
 import { applyBoopAnimationPacing, BOOP_ANIM } from './game/animation';
 import { cellAt, poolCellIndex, wireBoopInteraction, type BoopInteractionHandle } from './game/boop-interaction';
-import { createBoopThumbControl, type BoopThumbControlHandle } from './game/boop-thumb-control';
+import { BOOP_CONTROL_ART_PX } from './game/boop-ring-ui';
+import { BoopScreenMarker } from './game/boop-screen-marker';
+import { createBoopSizeControl, type BoopSizeControlHandle } from './game/boop-size-control';
 import { boardPlayfieldTopY } from './game/boop-grounding';
 import { createBoopPieceGeometrySet } from './game/boop-stone-cats';
 import { BOOP_DEMO_BOOP_SFX_URLS, BOOP_DEMO_PLACE_SFX_URLS } from './game/boop-sfx-manifest';
@@ -39,10 +41,7 @@ const topology = createSquareTopology({ size, outsideRows: OUTSIDE_ROWS });
 
 const board = document.querySelector<HTMLDivElement>('#board')!;
 injectBoopUiStyles();
-const placementGhost = new DomPlacementGhost(board, {
-  className: 'boop-placement-ghost',
-  testId: 'boop-placement-ghost',
-});
+const placementMarker = new BoopScreenMarker(board);
 
 const scene = await loading.track(
   createBoardScene(board, {
@@ -67,7 +66,7 @@ const cameraViews = scene.createCameraViews();
 
 let controller!: BoopController;
 let interaction!: BoopInteractionHandle;
-let thumbControl!: BoopThumbControlHandle;
+let sizeControl!: BoopSizeControlHandle;
 let gameButtons!: ReturnType<typeof createGameButtons>;
 
 controller = new BoopController({
@@ -81,7 +80,8 @@ controller = new BoopController({
     board.dataset.ready = 'true';
   },
   onStickyKindChange: kind => {
-    thumbControl?.setKind(kind);
+    sizeControl?.setKind(kind);
+    interaction?.refreshMarker();
   },
 });
 
@@ -100,14 +100,14 @@ gameButtons = createGameButtons({
   },
 });
 
-thumbControl = createBoopThumbControl({
+sizeControl = createBoopSizeControl({
   mount: board,
   initialKind: controller.getStickyKind(),
   onKindChange: kind => controller.setStickyKind(kind),
 });
 await loading.track(controller.init(), 'Wiring Boop interaction');
 mountBoardOverlays(board);
-interaction = wireBoopInteraction(stage as HTMLElement, board, scene, () => controller, placementGhost);
+interaction = wireBoopInteraction(stage as HTMLElement, board, scene, () => controller, placementMarker);
 await loading.done();
 setActiveLoadingScreen(null);
 controller.setAiPlaceTap((from, to) => interaction.tapPlaceOnBed(from, to, { ai: true }));
@@ -186,8 +186,8 @@ function mountBoardOverlays(boardEl: HTMLElement) {
   }
   const ghostEl = boardEl.querySelector('[data-testid="boop-placement-ghost"]');
   if (ghostEl) boardEl.appendChild(ghostEl);
-  const thumbEl = boardEl.querySelector('[data-testid="boop-thumb-control"]');
-  if (thumbEl) boardEl.appendChild(thumbEl);
+  const sizeEl = boardEl.querySelector('[data-testid="boop-thumb-control"]');
+  if (sizeEl) boardEl.appendChild(sizeEl);
 }
 
 function injectBoopUiStyles() {
@@ -207,71 +207,63 @@ function injectBoopUiStyles() {
     .game-button-status:empty {
       display: none;
     }
-    .boop-placement-ghost {
-      --boop-accent: #0d9488;
+    .boop-move-marker {
       position: absolute;
+      left: 0;
+      top: 0;
       pointer-events: none;
-      transform: translate(-50%, -50%);
-      border-radius: 50%;
-      box-sizing: border-box;
-      z-index: 3;
-      border: 2.5px solid var(--boop-accent);
-      background: transparent;
+      z-index: 4;
+      will-change: transform;
     }
-    .boop-thumb-control {
+    .boop-move-marker img {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .boop-size-control {
       position: absolute;
-      left: max(14px, env(safe-area-inset-left, 0px));
-      bottom: max(14px, env(safe-area-inset-bottom, 0px));
-      width: clamp(132px, 26vw, 168px);
-      height: 80px;
-      z-index: 5;
+      left: max(16px, env(safe-area-inset-left, 0px));
+      bottom: max(16px, env(safe-area-inset-bottom, 0px));
+      z-index: 6;
       pointer-events: none;
     }
-    .boop-thumb-control__size {
-      position: absolute;
+    .boop-size-control__button {
       pointer-events: auto;
-      box-sizing: border-box;
-      border: 1px solid var(--game-btn-border, #d4d4d8);
-      padding: 0;
+      touch-action: manipulation;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
       margin: 0;
-      border-radius: 50%;
-      background: var(--game-btn-bg, #fff);
-      color: inherit;
-      box-shadow: 0 1px 2px rgba(26, 26, 26, 0.12);
+      padding: 0;
+      border: 0;
+      background: transparent;
       cursor: pointer;
-      transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+      color: #2b2b28;
+      font-family: ${LOBBY_FONT_FAMILY};
+      font-weight: 600;
+      font-size: 15px;
+      line-height: 1.2;
+      -webkit-tap-highlight-color: transparent;
     }
-    .boop-thumb-control__size:active {
-      transform: scale(0.96);
+    .boop-size-control__button:active .boop-size-control__art {
+      transform: scale(0.97);
     }
-    .boop-thumb-control__size--kitten {
-      width: 36px;
-      height: 36px;
-      left: 4px;
-      top: 50%;
-      translate: 0 -50%;
-      background: radial-gradient(circle, #d6d3d1 0 34%, #fff 36%);
+    .boop-size-control__button:focus-visible {
+      outline: 2px solid #2b2b28;
+      outline-offset: 4px;
+      border-radius: 12px;
     }
-    .boop-thumb-control__size--cat {
-      width: 64px;
-      height: 64px;
-      right: 0;
-      top: 50%;
-      translate: 0 -50%;
-      background: radial-gradient(circle, #d6d3d1 0 38%, #fff 40%);
+    .boop-size-control__art {
+      width: ${BOOP_CONTROL_ART_PX}px;
+      height: ${BOOP_CONTROL_ART_PX}px;
+      display: block;
     }
-    .boop-thumb-control__size--kitten::before,
-    .boop-thumb-control__size--cat::before {
-      content: '';
-      position: absolute;
-      inset: -10px;
+    .boop-size-control__art[hidden] {
+      display: none !important;
     }
-    .boop-thumb-control__size[data-selected='true'] {
-      border-color: #0d9488;
-      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.35);
-    }
-    .boop-placement-ghost {
-      border-width: 3px;
+    .boop-size-control__label {
+      user-select: none;
     }
   `;
   document.head.append(style);

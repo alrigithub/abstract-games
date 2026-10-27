@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nearestEmptyBedCell } from './boop-bed-snap';
+import { bedCellFromPlayfield, bedColumnWorldX, bedRowWorldZ, nearestEmptyBedCell } from './boop-bed-snap';
 import type { SceneApi } from '@abstract/three-engine';
 
 function mockScene(centers: Record<number, { x: number; y: number }>, pxPerCell = 80): SceneApi {
@@ -9,6 +9,22 @@ function mockScene(centers: Record<number, { x: number; y: number }>, pxPerCell 
     },
   } as SceneApi;
 }
+
+describe('bedCellFromPlayfield', () => {
+  it('maps a cell centre back to that cell', () => {
+    expect(bedCellFromPlayfield(bedColumnWorldX(2), bedRowWorldZ(3))).toBe(3 * 6 + 2);
+  });
+
+  it('switches at the halfway boundary with no sticky band', () => {
+    const edge = (bedColumnWorldX(0) + bedColumnWorldX(1)) / 2;
+    expect(bedCellFromPlayfield(edge - 0.001, bedRowWorldZ(0))).toBe(0);
+    expect(bedCellFromPlayfield(edge, bedRowWorldZ(0))).toBe(1);
+  });
+
+  it('returns null off the bed', () => {
+    expect(bedCellFromPlayfield(bedColumnWorldX(0) - 1, bedRowWorldZ(0))).toBeNull();
+  });
+});
 
 describe('nearestEmptyBedCell', () => {
   const cellAt = (row: number, col: number) => row * 6 + col;

@@ -277,6 +277,21 @@ export interface SceneApi {
   createCameraViews(options?: { getBounds?: () => THREE.Vector3[] }): CameraViewController;
   setCameraMode(mode: 'pan' | 'orbit'): void;
   hitTest(clientX: number, clientY: number): number | null;
+  /**
+   * Read the canvas client rect once. Call at the start of a pointer frame, then
+   * {@link hitPlayfield} / {@link projectToScreenInto} reuse it (no further layout reads).
+   */
+  refreshPointerFrame(out: { left: number; top: number; width: number; height: number }): void;
+  /**
+   * Intersect the pointer with the playfield plane only (no mesh raycast).
+   * Requires {@link refreshPointerFrame} first. Writes world x/z into `out`.
+   */
+  hitPlayfield(clientX: number, clientY: number, out: { x: number; z: number }): boolean;
+  /**
+   * Project a world point to client pixels with the cached canvas rect.
+   * Requires {@link refreshPointerFrame} first. No allocations.
+   */
+  projectToScreenInto(x: number, y: number, z: number, out: Point): void;
   hitReserve(clientX: number, clientY: number): ReservePick | null;
   reserveScreen(pick: ReservePick): Point;
   cellScreen(index: number): Point;
