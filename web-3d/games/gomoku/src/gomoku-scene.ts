@@ -140,10 +140,9 @@ export async function createGomokuScene(
       createArenaGroundMaterial(ARENA_GLB_SURFACE_COLOR),
       arenaPlayfieldGroundSize(arenaSpan),
     );
-    // Cell tops rest on the shared playfield Y. The paving thickness hangs below that,
-    // and an opaque ground at the tops would lid over the joints. Sit the same white
-    // ground just under the tiles so the go grid reads.
-    ground.position.y = Math.min(arenaLayout.pavingFloorY, BOARD.PLAYFIELD_SURFACE_Y) - BOARD.LINE_LIFT;
+    // The authored ruins sit well below the cell paving. A ground at the paving
+    // floor lids them. Keep this plane under the lowest mesh.
+    ground.position.y = arenaLayout.arenaFloorY - 0.02;
     boardGroup.add(ground);
     scene.add(boardGroup, stonesGroup, ghostGroup, arenaLayout.root);
   }
@@ -379,7 +378,10 @@ export async function createGomokuScene(
       domElement: renderer.domElement,
       minZoom: limits.min,
       maxZoom: limits.max,
-      onChange: requestRender,
+      onChange: () => {
+        prerendered?.cover(camera);
+        requestRender();
+      },
     });
   }
 
@@ -415,6 +417,7 @@ export async function createGomokuScene(
     const aspect = syncViewport();
     if (plate) {
       fitPrerenderedCamera(camera, plate.plate.camera, aspect, plateZoom?.zoom() ?? 1);
+      prerendered?.cover(camera);
       syncShadowFrustum();
       render();
       return;

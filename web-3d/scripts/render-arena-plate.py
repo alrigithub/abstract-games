@@ -21,6 +21,7 @@ parser.add_argument('--glb', help='glTF arena (Gomoku go-map). Omit for the Boop
 parser.add_argument('--output', required=True)
 parser.add_argument('--source-copy')
 parser.add_argument('--resolution', type=int, default=1536)
+parser.add_argument('--samples', type=int, default=0, help='Cycles samples; 0 keeps the path default (Boop 24)')
 parser.add_argument('--contrast', type=float, default=1.06, help='Key-to-fill lighting ratio multiplier; 1 restores the original lighting')
 parser.add_argument('--allow-grid-offsets', action='store_true', help='Keep intentionally moved tile centers and record their reference offsets')
 args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
@@ -61,7 +62,30 @@ def render_gomoku_glb():
             obj.hide_render = True
             obj.hide_set(True)
 
-    stone = matte('Go pale stone', 'f4f4f2')
+    def is_union_operand(obj):
+        return obj.name.lower().startswith('union operand')
+
+    # Infinite white ground sits above rubble that extends below it, so it lids
+    # the arena. Union operands are coincident boolean copies; drawing both
+    # z-fights and blackens the shadows. The real meshes stay in the plate.
+    hidden_ground = []
+    hidden_unions = []
+    for obj in list(scene.objects):
+        if obj.type != 'MESH':
+            continue
+        if is_infinite_ground(obj):
+            hidden_ground.append(obj.name)
+        elif is_union_operand(obj):
+            hidden_unions.append(obj.name)
+        else:
+            continue
+        obj.hide_render = True
+        obj.hide_set(True)
+        obj.visible_camera = False
+        obj.visible_shadow = False
+
+    # Same matte stone and ground as the Boop plate.
+    stone = matte('Go pale stone', 'cbd0be')
     ground_mat = matte('Go field', 'd9dad3')
     meshes = [o for o in scene.objects if o.type == 'MESH' and not o.hide_render and not o.hide_get()]
     for obj in meshes:
@@ -69,16 +93,19 @@ def render_gomoku_glb():
         obj.data.materials.clear()
         obj.data.materials.append(stone)
 
-    floor_z = min(min((o.matrix_world @ Vector(corner)).z for corner in o.bound_box) for o in cells) - 0.004
-    bpy.ops.mesh.primitive_plane_add(size=400, location=(0, 0, floor_z))
+    def mesh_min_z(obj):
+        return min((obj.matrix_world @ Vector(corner)).z for corner in obj.bound_box)
+
+    floor_z = min(mesh_min_z(o) for o in meshes) - 0.05
+    bpy.ops.mesh.primitive_plane_add(size=800, location=(0, 0, floor_z))
     floor = bpy.context.active_object
     floor.name = 'Plate field'
     floor.data.materials.append(ground_mat)
 
-    # Boolean operands sit on the same towers. Hide every column from the plate and
-    # keep one live copy so the towers occlude pieces without z-fighting.
+    # Columns are baked into the plate and also exported live so they occlude stones.
+    # Hiding them from the camera left black sockets in the plinths.
     hidden_columns = [o for o in meshes if is_live_column(o)]
-    columns = [o for o in hidden_columns if not o.name.lower().startswith('union operand')]
+    columns = [o for o in hidden_columns if not is_union_operand(o)]
     assert columns, 'Expected corner columns to stay live, as Boop columns do'
     records = []
     max_grid_error = 0
@@ -105,7 +132,7 @@ def render_gomoku_glb():
     sun.rotation_euler = Vector((-1, -1, -math.sqrt(2))).to_track_quat('-Z', 'Y').to_euler()
     scene.world = bpy.data.worlds.new('Soft studio')
     scene.world.use_nodes = True
-    scene.world.node_tree.nodes['Background'].inputs['Color'].default_value = (*srgb('d9dad3'), 1)
+    scene.world.node_tree.nodes['Background'].inputs['Color'].default_value = (.8, .8, .8, 1)
     scene.world.node_tree.nodes['Background'].inputs['Strength'].default_value = .5 / math.sqrt(args.contrast)
 
     distance, elevation = 22, math.radians(35)
@@ -117,45 +144,46 @@ def render_gomoku_glb():
     camera.rotation_euler = (-camera.location).to_track_quat('-Z', 'Y').to_euler()
     camera_data.type = 'ORTHO'
     camera_data.clip_start = 0.1
-    camera_data.clip_end = 200
+    camera_data.clip_end = 800
     scene.camera = camera
     bpy.context.view_layer.update()
     view = camera.matrix_world.inverted()
     xs, ys = [], []
-    for obj in cells:
+    # Frame every visible mesh, including columns, so ruins and towers are not cropped.
+    for obj in meshes:
         for corner in obj.bound_box:
             point = view @ obj.matrix_world @ Vector(corner)
             xs.append(point.x)
             ys.append(point.y)
-    # Extra room so the live corner towers stay inside the locked frame.
-    frame_w = (max(xs) - min(xs)) * 1.42
-    # Tall live columns need more vertical frame than the paving alone.
-    frame_h = (max(ys) - min(ys)) * 2.15
-    # Cover a 16:9 contain-fit of that frame, matching how the game letterboxes.
+    pad = 1.06
+    frame_w = (max(xs) - min(xs)) * pad
+    frame_h = (max(ys) - min(ys)) * pad
+    # Square plate that contains a 16:9 view of that frame, with a little bleed.
     half_h = max(frame_h / 2, frame_w / (2 * 16 / 9))
-    plate = max(half_h * 2 * 16 / 9, half_h * 2) * 1.04
+    plate = max(half_h * 2 * 16 / 9, half_h * 2) * 1.08
     camera_data.ortho_scale = plate
-    # Fill the sensor. A finite ground plane misses rays that start below it.
-    bpy.ops.mesh.primitive_plane_add(size=plate * 1.08)
+    # A camera-facing card far behind the arena catches ortho rays that start
+    # below the ground. It is farther than the playfield, so it never lids geometry.
+    bpy.ops.mesh.primitive_plane_add(size=plate * 2)
     backdrop = bpy.context.active_object
     backdrop.name = 'Plate backdrop'
     backdrop.parent = camera
-    backdrop.location = (0, 0, -48)
-    backdrop.rotation_euler = (math.pi, 0, 0)
-    backdrop.scale = (3, 3, 3)
+    backdrop.location = (0, 0, -500)
+    backdrop.rotation_euler = (0, 0, 0)
     emit = bpy.data.materials.new('Plate backdrop')
     emit.use_nodes = True
     nodes = emit.node_tree.nodes
     nodes.clear()
     out = nodes.new('ShaderNodeOutputMaterial')
     emission = nodes.new('ShaderNodeEmission')
-    emission.inputs['Color'].default_value = (*srgb('d9dad3'), 1)
+    # Matches the lit ground in this sun (sRGB ~ #c8c7bd), so a missed ray has no seam.
+    emission.inputs['Color'].default_value = (*srgb('c8c7bd'), 1)
     emission.inputs['Strength'].default_value = 1
     emit.node_tree.links.new(emission.outputs['Emission'], out.inputs['Surface'])
     backdrop.data.materials.append(emit)
 
     scene.render.engine = 'CYCLES'
-    scene.cycles.samples = 48
+    scene.cycles.samples = args.samples or 128
     scene.cycles.use_denoising = bool(getattr(getattr(bpy.app, 'build_options', None), 'openimagedenoise', False))
     scene.render.resolution_x = scene.render.resolution_y = args.resolution
     scene.render.resolution_percentage = 100
@@ -174,8 +202,6 @@ def render_gomoku_glb():
         filepath=os.path.join(args.output, 'gomoku-columns.glb'),
         export_format='GLB', use_selection=True, export_apply=True,
     )
-    for obj in hidden_columns:
-        obj.visible_camera = False
     report = {
         'lightingContrast': args.contrast,
         'referenceCellCount': len(cells),
@@ -191,15 +217,16 @@ def render_gomoku_glb():
         },
         'liveColumns': [obj.name for obj in columns],
         'staticMeshCount': len(meshes) - len(columns),
+        'hidden': {
+            'infiniteGround': hidden_ground,
+            'unionOperandCount': len(hidden_unions),
+            'reason': 'Infinite ground lids rubble that extends below it. Union operands are coincident boolean copies of the real meshes, so rendering both z-fights and blackens shadows. Columns stay in the plate and are also exported live for occlusion.',
+        },
         'note': 'Blender +Z becomes game +Y; Blender +Y becomes game -Z. go-map.glb bytes are not modified.',
     }
     with open(os.path.join(args.output, 'gomoku-arena.json'), 'w') as handle:
         json.dump(report, handle, indent=2)
-    for obj in hidden_columns:
-        obj.visible_camera = True
     bpy.ops.wm.save_as_mainfile(filepath=args.source_copy)
-    for obj in hidden_columns:
-        obj.visible_camera = False
     scene.render.filepath = os.path.join(args.output, 'gomoku-light.png')
     bpy.ops.render.render(write_still=True)
 
