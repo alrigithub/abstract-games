@@ -9,13 +9,17 @@ parser.add_argument('--stem', default='boop-light', help='PNG/WebP stem, e.g. bo
 parser.add_argument('--manifest', default='boop-arena.json')
 parser.add_argument('--output-directory', type=Path)
 parser.add_argument('--manifest-output', type=Path)
+parser.add_argument('--quality', type=int, default=94)
+parser.add_argument('--max-edge', type=int, default=0, help='Downsample the plate so its long edge is at most this many pixels')
 args = parser.parse_args()
 output = args.output_directory or args.directory
 output.mkdir(parents=True, exist_ok=True)
 source = args.directory / f'{args.stem}.png'
 plate = output / f'{args.stem}.webp'
 with Image.open(source) as image:
-    image.save(plate, quality=94, method=6)
+    if args.max_edge and max(image.size) > args.max_edge:
+        image = image.resize((args.max_edge, args.max_edge), Image.Resampling.LANCZOS)
+    image.save(plate, quality=args.quality, method=6)
     width, height = image.size
 print(f'{plate.name}: {plate.stat().st_size:,} bytes ({width}×{height})')
 manifest = args.directory / args.manifest

@@ -24,7 +24,7 @@ with tempfile.TemporaryDirectory(prefix='render-', dir=work) as temporary:
         '--python-exit-code', '1', '--python', str(root / 'scripts/render-arena-plate.py'), '--',
         '--glb', str(glb), '--output', str(stage),
         '--source-copy', str(work / 'gomoku-prerender-aligned.blend'),
-        '--resolution', '2048', '--contrast', '1.06',
+        '--resolution', '4096', '--samples', '128', '--contrast', '1.06',
     ], check=True)
     for name in ('gomoku-light.png', 'gomoku-columns.glb', 'gomoku-arena.json'):
         if not (stage / name).is_file():
@@ -33,6 +33,7 @@ with tempfile.TemporaryDirectory(prefix='render-', dir=work) as temporary:
         sys.executable, str(root / 'scripts/prepare-arena-plates.py'), str(stage),
         '--stem', 'gomoku-light', '--manifest', 'gomoku-arena.json',
         '--output-directory', str(runtime), '--manifest-output', str(manifest),
+        '--quality', '85',
     ], check=True)
     shutil.copy2(stage / 'gomoku-columns.glb', runtime / 'gomoku-columns.glb')
 print(f'Updated the Gomoku plate, columns, and manifest. go-map.glb was not modified.')

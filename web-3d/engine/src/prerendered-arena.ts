@@ -77,6 +77,11 @@ export function createPrerenderedArena(scene: THREE.Scene, spec: PrerenderedAren
   plate.renderOrder = -10;
   tagExcludeFromBounds(plate);
   scene.add(plate);
+  const map = material.map;
+  if (map) {
+    map.wrapS = THREE.ClampToEdgeWrapping;
+    map.wrapT = THREE.ClampToEdgeWrapping;
+  }
   const image = material.map?.image as HTMLImageElement | undefined;
   // Use the plate's own corner for seamless letterboxing, including Blender lighting.
   const canvas = document.createElement('canvas');
@@ -87,7 +92,22 @@ export function createPrerenderedArena(scene: THREE.Scene, spec: PrerenderedAren
     const pixel = ctx.getImageData(0, 0, 1, 1).data;
     scene.background = new THREE.Color().setRGB(pixel[0]! / 255, pixel[1]! / 255, pixel[2]! / 255, THREE.SRGBColorSpace);
   }
-  return { dispose() { scene.remove(plate); geometry.dispose(); material.dispose(); spec.light.dispose(); } };
+  function cover(camera: THREE.OrthographicCamera) {
+    const zoom = camera.zoom || 1;
+    const visibleW = (camera.right - camera.left) / zoom;
+    const visibleH = (camera.top - camera.bottom) / zoom;
+    const coverW = Math.max(spec.camera.width, visibleW * 1.02);
+    const coverH = Math.max(spec.camera.height, visibleH * 1.02);
+    plate.scale.set(coverW / spec.camera.width, coverH / spec.camera.height, 1);
+    if (!map) return;
+    map.repeat.set(spec.camera.width / coverW, spec.camera.height / coverH);
+    map.offset.set((1 - map.repeat.x) / 2, (1 - map.repeat.y) / 2);
+  }
+
+  return {
+    cover,
+    dispose() { scene.remove(plate); geometry.dispose(); material.dispose(); spec.light.dispose(); },
+  };
 }
 
 /** Collapse authored column meshes that do not share UV layouts. Positions stay put. */
