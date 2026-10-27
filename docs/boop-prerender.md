@@ -36,10 +36,12 @@ there is no zero-height floor covering pieces placed inside the recess.
 
 The image spans an 18×18 world-unit square. A centered 14×10 region frames the
 game; resizing expands the orthographic viewport to contain this region without
-stretching. Mouse, touch, zoom, and camera-preset controls cannot move this camera.
-Gameplay outcomes and new games do not reframe it.
+stretching. Orbit, pan, and camera presets stay locked. The mouse wheel, trackpad
+pinch, and two-finger pinch zoom that view (about 0.85× to 1.3× on the 1536px
+plate) with eased orthographic zoom, so the plate, pieces, ghosts, shadows, and
+picking stay registered. Gameplay outcomes and new games do not reframe it.
 
-Light and dark plates use Blender's Standard output. The shared game pipeline
+The light plate uses Blender's Standard output. The shared game pipeline
 applies its final AgX/sRGB conversion once to the image and live objects.
 Do not bake AgX into these plates, or the game will tone-map them twice.
 The plate's corner color supplies the surrounding canvas backdrop.
@@ -61,8 +63,8 @@ npm run export:boop
 If Blender is not discovered automatically, pass `--blender 'PATH/blender.exe'`.
 Paths and contrast are remembered in ignored `.boop-export.local.json`. Raw
 images and an inspectable aligned Blender copy are kept in ignored `.boop-export/`.
-The command renders both themes in a fresh staging folder, then updates both
-WebPs, live columns and the placement manifest. It never overwrites the source
+The command renders the light plate in a fresh staging folder, then updates the
+WebP, live columns and the placement manifest. It never overwrites the source
 arena or grid. Hidden Boolean cutters remain excluded. It does not commit, push,
 or deploy; save Blender before running it.
 
@@ -73,8 +75,8 @@ and material colors. `--resolution` (1536) and `--threads` (6) are optional.
 For the individual rendering/conversion steps:
 
 ```powershell
-& 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe' --background --factory-startup --threads 6 --python scripts/render-boop-arena.py -- --arena 'PATH/ari+6X6.blend' --grid 'PATH/boop_grid.blend' --output games/boop/public/prerender --source-copy 'PATH/boop-prerender-aligned.blend'
-python scripts/prepare-boop-plates.py games/boop/public/prerender
+& 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe' --background --factory-startup --threads 6 --python scripts/render-arena-plate.py -- --arena 'PATH/ari+6X6.blend' --grid 'PATH/boop_grid.blend' --output games/boop/public/prerender --source-copy 'PATH/boop-prerender-aligned.blend'
+python scripts/prepare-arena-plates.py games/boop/public/prerender
 & 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe' --background --factory-startup --python scripts/build-boop-shadow-proxies.py -- --pieces lib/pieces --output games/boop/public/prerender
 ```
 

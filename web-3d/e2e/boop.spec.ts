@@ -29,8 +29,11 @@ test('Boop pre-render stays registered when resized and ignores camera gestures'
   await page.mouse.down({ button: 'right' });
   await page.mouse.move(before.x + 80, before.y + 40);
   await page.mouse.up({ button: 'right' });
-  await page.mouse.wheel(0, 250);
   expect(await page.evaluate(() => window.__boopScene!.cellScreen(0))).toEqual(before);
+  await page.mouse.wheel(0, -400);
+  await page.waitForTimeout(500);
+  const zoomed = await page.evaluate(() => window.__boopScene!.cellScreen(0));
+  expect(zoomed).not.toEqual(before);
   for (const viewport of [{ width: 1440, height: 810 }, { width: 600, height: 900 }]) {
     await page.setViewportSize(viewport);
     await expect.poll(() => page.evaluate(() => {

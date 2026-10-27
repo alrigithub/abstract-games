@@ -31,7 +31,15 @@ import { clayEnvMaterial, clayMaterialForPlayer } from './clay-materials';
 import { applyBoardEnvironment, boardDrawingBufferSize, createBoardWebGLRenderer, measureBoardFrameMs } from './board-renderer';
 import { BoardAssistLayer, type AssistGhostPieceRenderer } from './board-assist';
 import { WIN_ACCENT } from './theme';
-import { createPrerenderedArena, fitPrerenderedCamera, type PrerenderedArena } from './prerendered-arena';
+import {
+  attachLockedPlateZoom,
+  createPrerenderedArena,
+  fitPrerenderedCamera,
+  lockedPlateZoomLimits,
+  plateTextureEdge,
+  type LockedPlateZoom,
+  type PrerenderedArena,
+} from './prerendered-arena';
 
 const FLIP_HALO_NAME = 'flip-preview-halo';
 import {
@@ -704,9 +712,22 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
   controls.touches.ONE = THREE.TOUCH.PAN;
   controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
-  if (prerendered) {
+  let plateZoom: LockedPlateZoom | null = null;
+  if (prerendered && options.prerenderedArena) {
     controls.enableRotate = controls.enablePan = controls.enableZoom = false;
     controls.enabled = false;
+    const limits = lockedPlateZoomLimits(plateTextureEdge(options.prerenderedArena.light), options.prerenderedArena.camera);
+    plateZoom = attachLockedPlateZoom({
+      camera,
+      domElement: renderer.domElement,
+      minZoom: limits.min,
+      maxZoom: limits.max,
+      onChange: () => {
+        syncBoardGridLines();
+        requestRender();
+        container.dispatchEvent(new CustomEvent('camera-change'));
+      },
+    });
   }
   function syncBoardGridLines() {
     applyBoardGridLineScreenScale(board, boardGridLineScreenScale(camera, viewportHeight));
@@ -768,7 +789,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
   function fit(reframe = false) {
     const aspect = syncRendererSize();
     if (options.prerenderedArena) {
-      fitPrerenderedCamera(camera, options.prerenderedArena.camera, aspect);
+      fitPrerenderedCamera(camera, options.prerenderedArena.camera, aspect, plateZoom?.zoom() ?? 1);
       syncBoardGridLines();
       syncShadowFrustum();
       requestRender();
@@ -1408,6 +1429,7 @@ export async function createBoardScene(container: HTMLElement, options: BoardSce
       flipHaloMaterial.dispose();
       playfieldGroundMaterial?.dispose();
       backdropShadowMaterial?.dispose();
+      plateZoom?.dispose();
       prerendered?.dispose();
       renderer.dispose();
       renderer.domElement.remove();

@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory(prefix='render-', dir=work) as temporary:
     stage = Path(temporary)
     subprocess.run([
         args.blender, '--background', '--factory-startup', '--threads', str(args.threads),
-        '--python-exit-code', '1', '--python', str(root / 'scripts/render-boop-arena.py'), '--',
+        '--python-exit-code', '1', '--python', str(root / 'scripts/render-arena-plate.py'), '--',
         '--arena', str(args.arena), '--grid', str(args.grid), '--output', str(stage),
         '--source-copy', str(work / 'boop-prerender-aligned.blend'),
         '--resolution', str(args.resolution), '--contrast', str(args.contrast), '--allow-grid-offsets',
@@ -50,7 +50,7 @@ with tempfile.TemporaryDirectory(prefix='render-', dir=work) as temporary:
         if not (stage / name).is_file():
             raise RuntimeError(f'Blender did not produce {name}; runtime assets were not changed')
     subprocess.run([
-        sys.executable, str(root / 'scripts/prepare-boop-plates.py'), str(stage),
+        sys.executable, str(root / 'scripts/prepare-arena-plates.py'), str(stage),
         '--output-directory', str(runtime), '--manifest-output', str(manifest),
     ], check=True)
     shutil.copy2(stage / 'boop-columns.glb', runtime / 'boop-columns.glb')

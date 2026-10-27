@@ -10,13 +10,19 @@ import {
   applyBoardLighting,
   applyPlayfieldBackdrop,
   arenaPlayfieldGroundSize,
+  attachLockedPlateZoom,
   boardDrawingBufferSize,
   createArenaGroundMaterial,
   createBoardRenderPipeline,
   createBoardWebGLRenderer,
   createCameraViewController,
   createPlayfieldGroundMesh,
+  createPrerenderTileProxies,
+  createPrerenderedArena,
   fitPlayfieldShadowCatcher,
+  fitPrerenderedCamera,
+  lockedPlateZoomLimits,
+  plateTextureEdge,
   measureBoardFrameMs,
   syncSceneShadowCatcher,
   tagGhostForShadows,
@@ -31,6 +37,7 @@ import {
 } from '@abstract/three-engine';
 import { loadGomokuStoneAssets, type GomokuStoneAssets } from './gomoku-piece-models';
 import { loadGomokuArenaLayout, type GomokuArenaLayout } from './gomoku-arena';
+import { loadGomokuPrerender, type GomokuPlateCell } from './gomoku-prerender';
 import { GomokuWinGlowLayer } from './gomoku-win-glow';
 
 export type ScenePlayer = 'A' | 'B';
@@ -45,6 +52,8 @@ export interface StoneRecord {
 export interface GomokuSceneOptions {
   stoneAssets?: GomokuStoneAssets;
   arenaLayout?: GomokuArenaLayout;
+  /** Baked plate. Omit to load it. Pass null for the live `?arena=3d` board. */
+  prerender?: Awaited<ReturnType<typeof loadGomokuPrerender>> | null;
   onCellClick?: (row: number, col: number) => void;
   canInteract?: () => boolean;
   hoverPlayer?: () => ScenePlayer | null;
@@ -71,15 +80,20 @@ export async function createGomokuScene(
   const materials = gomokuThemeMaterials();
   let inputEnabled = true;
 
-  const [stoneAssets, arenaLayout] = await Promise.all([
+  const platePromise = options.prerender === undefined ? loadGomokuPrerender() : Promise.resolve(options.prerender);
+  const [stoneAssets, plate] = await Promise.all([
     options.stoneAssets ?? loadGomokuStoneAssets(materials),
-    options.arenaLayout ?? loadGomokuArenaLayout(),
+    platePromise,
   ]);
+  const arenaLayout = plate ? null : (options.arenaLayout ?? await loadGomokuArenaLayout());
+  const plateCells = new Map<string, GomokuPlateCell>();
+  for (const cell of plate?.cells ?? []) plateCells.set(`${cell.row},${cell.col}`, cell);
 
   const size = GOMOKU_DIMS.GRID;
   const dropLift = stoneAssets.stoneHeight * 2;
   const scene = new THREE.Scene();
-  applyPlayfieldBackdrop(scene, ARENA_GLB_SURFACE_COLOR);
+  const prerendered = plate ? createPrerenderedArena(scene, plate.plate) : null;
+  if (!plate) applyPlayfieldBackdrop(scene, ARENA_GLB_SURFACE_COLOR);
 
   const renderer = createBoardWebGLRenderer();
   const disposeEnvironment = applyBoardEnvironment(scene, renderer);
@@ -89,7 +103,10 @@ export async function createGomokuScene(
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, CAMERA.near, CAMERA.far);
   camera.position.set(...CAMERA.position);
   camera.lookAt(0, 0, 0);
-  const renderPipeline = createBoardRenderPipeline(renderer, scene, camera);
+  const renderPipeline = createBoardRenderPipeline(renderer, scene, camera, {
+    aoEnabled: plate ? false : undefined,
+    postprocessWithoutAo: !!plate,
+  });
   const orbitTarget = new THREE.Vector3(0, 0, 0);
 
   const boardGroup = new THREE.Group();
@@ -97,20 +114,39 @@ export async function createGomokuScene(
   const ghostGroup = new THREE.Group();
   const winGlow = new GomokuWinGlowLayer();
   winGlow.attach(scene);
-  const arenaSpan = (() => {
-    const frame = arenaLayout.frameBounds();
-    return Math.max(frame.max.x - frame.min.x, frame.max.z - frame.min.z, 1);
-  })();
-  const ground = createPlayfieldGroundMesh(
-    createArenaGroundMaterial(ARENA_GLB_SURFACE_COLOR),
-    arenaPlayfieldGroundSize(arenaSpan),
-  );
-  // Cell tops rest on the shared playfield Y. The paving thickness hangs below that,
-  // and an opaque ground at the tops would lid over the joints. Sit the same white
-  // ground just under the tiles so the go grid reads.
-  ground.position.y = Math.min(arenaLayout.pavingFloorY, BOARD.PLAYFIELD_SURFACE_Y) - BOARD.LINE_LIFT;
-  boardGroup.add(ground);
-  scene.add(boardGroup, stonesGroup, ghostGroup, arenaLayout.root);
+  if (plate && arenaLayout === null) {
+    const span = plate.plate.camera.width;
+    const hidden = new THREE.MeshBasicMaterial({
+      color: ARENA_GLB_SURFACE_COLOR,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    hidden.colorWrite = false;
+    const ground = createPlayfieldGroundMesh(hidden, arenaPlayfieldGroundSize(span));
+    const shadow = createPlayfieldGroundMesh(
+      new THREE.ShadowMaterial({ opacity: 0.22, depthWrite: false }),
+      arenaPlayfieldGroundSize(span),
+    );
+    shadow.position.y = 0.001;
+    const proxies = createPrerenderTileProxies(plate.cells, 0.92);
+    boardGroup.add(ground, shadow, proxies.depth, proxies.shadow, plate.columns);
+    scene.add(boardGroup, stonesGroup, ghostGroup);
+  } else if (arenaLayout) {
+    const arenaSpan = (() => {
+      const frame = arenaLayout.frameBounds();
+      return Math.max(frame.max.x - frame.min.x, frame.max.z - frame.min.z, 1);
+    })();
+    const ground = createPlayfieldGroundMesh(
+      createArenaGroundMaterial(ARENA_GLB_SURFACE_COLOR),
+      arenaPlayfieldGroundSize(arenaSpan),
+    );
+    // Cell tops rest on the shared playfield Y. The paving thickness hangs below that,
+    // and an opaque ground at the tops would lid over the joints. Sit the same white
+    // ground just under the tiles so the go grid reads.
+    ground.position.y = Math.min(arenaLayout.pavingFloorY, BOARD.PLAYFIELD_SURFACE_Y) - BOARD.LINE_LIFT;
+    boardGroup.add(ground);
+    scene.add(boardGroup, stonesGroup, ghostGroup, arenaLayout.root);
+  }
   tagPlayfieldForShadows(boardGroup);
 
   const stoneMeshes = new Map<string, THREE.Object3D>();
@@ -129,12 +165,23 @@ export async function createGomokuScene(
   let viewportW = 1;
   let viewportH = 1;
 
+  function cellAt(row: number, col: number): { x: number; y: number; z: number } {
+    const baked = plateCells.get(`${row},${col}`);
+    if (baked) return baked;
+    const point = gomokuCellWorld(size, row, col);
+    return { x: point.x, y: arenaLayout?.surfaceY(row, col) ?? BOARD.PLAYFIELD_SURFACE_Y, z: point.z };
+  }
+
   function stoneBaseY(row: number, col: number): number {
-    return arenaLayout.surfaceY(row, col);
+    return cellAt(row, col).y;
   }
 
   function syncShadowFrustum() {
-    const bounds = arenaLayout.frameBounds();
+    const bounds = arenaLayout?.frameBounds() ?? new THREE.Box3();
+    if (!arenaLayout && plate) {
+      bounds.setFromObject(plate.columns);
+      for (const cell of plate.cells) bounds.expandByPoint(new THREE.Vector3(cell.x, cell.y, cell.z));
+    }
     bounds.min.y = BOARD.PLAYFIELD_SURFACE_Y;
     bounds.max.y = Math.max(bounds.max.y, stoneBaseY(7, 7) + stoneAssets.stoneHeight);
     bounds.expandByScalar(0.2);
@@ -151,7 +198,7 @@ export async function createGomokuScene(
 
   function upsertStone(record: StoneRecord, y = stoneBaseY(record.row, record.col)): THREE.Object3D {
     let mesh = stoneMeshes.get(record.id);
-    const p = gomokuCellWorld(size, record.row, record.col);
+    const p = cellAt(record.row, record.col);
     const yaw = stoneAssets.yawForId(record.id);
     if (!mesh) {
       mesh = stoneAssets.createVisual(record.player);
@@ -175,15 +222,40 @@ export async function createGomokuScene(
     }
     winGlow.setWorldCells(
       cells.map(c => {
-        const p = gomokuCellWorld(size, c.row, c.col);
-        return { x: p.x, z: p.z, y: stoneBaseY(c.row, c.col) + HALO_SURFACE_OFFSET };
+        const p = cellAt(c.row, c.col);
+        return { x: p.x, z: p.z, y: p.y + HALO_SURFACE_OFFSET };
       }),
     );
+  }
+
+  const _projected = new THREE.Vector3();
+  function projectCell(cell: { x: number; y: number; z: number }, rect: DOMRect) {
+    _projected.set(cell.x, cell.y, cell.z).project(camera);
+    return {
+      x: (_projected.x * 0.5 + 0.5) * rect.width + rect.left,
+      y: (-_projected.y * 0.5 + 0.5) * rect.height + rect.top,
+    };
   }
 
   function pickCell(clientX: number, clientY: number): { row: number; col: number } | null {
     const rect = renderer.domElement.getBoundingClientRect();
     if (!rect.width || !rect.height) return null;
+    if (plate) {
+      const origin = projectCell(cellAt(0, 0), rect);
+      const neighbor = projectCell(cellAt(0, 1), rect);
+      const limit = Math.hypot(origin.x - neighbor.x, origin.y - neighbor.y) * 0.49;
+      let best: { row: number; col: number } | null = null;
+      let bestDistance = limit;
+      for (const cell of plate.cells) {
+        const point = projectCell(cell, rect);
+        const distance = Math.hypot(point.x - clientX, point.y - clientY);
+        if (distance <= bestDistance) {
+          bestDistance = distance;
+          best = cell;
+        }
+      }
+      return best;
+    }
     pointer.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     raycaster.setFromCamera(pointer, camera);
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -239,8 +311,8 @@ export async function createGomokuScene(
     if (row === null || col === null || !player) return;
     ghostMesh = stoneAssets.createGhostVisual(player);
     tagGhostForShadows(ghostMesh);
-    const p = gomokuCellWorld(size, row, col);
-    ghostMesh.position.set(p.x, stoneBaseY(row, col), p.z);
+    const p = cellAt(row, col);
+    ghostMesh.position.set(p.x, p.y, p.z);
     ghostGroup.add(ghostMesh);
     requestRender();
   }
@@ -259,12 +331,17 @@ export async function createGomokuScene(
 
   function onPointerDown(event: PointerEvent) {
     if (event.button !== 0 || !inputEnabled || !options.canInteract?.()) return;
+    if (renderer.domElement.dataset.cameraGesture === 'true') return;
     const cell = pickCell(event.clientX, event.clientY);
     if (cell) pendingTap = { ...cell, x: event.clientX, y: event.clientY };
   }
 
   function onPointerUp(event: PointerEvent) {
     if (!pendingTap || event.button !== 0) return;
+    if (renderer.domElement.dataset.cameraGesture === 'true') {
+      pendingTap = null;
+      return;
+    }
     const tap = pendingTap;
     pendingTap = null;
     if (Math.hypot(event.clientX - tap.x, event.clientY - tap.y) > 8) return;
@@ -290,13 +367,28 @@ export async function createGomokuScene(
   controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
   controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
   controls.addEventListener('change', () => requestRender());
+  let plateZoom: ReturnType<typeof attachLockedPlateZoom> | null = null;
+  if (plate) {
+    controls.enableRotate = false;
+    controls.enablePan = false;
+    controls.enableZoom = false;
+    controls.enabled = false;
+    const limits = lockedPlateZoomLimits(plateTextureEdge(plate.plate.light), plate.plate.camera);
+    plateZoom = attachLockedPlateZoom({
+      camera,
+      domElement: renderer.domElement,
+      minZoom: limits.min,
+      maxZoom: limits.max,
+      onChange: requestRender,
+    });
+  }
 
   let cameraViewsRef: CameraViewController | null = null;
   let bufferW = 0;
   let bufferH = 0;
 
   function gomokuFramePoints(): THREE.Vector3[] {
-    const bounds = arenaLayout.frameBounds();
+    const bounds = arenaLayout!.frameBounds();
     const yTop = bounds.max.y + stoneAssets.stoneHeight * 0.35;
     return [
       new THREE.Vector3(bounds.min.x, bounds.min.y, bounds.min.z),
@@ -310,7 +402,7 @@ export async function createGomokuScene(
     const bounds = container.getBoundingClientRect();
     viewportW = Math.max(1, Math.round(bounds.width));
     viewportH = Math.max(1, Math.round(bounds.height));
-    const buffer = boardDrawingBufferSize(viewportW, viewportH);
+    const buffer = boardDrawingBufferSize(viewportW, viewportH, { prerendered: !!plate });
     if (buffer.width !== bufferW || buffer.height !== bufferH) {
       bufferW = buffer.width;
       bufferH = buffer.height;
@@ -320,13 +412,18 @@ export async function createGomokuScene(
   }
 
   function fit() {
-    syncViewport();
+    const aspect = syncViewport();
+    if (plate) {
+      fitPrerenderedCamera(camera, plate.plate.camera, aspect, plateZoom?.zoom() ?? 1);
+      syncShadowFrustum();
+      render();
+      return;
+    }
     if (cameraViewsRef) {
       cameraViewsRef.refit();
       render();
       return;
     }
-    const aspect = viewportW / viewportH;
     const points = gomokuFramePoints();
     let minX = Infinity;
     let maxX = -Infinity;
@@ -413,6 +510,8 @@ export async function createGomokuScene(
       return cameraViewsRef;
     },
     dispose() {
+      plateZoom?.dispose();
+      prerendered?.dispose();
       cameraViewsRef?.dispose();
       disposed = true;
       stopPulseLoop();
